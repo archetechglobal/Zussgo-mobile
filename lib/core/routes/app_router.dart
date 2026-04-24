@@ -45,8 +45,6 @@ final goRouter = GoRouter(
       name: 'home',
       builder: (context, state) => const HomeScreen(),
     ),
-
-    // ── THIS IS THE MISSING ROUTE ──────────────────────────────────
     GoRoute(
       path: '/match',
       name: 'match',

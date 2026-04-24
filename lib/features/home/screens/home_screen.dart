@@ -1,7 +1,10 @@
+// lib/features/home/screens/home_screen.dart
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/providers/nav_provider.dart';
 import '../data/home_mock_data.dart';
 import '../providers/home_provider.dart';
 import '../widgets/hero_match_dots.dart';
@@ -24,6 +27,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   void initState() {
     super.initState();
     _pageController = PageController(viewportFraction: 1.0);
+    // Always reset bottom nav to Home (index 0) when this screen is active
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(bottomNavIndexProvider.notifier).setIndex(0);
+    });
   }
 
   @override
@@ -99,13 +106,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   ),
                   const SizedBox(height: 20),
 
-                  // "See all →" navigates to Match > Discover tab
+                  // "See all →" → switches to Match tab (Discover)
                   _TravelersSeeAllRow(
                     destination: HomeMockData.matches.first.destination,
+                    onTap: () {
+                      ref.read(bottomNavIndexProvider.notifier).setIndex(2);
+                      context.go('/match', extra: 'discover');
+                    },
                   ),
                   const SizedBox(height: 16),
 
-                  // Trays navigate to Match > Requests tab
+                  // Trays → Match tab (Requests)
                   ...HomeMockData.trays.asMap().entries.map(
                         (entry) => Padding(
                       padding: const EdgeInsets.only(bottom: 12),
@@ -113,7 +124,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         title: entry.value.title,
                         subtitle: entry.value.subtitle,
                         badgeCount: entry.key == 1 ? 2 : null,
-                        onTap: () => context.go('/match', extra: 'requests'),
+                        onTap: () {
+                          ref.read(bottomNavIndexProvider.notifier).setIndex(2);
+                          context.go('/match', extra: 'requests');
+                        },
                       ),
                     ),
                   ),
@@ -137,7 +151,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
 class _TravelersSeeAllRow extends StatelessWidget {
   final String destination;
-  const _TravelersSeeAllRow({required this.destination});
+  final VoidCallback onTap;
+  const _TravelersSeeAllRow({required this.destination, required this.onTap});
 
   static const text  = Color(0xFFEAF7F3);
   static const teal2 = Color(0xFF58DAD0);
@@ -145,8 +160,7 @@ class _TravelersSeeAllRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      // "See all →" → Match Discover tab
-      onTap: () => context.go('/match', extra: 'discover'),
+      onTap: onTap,
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: const [

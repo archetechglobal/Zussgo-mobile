@@ -2,19 +2,22 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-class MatchScreen extends StatefulWidget {
-  /// 'discover' | 'requests'  — passed via GoRouter extra
+import '../../../core/providers/nav_provider.dart';
+import '../../home/widgets/home_bottom_nav.dart';
+
+class MatchScreen extends ConsumerStatefulWidget {
   final String initialTab;
   const MatchScreen({super.key, this.initialTab = 'discover'});
 
   @override
-  State<MatchScreen> createState() => _MatchScreenState();
+  ConsumerState<MatchScreen> createState() => _MatchScreenState();
 }
 
-class _MatchScreenState extends State<MatchScreen> {
-  late int _tab; // 0 = Discover, 1 = Requests
+class _MatchScreenState extends ConsumerState<MatchScreen> {
+  late int _tab;
   int _activeChip = 0;
 
   // ── Palette ────────────────────────────────────────────────────────────────
@@ -74,12 +77,15 @@ class _MatchScreenState extends State<MatchScreen> {
   @override
   void initState() {
     super.initState();
-    // Honour the tab passed from the router ('discover' → 0, 'requests' → 1)
     _tab = widget.initialTab == 'requests' ? 1 : 0;
     SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
       statusBarIconBrightness: Brightness.light,
     ));
+    // Sync bottom nav highlight to Match (index 2)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(bottomNavIndexProvider.notifier).setIndex(2);
+    });
   }
 
   // ── Build ──────────────────────────────────────────────────────────────────
@@ -87,122 +93,148 @@ class _MatchScreenState extends State<MatchScreen> {
   Widget build(BuildContext context) {
     final topInset    = MediaQuery.of(context).padding.top;
     final bottomInset = MediaQuery.of(context).padding.bottom;
+    // Same nav bar height as HomeScreen
+    final bottomNavHeight = 88.0 + bottomInset;
 
     return Scaffold(
       backgroundColor: bg,
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: RadialGradient(
-            center: Alignment(-0.7, -1),
-            radius: 1.2,
-            colors: [Color(0x281EC9B8), Colors.transparent],
+      extendBody: true,
+      body: Stack(
+        children: [
+          // ── Background gradient ────────────────────────────────────────────
+          Positioned.fill(
+            child: Container(
+              decoration: const BoxDecoration(
+                gradient: RadialGradient(
+                  center: Alignment(-0.7, -1),
+                  radius: 1.2,
+                  colors: [Color(0x281EC9B8), Colors.transparent],
+                ),
+              ),
+            ),
           ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SizedBox(height: topInset + 10),
 
-            // ── Title row ──────────────────────────────────────────────────
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
-                children: [
-                  // Back → Home
-                  GestureDetector(
-                    onTap: () => context.go('/home'),
-                    child: Container(
-                      width: 36, height: 36,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(.05),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.white.withOpacity(.08)),
+          // ── Main content ──────────────────────────────────────────────────
+          Positioned(
+            top: 0, left: 0, right: 0,
+            bottom: bottomNavHeight,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(height: topInset + 10),
+
+                // Title row
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Row(
+                    children: [
+                      // Back → Home
+                      GestureDetector(
+                        onTap: () {
+                          ref.read(bottomNavIndexProvider.notifier).setIndex(0);
+                          context.go('/home');
+                        },
+                        child: Container(
+                          width: 36, height: 36,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(.05),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.white.withOpacity(.08)),
+                          ),
+                          child: const Icon(
+                            Icons.arrow_back_ios_new_rounded,
+                            color: teal2, size: 15,
+                          ),
+                        ),
                       ),
-                      child: const Icon(
-                        Icons.arrow_back_ios_new_rounded,
-                        color: teal2, size: 15,
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Text(
+                          'Match',
+                          style: TextStyle(
+                            color: text,
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.03,
+                          ),
+                        ),
                       ),
-                    ),
+                      // Filter
+                      Container(
+                        width: 36, height: 36,
+                        decoration: BoxDecoration(
+                          color: teal.withOpacity(.15),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: teal.withOpacity(.22)),
+                        ),
+                        child: const Icon(Icons.tune_rounded, color: teal2, size: 16),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 12),
-                  const Expanded(
-                    child: Text(
-                      'Match',
-                      style: TextStyle(
-                        color: text,
-                        fontSize: 22,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: -0.03,
-                      ),
-                    ),
-                  ),
-                  // Filter
-                  Container(
-                    width: 36, height: 36,
+                ),
+                const SizedBox(height: 16),
+
+                // Discover / Requests toggle
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
                     decoration: BoxDecoration(
-                      color: teal.withOpacity(.15),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: teal.withOpacity(.22)),
+                      color: Colors.white.withOpacity(.04),
+                      borderRadius: BorderRadius.circular(100),
+                      border: Border.all(color: Colors.white.withOpacity(.05)),
                     ),
-                    child: const Icon(Icons.tune_rounded, color: teal2, size: 16),
+                    child: Row(
+                      children: [
+                        _ToggleBtn(
+                          label: 'Discover',
+                          active: _tab == 0,
+                          badgeCount: 0,
+                          onTap: () => setState(() => _tab = 0),
+                        ),
+                        _ToggleBtn(
+                          label: 'Requests',
+                          active: _tab == 1,
+                          badgeCount: 2,
+                          onTap: () => setState(() => _tab = 1),
+                        ),
+                      ],
+                    ),
                   ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
+                ),
+                const SizedBox(height: 14),
 
-            // ── Discover / Requests toggle ─────────────────────────────────
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Container(
-                padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(.04),
-                  borderRadius: BorderRadius.circular(100),
-                  border: Border.all(color: Colors.white.withOpacity(.05)),
-                ),
-                child: Row(
-                  children: [
-                    _ToggleBtn(
-                      label: 'Discover',
-                      active: _tab == 0,
-                      badgeCount: 0,
-                      onTap: () => setState(() => _tab = 0),
+                // Content
+                Expanded(
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 220),
+                    child: _tab == 0
+                        ? _DiscoverView(
+                      key: const ValueKey('discover'),
+                      chips: _chips,
+                      activeChip: _activeChip,
+                      onChipTap: (i) => setState(() => _activeChip = i),
+                      travelers: _travelers,
+                      bottomInset: bottomInset,
+                    )
+                        : _RequestsView(
+                      key: const ValueKey('requests'),
+                      requests: _requests,
+                      bottomInset: bottomInset,
                     ),
-                    _ToggleBtn(
-                      label: 'Requests',
-                      active: _tab == 1,
-                      badgeCount: 2,
-                      onTap: () => setState(() => _tab = 1),
-                    ),
-                  ],
+                  ),
                 ),
-              ),
+              ],
             ),
-            const SizedBox(height: 14),
+          ),
 
-            // ── Content ────────────────────────────────────────────────────
-            Expanded(
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 220),
-                child: _tab == 0
-                    ? _DiscoverView(
-                  key: const ValueKey('discover'),
-                  chips: _chips,
-                  activeChip: _activeChip,
-                  onChipTap: (i) => setState(() => _activeChip = i),
-                  travelers: _travelers,
-                  bottomInset: bottomInset,
-                )
-                    : _RequestsView(
-                  key: const ValueKey('requests'),
-                  requests: _requests,
-                  bottomInset: bottomInset,
-                ),
-              ),
-            ),
-          ],
-        ),
+          // ── Bottom nav bar (same as HomeScreen) ───────────────────────────
+          Positioned(
+            left: 12, right: 12,
+            bottom: 12 + bottomInset,
+            child: const HomeBottomNav(),
+          ),
+        ],
       ),
     );
   }
@@ -342,10 +374,10 @@ class _DiscoverView extends StatelessWidget {
         ),
         const SizedBox(height: 14),
 
-        // 2-column grid
+        // 2-column grid — NO extra bottom padding needed, parent Positioned handles it
         Expanded(
           child: GridView.builder(
-            padding: EdgeInsets.fromLTRB(16, 0, 16, 20 + bottomInset),
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 2,
               mainAxisSpacing: 12,
@@ -376,7 +408,7 @@ class _RequestsView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListView.separated(
-      padding: EdgeInsets.fromLTRB(16, 0, 16, 20 + bottomInset),
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
       itemCount: requests.length,
       separatorBuilder: (_, __) => const SizedBox(height: 16),
       itemBuilder: (_, i) => _RequestCard(data: requests[i]),
@@ -418,8 +450,6 @@ class _RequestCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-
-          // Top: avatars + trip info
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -485,7 +515,6 @@ class _RequestCard extends StatelessWidget {
           ),
           const SizedBox(height: 16),
 
-          // Stats box
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
@@ -517,7 +546,6 @@ class _RequestCard extends StatelessWidget {
           ),
           const SizedBox(height: 16),
 
-          // Action buttons
           Row(
             children: [
               Expanded(
@@ -525,8 +553,7 @@ class _RequestCard extends StatelessWidget {
                   height: 44,
                   decoration: BoxDecoration(
                     gradient: data.compatibilityHigh
-                        ? const LinearGradient(
-                        colors: [Color(0xFF58DAD0), Color(0xFF1EC9B8)])
+                        ? const LinearGradient(colors: [Color(0xFF58DAD0), Color(0xFF1EC9B8)])
                         : null,
                     color: data.compatibilityHigh ? null : Colors.white.withOpacity(.05),
                     borderRadius: BorderRadius.circular(14),
@@ -542,8 +569,7 @@ class _RequestCard extends StatelessWidget {
                     child: Text(
                       'Accept ${data.name.split(' ').first}',
                       style: TextStyle(
-                        color: data.compatibilityHigh
-                            ? const Color(0xFF041818) : text,
+                        color: data.compatibilityHigh ? const Color(0xFF041818) : text,
                         fontSize: 14, fontWeight: FontWeight.w800,
                       ),
                     ),
@@ -621,7 +647,6 @@ class _TravelerCardWidget extends StatelessWidget {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          // Background gradient
           Container(
             decoration: BoxDecoration(
               gradient: LinearGradient(
@@ -631,7 +656,6 @@ class _TravelerCardWidget extends StatelessWidget {
               ),
             ),
           ),
-          // Scrim
           Container(
             decoration: BoxDecoration(
               gradient: LinearGradient(
@@ -642,7 +666,6 @@ class _TravelerCardWidget extends StatelessWidget {
               ),
             ),
           ),
-          // Score badge
           Positioned(
             top: 8, right: 8,
             child: Container(
@@ -654,12 +677,10 @@ class _TravelerCardWidget extends StatelessWidget {
               ),
               child: Text(
                 '${data.score}%',
-                style: TextStyle(
-                    color: scoreColor, fontSize: 10, fontWeight: FontWeight.w800),
+                style: TextStyle(color: scoreColor, fontSize: 10, fontWeight: FontWeight.w800),
               ),
             ),
           ),
-          // Name / city / vibe
           Positioned(
             left: 12, right: 12, bottom: 12,
             child: Column(
@@ -677,14 +698,10 @@ class _TravelerCardWidget extends StatelessWidget {
                     const SizedBox(width: 4),
                     Container(
                       width: 13, height: 13,
-                      decoration: const BoxDecoration(
-                          color: Color(0xFF58DAD0), shape: BoxShape.circle),
+                      decoration: const BoxDecoration(color: Color(0xFF58DAD0), shape: BoxShape.circle),
                       child: const Center(
                         child: Text('✓',
-                          style: TextStyle(
-                            color: Colors.black,
-                            fontSize: 7, fontWeight: FontWeight.w900,
-                          ),
+                          style: TextStyle(color: Colors.black, fontSize: 7, fontWeight: FontWeight.w900),
                         ),
                       ),
                     ),
@@ -703,8 +720,7 @@ class _TravelerCardWidget extends StatelessWidget {
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(data.vibe,
-                      style: const TextStyle(
-                          color: text, fontSize: 9, fontWeight: FontWeight.w800)),
+                      style: const TextStyle(color: text, fontSize: 9, fontWeight: FontWeight.w800)),
                 ),
               ],
             ),

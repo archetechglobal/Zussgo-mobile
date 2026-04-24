@@ -2,17 +2,18 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../core/providers/nav_provider.dart';
 
 class HomeBottomNav extends ConsumerWidget {
   const HomeBottomNav({super.key});
 
   static const _items = [
-    (icon: Icons.home_rounded,            label: 'Home'),
-    (icon: Icons.explore_rounded,          label: 'Explore'),
-    (icon: Icons.favorite_outline_rounded, label: 'Match'),
-    (icon: Icons.chat_bubble_outline_rounded, label: 'Chats'),
-    (icon: Icons.person_outline_rounded,   label: 'Profile'),
+    (icon: Icons.home_rounded,                label: 'Home',    route: '/home',    extra: null),
+    (icon: Icons.explore_rounded,             label: 'Explore', route: '/home',    extra: null), // placeholder until ExploreScreen exists
+    (icon: Icons.favorite_outline_rounded,    label: 'Match',   route: '/match',   extra: 'discover'),
+    (icon: Icons.chat_bubble_outline_rounded, label: 'Chats',   route: '/home',    extra: null), // placeholder
+    (icon: Icons.person_outline_rounded,      label: 'Profile', route: '/home',    extra: null), // placeholder
   ];
 
   @override
@@ -31,7 +32,10 @@ class HomeBottomNav extends ConsumerWidget {
         children: List.generate(_items.length, (i) {
           final item = _items[i];
           return GestureDetector(
-            onTap: () => ref.read(bottomNavIndexProvider.notifier).setIndex(i),
+            onTap: () {
+              ref.read(bottomNavIndexProvider.notifier).setIndex(i);
+              context.go(item.route, extra: item.extra);
+            },
             child: _BottomItem(
               icon: item.icon,
               label: item.label,
