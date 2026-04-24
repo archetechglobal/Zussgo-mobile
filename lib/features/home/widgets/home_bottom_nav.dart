@@ -1,5 +1,3 @@
-// lib/features/home/widgets/home_bottom_nav.dart
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -9,11 +7,11 @@ class HomeBottomNav extends ConsumerWidget {
   const HomeBottomNav({super.key});
 
   static const _items = [
-    (icon: Icons.home_rounded,                label: 'Home',    route: '/home',    extra: null),
-    (icon: Icons.explore_rounded,             label: 'Explore', route: '/home',    extra: null), // placeholder until ExploreScreen exists
-    (icon: Icons.favorite_outline_rounded,    label: 'Match',   route: '/match',   extra: 'discover'),
-    (icon: Icons.chat_bubble_outline_rounded, label: 'Chats',   route: '/home',    extra: null), // placeholder
-    (icon: Icons.person_outline_rounded,      label: 'Profile', route: '/home',    extra: null), // placeholder
+    (icon: Icons.home_rounded,                label: 'Home',    route: '/home',  extra: null),
+    (icon: Icons.explore_rounded,             label: 'Explore', route: '/home',  extra: null),
+    (icon: Icons.favorite_outline_rounded,    label: 'Match',   route: '/match', extra: 'discover'),
+    (icon: Icons.chat_bubble_outline_rounded, label: 'Chats',   route: '/chat',  extra: null),  // ← fixed
+    (icon: Icons.person_outline_rounded,      label: 'Profile', route: '/home',  extra: null),
   ];
 
   @override
