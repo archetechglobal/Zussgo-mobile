@@ -1,14 +1,25 @@
 // lib/features/home/widgets/home_bottom_nav.dart
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/providers/nav_provider.dart';
 
-class HomeBottomNav extends StatelessWidget {
+class HomeBottomNav extends ConsumerWidget {
   const HomeBottomNav({super.key});
 
+  static const _items = [
+    (icon: Icons.home_rounded,            label: 'Home'),
+    (icon: Icons.explore_rounded,          label: 'Explore'),
+    (icon: Icons.favorite_outline_rounded, label: 'Match'),
+    (icon: Icons.chat_bubble_outline_rounded, label: 'Chats'),
+    (icon: Icons.person_outline_rounded,   label: 'Profile'),
+  ];
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final activeIndex = ref.watch(bottomNavIndexProvider);
+
     return Container(
-      margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
       decoration: BoxDecoration(
         color: const Color(0xFF0C1819),
@@ -17,13 +28,17 @@ class HomeBottomNav extends StatelessWidget {
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: const [
-          _BottomItem(icon: Icons.home_rounded, label: 'Home', active: true),
-          _BottomItem(icon: Icons.explore_rounded, label: 'Explore'),
-          _BottomItem(icon: Icons.favorite_outline_rounded, label: 'Match'),
-          _BottomItem(icon: Icons.chat_bubble_outline_rounded, label: 'Chats'),
-          _BottomItem(icon: Icons.person_outline_rounded, label: 'Profile'),
-        ],
+        children: List.generate(_items.length, (i) {
+          final item = _items[i];
+          return GestureDetector(
+            onTap: () => ref.read(bottomNavIndexProvider.notifier).setIndex(i),
+            child: _BottomItem(
+              icon: item.icon,
+              label: item.label,
+              active: activeIndex == i,
+            ),
+          );
+        }),
       ),
     );
   }
@@ -45,7 +60,8 @@ class _BottomItem extends StatelessWidget {
     const teal2 = Color(0xFF58DAD0);
     const faint = Color(0xFF6D8B86);
 
-    return Container(
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 180),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
         color: active ? teal2.withOpacity(.10) : Colors.transparent,

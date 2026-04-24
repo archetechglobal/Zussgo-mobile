@@ -8,7 +8,8 @@ import '../widgets/hero_match_pager.dart';
 import '../widgets/home_bottom_nav.dart';
 import '../widgets/home_header.dart';
 import '../widgets/home_info_tray.dart';
-import '../../travelers/screens/travelers_grid_page.dart';
+import '../../../core/providers/nav_provider.dart';
+import '../../match/providers/match_tab_provider.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -47,11 +48,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       extendBody: true,
       body: Stack(
         children: [
-
-          // ── Background fill ──────────────────────────────────
           Positioned.fill(child: Container(color: bg)),
 
-          // ── Hero photo pager (full width, starts at top) ─────
           Positioned(
             top: 0,
             left: 0,
@@ -66,7 +64,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
           ),
 
-          // ── Top gradient scrim for header readability ─────────
           Positioned(
             top: 0,
             left: 0,
@@ -87,7 +84,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
           ),
 
-          // ── Floating header (greeting + search bar) ───────────
           Positioned(
             top: 0,
             left: 0,
@@ -95,7 +91,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             child: HomeHeader(topInset: topInset),
           ),
 
-          // ── Below-hero scroll area ─────────────────────────────
           Positioned(
             top: heroHeight,
             left: 0,
@@ -106,25 +101,29 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-
-                  // 1. Swipe dots
                   HeroMatchDots(
                     currentIndex: currentIndex,
                     count: HomeMockData.matches.length,
                   ),
                   const SizedBox(height: 20),
 
-                  // 2. More travelers going soon → See all
                   _TravelersSeeAllRow(
                     destination: HomeMockData.matches.first.destination,
                   ),
                   const SizedBox(height: 16),
 
-                  // 3. Compact trays: trip + companion requests
-                  ...HomeMockData.trays.map(
-                        (tray) => Padding(
+                  ...HomeMockData.trays.asMap().entries.map(
+                        (entry) => Padding(
                       padding: const EdgeInsets.only(bottom: 12),
-                      child: HomeInfoTray(tray: tray),
+                      child: HomeInfoTray(
+                        title: entry.value.title,
+                        subtitle: entry.value.subtitle,
+                        badgeCount: entry.key == 1 ? 2 : null,
+                        onTap: () {
+                          ref.read(bottomNavIndexProvider.notifier).setIndex(2);
+                          ref.read(matchTabProvider.notifier).showRequests();
+                        },
+                      ),
                     ),
                   ),
 
@@ -134,21 +133,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
           ),
 
-          // ── Floating bottom nav ────────────────────────────────
           Positioned(
             left: 12,
             right: 12,
             bottom: 12 + bottomInset,
             child: const HomeBottomNav(),
           ),
-
         ],
       ),
     );
   }
 }
-
-// ─── "More travelers going soon" row ────────────────────────────────────────
 
 class _TravelersSeeAllRow extends ConsumerWidget {
   final String destination;
@@ -161,8 +156,8 @@ class _TravelersSeeAllRow extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return GestureDetector(
       onTap: () {
-        // Navigate to Match tab (index 2 in bottom nav)
         ref.read(bottomNavIndexProvider.notifier).setIndex(2);
+        ref.read(matchTabProvider.notifier).showDiscover();
       },
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
