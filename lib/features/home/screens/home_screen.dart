@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/providers/nav_provider.dart';
+import '../../profile/widgets/user_profile_sheet.dart';
 import '../data/home_mock_data.dart';
 import '../providers/home_provider.dart';
 import '../widgets/hero_match_dots.dart';
@@ -27,7 +28,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   void initState() {
     super.initState();
     _pageController = PageController(viewportFraction: 1.0);
-    // Always reset bottom nav to Home (index 0) when this screen is active
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(bottomNavIndexProvider.notifier).setIndex(0);
     });
@@ -43,10 +43,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Widget build(BuildContext context) {
     const bg = Color(0xFF081314);
     final currentIndex = ref.watch(homePageIndexProvider);
-    final screenHeight = MediaQuery.of(context).size.height;
-    final topInset = MediaQuery.of(context).padding.top;
-    final bottomInset = MediaQuery.of(context).padding.bottom;
-    final heroHeight = screenHeight * 0.63;
+    final screenHeight  = MediaQuery.of(context).size.height;
+    final topInset      = MediaQuery.of(context).padding.top;
+    final bottomInset   = MediaQuery.of(context).padding.bottom;
+    final heroHeight    = screenHeight * 0.63;
     final bottomNavHeight = 88.0 + bottomInset;
 
     return Scaffold(
@@ -56,6 +56,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         children: [
           Positioned.fill(child: Container(color: bg)),
 
+          // ── Hero pager ────────────────────────────────────────────────────
           Positioned(
             top: 0, left: 0, right: 0,
             height: heroHeight,
@@ -65,9 +66,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               onPageChanged: (index) {
                 ref.read(homePageIndexProvider.notifier).setIndex(index);
               },
+              // Tap on hero card → open profile sheet
+              onCardTap: (match) {
+                UserProfileSheet.show(context, name: match.name);
+              },
             ),
           ),
 
+          // Status-bar gradient overlay
           Positioned(
             top: 0, left: 0, right: 0,
             height: topInset + 120,
@@ -86,14 +92,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
           ),
 
+          // Header (search / notifs)
           Positioned(
             top: 0, left: 0, right: 0,
             child: HomeHeader(topInset: topInset),
           ),
 
+          // ── Scrollable body below hero ────────────────────────────────────
           Positioned(
-            top: heroHeight,
-            left: 0, right: 0,
+            top: heroHeight, left: 0, right: 0,
             bottom: bottomNavHeight,
             child: SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
@@ -106,9 +113,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   ),
                   const SizedBox(height: 20),
 
-                  // "See all →" → switches to Match tab (Discover)
                   _TravelersSeeAllRow(
-                    destination: HomeMockData.matches.first.destination,
                     onTap: () {
                       ref.read(bottomNavIndexProvider.notifier).setIndex(2);
                       context.go('/match', extra: 'discover');
@@ -116,7 +121,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   ),
                   const SizedBox(height: 16),
 
-                  // Trays → Match tab (Requests)
                   ...HomeMockData.trays.asMap().entries.map(
                         (entry) => Padding(
                       padding: const EdgeInsets.only(bottom: 12),
@@ -138,6 +142,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
           ),
 
+          // ── Bottom nav ────────────────────────────────────────────────────
           Positioned(
             left: 12, right: 12,
             bottom: 12 + bottomInset,
@@ -150,30 +155,26 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 }
 
 class _TravelersSeeAllRow extends StatelessWidget {
-  final String destination;
   final VoidCallback onTap;
-  const _TravelersSeeAllRow({required this.destination, required this.onTap});
-
-  static const text  = Color(0xFFEAF7F3);
-  static const teal2 = Color(0xFF58DAD0);
+  const _TravelersSeeAllRow({required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
-      child: Row(
+      child: const Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: const [
+        children: [
           Text(
             'More travelers going soon',
             style: TextStyle(
-              color: text, fontSize: 15, fontWeight: FontWeight.w700,
+              color: Color(0xFFEAF7F3), fontSize: 15, fontWeight: FontWeight.w700,
             ),
           ),
           Text(
             'See all →',
             style: TextStyle(
-              color: teal2, fontSize: 13, fontWeight: FontWeight.w800,
+              color: Color(0xFF58DAD0), fontSize: 13, fontWeight: FontWeight.w800,
             ),
           ),
         ],
