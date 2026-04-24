@@ -1,32 +1,35 @@
+// lib/features/match/screens/match_screen.dart
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 
 class MatchScreen extends StatefulWidget {
-  const MatchScreen({super.key});
+  /// 'discover' | 'requests'  — passed via GoRouter extra
+  final String initialTab;
+  const MatchScreen({super.key, this.initialTab = 'discover'});
 
   @override
   State<MatchScreen> createState() => _MatchScreenState();
 }
 
 class _MatchScreenState extends State<MatchScreen> {
-  int _tab = 0; // 0 = Discover, 1 = Requests
+  late int _tab; // 0 = Discover, 1 = Requests
   int _activeChip = 0;
 
-  static const bg = Color(0xFF070E0F);
-  static const text = Color(0xFFEDF7F4);
+  // ── Palette ────────────────────────────────────────────────────────────────
+  static const bg    = Color(0xFF070E0F);
+  static const text  = Color(0xFFEDF7F4);
   static const muted = Color(0xFFA8C4BF);
   static const faint = Color(0xFF6A8882);
-  static const teal = Color(0xFF1EC9B8);
+  static const teal  = Color(0xFF1EC9B8);
   static const teal2 = Color(0xFF58DAD0);
-  static const gold = Color(0xFFF7B84E);
-  static const rose = Color(0xFFFFB3C1);
+  static const gold  = Color(0xFFF7B84E);
+  static const rose  = Color(0xFFFFB3C1);
 
+  // ── Mock data ──────────────────────────────────────────────────────────────
   final List<String> _chips = [
-    'All matches',
-    'Next 7 days',
-    'Women only',
-    'Under ₹15k',
-    'Budget',
+    'All matches', 'Next 7 days', 'Women only', 'Under ₹15k', 'Budget',
   ];
 
   final List<_TravelerData> _travelers = const [
@@ -67,18 +70,22 @@ class _MatchScreenState extends State<MatchScreen> {
     ),
   ];
 
+  // ── Lifecycle ──────────────────────────────────────────────────────────────
   @override
   void initState() {
     super.initState();
+    // Honour the tab passed from the router ('discover' → 0, 'requests' → 1)
+    _tab = widget.initialTab == 'requests' ? 1 : 0;
     SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
       statusBarIconBrightness: Brightness.light,
     ));
   }
 
+  // ── Build ──────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
-    final topInset = MediaQuery.of(context).padding.top;
+    final topInset    = MediaQuery.of(context).padding.top;
     final bottomInset = MediaQuery.of(context).padding.bottom;
 
     return Scaffold(
@@ -96,11 +103,28 @@ class _MatchScreenState extends State<MatchScreen> {
           children: [
             SizedBox(height: topInset + 10),
 
-            // ── Page title ───────────────────────────────────────
+            // ── Title row ──────────────────────────────────────────────────
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Row(
                 children: [
+                  // Back → Home
+                  GestureDetector(
+                    onTap: () => context.go('/home'),
+                    child: Container(
+                      width: 36, height: 36,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(.05),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.white.withOpacity(.08)),
+                      ),
+                      child: const Icon(
+                        Icons.arrow_back_ios_new_rounded,
+                        color: teal2, size: 15,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
                   const Expanded(
                     child: Text(
                       'Match',
@@ -112,26 +136,22 @@ class _MatchScreenState extends State<MatchScreen> {
                       ),
                     ),
                   ),
+                  // Filter
                   Container(
-                    width: 36,
-                    height: 36,
+                    width: 36, height: 36,
                     decoration: BoxDecoration(
                       color: teal.withOpacity(.15),
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(color: teal.withOpacity(.22)),
                     ),
-                    child: const Icon(
-                      Icons.tune_rounded,
-                      color: teal2,
-                      size: 16,
-                    ),
+                    child: const Icon(Icons.tune_rounded, color: teal2, size: 16),
                   ),
                 ],
               ),
             ),
             const SizedBox(height: 16),
 
-            // ── Discover / Requests toggle ───────────────────────
+            // ── Discover / Requests toggle ─────────────────────────────────
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Container(
@@ -161,7 +181,7 @@ class _MatchScreenState extends State<MatchScreen> {
             ),
             const SizedBox(height: 14),
 
-            // ── Content ──────────────────────────────────────────
+            // ── Content ────────────────────────────────────────────────────
             Expanded(
               child: AnimatedSwitcher(
                 duration: const Duration(milliseconds: 220),
@@ -188,7 +208,7 @@ class _MatchScreenState extends State<MatchScreen> {
   }
 }
 
-// ─── Toggle button ───────────────────────────────────────────────────────────
+// ─── Toggle button ────────────────────────────────────────────────────────────
 
 class _ToggleBtn extends StatelessWidget {
   final String label;
@@ -203,9 +223,9 @@ class _ToggleBtn extends StatelessWidget {
     required this.onTap,
   });
 
-  static const text = Color(0xFFEDF7F4);
+  static const text  = Color(0xFFEDF7F4);
   static const faint = Color(0xFF6A8882);
-  static const gold = Color(0xFFF7B84E);
+  static const gold  = Color(0xFFF7B84E);
 
   @override
   Widget build(BuildContext context) {
@@ -260,7 +280,7 @@ class _ToggleBtn extends StatelessWidget {
   }
 }
 
-// ─── Discover view ───────────────────────────────────────────────────────────
+// ─── Discover view ────────────────────────────────────────────────────────────
 
 class _DiscoverView extends StatelessWidget {
   final List<String> chips;
@@ -325,7 +345,7 @@ class _DiscoverView extends StatelessWidget {
         // 2-column grid
         Expanded(
           child: GridView.builder(
-            padding: EdgeInsets.fromLTRB(16, 0, 16, 20 + bottomInset + 88),
+            padding: EdgeInsets.fromLTRB(16, 0, 16, 20 + bottomInset),
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 2,
               mainAxisSpacing: 12,
@@ -341,7 +361,7 @@ class _DiscoverView extends StatelessWidget {
   }
 }
 
-// ─── Requests view ───────────────────────────────────────────────────────────
+// ─── Requests view ────────────────────────────────────────────────────────────
 
 class _RequestsView extends StatelessWidget {
   final List<_RequestData> requests;
@@ -356,7 +376,7 @@ class _RequestsView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListView.separated(
-      padding: EdgeInsets.fromLTRB(16, 0, 16, 20 + bottomInset + 88),
+      padding: EdgeInsets.fromLTRB(16, 0, 16, 20 + bottomInset),
       itemCount: requests.length,
       separatorBuilder: (_, __) => const SizedBox(height: 16),
       itemBuilder: (_, i) => _RequestCard(data: requests[i]),
@@ -364,29 +384,25 @@ class _RequestsView extends StatelessWidget {
   }
 }
 
-// ─── Request card ────────────────────────────────────────────────────────────
+// ─── Request card ─────────────────────────────────────────────────────────────
 
 class _RequestCard extends StatelessWidget {
   final _RequestData data;
   const _RequestCard({required this.data});
 
-  static const bg2 = Color(0xFF0D1819);
-  static const text = Color(0xFFEDF7F4);
+  static const text  = Color(0xFFEDF7F4);
   static const muted = Color(0xFFA8C4BF);
   static const faint = Color(0xFF6A8882);
-  static const teal = Color(0xFF1EC9B8);
+  static const teal  = Color(0xFF1EC9B8);
   static const teal2 = Color(0xFF58DAD0);
-  static const gold = Color(0xFFF7B84E);
-  static const rose = Color(0xFFFFB3C1);
+  static const gold  = Color(0xFFF7B84E);
+  static const rose  = Color(0xFFFFB3C1);
 
   Color get _avatarColor {
     switch (data.avatarVariant) {
-      case 'gold':
-        return gold;
-      case 'rose':
-        return rose;
-      default:
-        return teal2;
+      case 'gold': return gold;
+      case 'rose': return rose;
+      default:     return teal2;
     }
   }
 
@@ -403,21 +419,18 @@ class _RequestCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
 
-          // Top: avatars + text
+          // Top: avatars + trip info
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               SizedBox(
-                width: 50,
-                height: 50,
+                width: 50, height: 50,
                 child: Stack(
                   children: [
                     Positioned(
-                      top: 0,
-                      right: 0,
+                      top: 0, right: 0,
                       child: Container(
-                        width: 36,
-                        height: 36,
+                        width: 36, height: 36,
                         decoration: BoxDecoration(
                           color: _avatarColor.withOpacity(.7),
                           borderRadius: BorderRadius.circular(14),
@@ -426,11 +439,9 @@ class _RequestCard extends StatelessWidget {
                       ),
                     ),
                     Positioned(
-                      bottom: 0,
-                      left: 0,
+                      bottom: 0, left: 0,
                       child: Container(
-                        width: 36,
-                        height: 36,
+                        width: 36, height: 36,
                         decoration: BoxDecoration(
                           gradient: const LinearGradient(
                             colors: [Color(0xFF58DAD0), Color(0xFF1EC9B8)],
@@ -439,12 +450,10 @@ class _RequestCard extends StatelessWidget {
                           border: Border.all(color: const Color(0xFF0B1516), width: 2),
                         ),
                         child: const Center(
-                          child: Text(
-                            'A',
+                          child: Text('A',
                             style: TextStyle(
                               color: Color(0xFF041818),
-                              fontSize: 14,
-                              fontWeight: FontWeight.w800,
+                              fontSize: 14, fontWeight: FontWeight.w800,
                             ),
                           ),
                         ),
@@ -461,22 +470,14 @@ class _RequestCard extends StatelessWidget {
                     Text(
                       '${data.name} ${data.tripLabel}',
                       style: const TextStyle(
-                        color: text,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                        height: 1.3,
+                        color: text, fontSize: 15,
+                        fontWeight: FontWeight.w700, height: 1.3,
                       ),
                     ),
                     const SizedBox(height: 4),
-                    Text(
-                      data.dates,
-                      style: const TextStyle(color: muted, fontSize: 12),
-                    ),
+                    Text(data.dates, style: const TextStyle(color: muted, fontSize: 12)),
                     const SizedBox(height: 4),
-                    Text(
-                      data.timeAgo,
-                      style: const TextStyle(color: faint, fontSize: 10),
-                    ),
+                    Text(data.timeAgo, style: const TextStyle(color: faint, fontSize: 10)),
                   ],
                 ),
               ),
@@ -506,18 +507,10 @@ class _RequestCard extends StatelessWidget {
                   valueColor: data.compatibilityHigh ? teal2 : rose,
                 ),
                 const _StatDivider(),
-                _StatRow(
-                  label: 'Budget',
-                  value: data.budget,
-                  valueColor: teal2,
-                ),
+                _StatRow(label: 'Budget', value: data.budget, valueColor: teal2),
                 if (data.verified) ...[
                   const _StatDivider(),
-                  _StatRow(
-                    label: 'Safety',
-                    value: 'ID Verified ✓',
-                    valueColor: teal2,
-                  ),
+                  _StatRow(label: 'Safety', value: 'ID Verified ✓', valueColor: teal2),
                 ],
               ],
             ),
@@ -533,12 +526,9 @@ class _RequestCard extends StatelessWidget {
                   decoration: BoxDecoration(
                     gradient: data.compatibilityHigh
                         ? const LinearGradient(
-                      colors: [Color(0xFF58DAD0), Color(0xFF1EC9B8)],
-                    )
+                        colors: [Color(0xFF58DAD0), Color(0xFF1EC9B8)])
                         : null,
-                    color: data.compatibilityHigh
-                        ? null
-                        : Colors.white.withOpacity(.05),
+                    color: data.compatibilityHigh ? null : Colors.white.withOpacity(.05),
                     borderRadius: BorderRadius.circular(14),
                     boxShadow: data.compatibilityHigh
                         ? [BoxShadow(
@@ -553,10 +543,8 @@ class _RequestCard extends StatelessWidget {
                       'Accept ${data.name.split(' ').first}',
                       style: TextStyle(
                         color: data.compatibilityHigh
-                            ? const Color(0xFF041818)
-                            : text,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w800,
+                            ? const Color(0xFF041818) : text,
+                        fontSize: 14, fontWeight: FontWeight.w800,
                       ),
                     ),
                   ),
@@ -564,8 +552,7 @@ class _RequestCard extends StatelessWidget {
               ),
               const SizedBox(width: 10),
               Container(
-                width: 44,
-                height: 44,
+                width: 44, height: 44,
                 decoration: BoxDecoration(
                   color: rose.withOpacity(.06),
                   borderRadius: BorderRadius.circular(14),
@@ -585,55 +572,37 @@ class _StatRow extends StatelessWidget {
   final String label;
   final String value;
   final Color valueColor;
-
-  const _StatRow({
-    required this.label,
-    required this.value,
-    required this.valueColor,
-  });
-
+  const _StatRow({required this.label, required this.value, required this.valueColor});
   static const faint = Color(0xFF6A8882);
-
   @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(label,
-            style: const TextStyle(color: faint, fontSize: 12)),
-        Text(value,
-            style: TextStyle(
-              color: valueColor,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-            )),
-      ],
-    );
-  }
+  Widget build(BuildContext context) => Row(
+    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    children: [
+      Text(label, style: const TextStyle(color: faint, fontSize: 12)),
+      Text(value, style: TextStyle(color: valueColor, fontSize: 12, fontWeight: FontWeight.w700)),
+    ],
+  );
 }
 
 class _StatDivider extends StatelessWidget {
   const _StatDivider();
-
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 1,
-      margin: const EdgeInsets.symmetric(vertical: 6),
-      color: Colors.white.withOpacity(.05),
-    );
-  }
+  Widget build(BuildContext context) => Container(
+    height: 1,
+    margin: const EdgeInsets.symmetric(vertical: 6),
+    color: Colors.white.withOpacity(.05),
+  );
 }
 
-// ─── Traveler card widget ────────────────────────────────────────────────────
+// ─── Traveler card ────────────────────────────────────────────────────────────
 
 class _TravelerCardWidget extends StatelessWidget {
   final _TravelerData data;
   const _TravelerCardWidget({required this.data});
 
-  static const text = Color(0xFFEDF7F4);
+  static const text  = Color(0xFFEDF7F4);
   static const teal2 = Color(0xFF58DAD0);
-  static const gold = Color(0xFFF7B84E);
+  static const gold  = Color(0xFFF7B84E);
 
   static const List<List<Color>> _gradients = [
     [Color(0xFF1E4044), Color(0xFF112425)],
@@ -644,7 +613,7 @@ class _TravelerCardWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = _gradients[(data.variant - 1) % 4];
+    final colors     = _gradients[(data.variant - 1) % 4];
     final scoreColor = data.scoreColor == 'teal' ? teal2 : gold;
 
     return ClipRRect(
@@ -652,6 +621,7 @@ class _TravelerCardWidget extends StatelessWidget {
       child: Stack(
         fit: StackFit.expand,
         children: [
+          // Background gradient
           Container(
             decoration: BoxDecoration(
               gradient: LinearGradient(
@@ -661,6 +631,7 @@ class _TravelerCardWidget extends StatelessWidget {
               ),
             ),
           ),
+          // Scrim
           Container(
             decoration: BoxDecoration(
               gradient: LinearGradient(
@@ -671,9 +642,9 @@ class _TravelerCardWidget extends StatelessWidget {
               ),
             ),
           ),
+          // Score badge
           Positioned(
-            top: 8,
-            right: 8,
+            top: 8, right: 8,
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
@@ -684,47 +655,37 @@ class _TravelerCardWidget extends StatelessWidget {
               child: Text(
                 '${data.score}%',
                 style: TextStyle(
-                  color: scoreColor,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w800,
-                ),
+                    color: scoreColor, fontSize: 10, fontWeight: FontWeight.w800),
               ),
             ),
           ),
+          // Name / city / vibe
           Positioned(
-            left: 12,
-            right: 12,
-            bottom: 12,
+            left: 12, right: 12, bottom: 12,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
                 Row(
                   children: [
-                    Text(
-                      data.name,
+                    Text(data.name,
                       style: const TextStyle(
-                        color: text,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                        height: 1.2,
+                        color: text, fontSize: 15,
+                        fontWeight: FontWeight.w700, height: 1.2,
                       ),
                     ),
                     const SizedBox(width: 4),
                     Container(
-                      width: 13,
-                      height: 13,
+                      width: 13, height: 13,
                       decoration: const BoxDecoration(
-                        color: Color(0xFF58DAD0),
-                        shape: BoxShape.circle,
-                      ),
+                          color: Color(0xFF58DAD0), shape: BoxShape.circle),
                       child: const Center(
                         child: Text('✓',
-                            style: TextStyle(
-                              color: Colors.black,
-                              fontSize: 7,
-                              fontWeight: FontWeight.w900,
-                            )),
+                          style: TextStyle(
+                            color: Colors.black,
+                            fontSize: 7, fontWeight: FontWeight.w900,
+                          ),
+                        ),
                       ),
                     ),
                   ],
@@ -732,10 +693,7 @@ class _TravelerCardWidget extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   '${data.age} · ${data.city}',
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(.70),
-                    fontSize: 11,
-                  ),
+                  style: TextStyle(color: Colors.white.withOpacity(.70), fontSize: 11),
                 ),
                 const SizedBox(height: 6),
                 Container(
@@ -744,14 +702,9 @@ class _TravelerCardWidget extends StatelessWidget {
                     color: Colors.white.withOpacity(.15),
                     borderRadius: BorderRadius.circular(6),
                   ),
-                  child: Text(
-                    data.vibe,
-                    style: const TextStyle(
-                      color: text,
-                      fontSize: 9,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
+                  child: Text(data.vibe,
+                      style: const TextStyle(
+                          color: text, fontSize: 9, fontWeight: FontWeight.w800)),
                 ),
               ],
             ),
@@ -762,7 +715,7 @@ class _TravelerCardWidget extends StatelessWidget {
   }
 }
 
-// ─── Data models ─────────────────────────────────────────────────────────────
+// ─── Data models ──────────────────────────────────────────────────────────────
 
 class _TravelerData {
   final String name;
@@ -772,15 +725,10 @@ class _TravelerData {
   final int score;
   final String scoreColor;
   final int variant;
-
   const _TravelerData({
-    required this.name,
-    required this.age,
-    required this.city,
-    required this.vibe,
-    required this.score,
-    required this.scoreColor,
-    required this.variant,
+    required this.name, required this.age, required this.city,
+    required this.vibe, required this.score,
+    required this.scoreColor, required this.variant,
   });
 }
 
@@ -795,17 +743,10 @@ class _RequestData {
   final String budget;
   final bool verified;
   final String avatarVariant;
-
   const _RequestData({
-    required this.name,
-    required this.tripLabel,
-    required this.dates,
-    required this.timeAgo,
-    required this.compatibility,
-    required this.compatibilityHigh,
-    required this.vibe,
-    required this.budget,
-    required this.verified,
-    required this.avatarVariant,
+    required this.name, required this.tripLabel, required this.dates,
+    required this.timeAgo, required this.compatibility,
+    required this.compatibilityHigh, required this.vibe,
+    required this.budget, required this.verified, required this.avatarVariant,
   });
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../data/home_mock_data.dart';
 import '../providers/home_provider.dart';
@@ -8,8 +9,6 @@ import '../widgets/hero_match_pager.dart';
 import '../widgets/home_bottom_nav.dart';
 import '../widgets/home_header.dart';
 import '../widgets/home_info_tray.dart';
-import '../../../core/providers/nav_provider.dart';
-import '../../match/providers/match_tab_provider.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -51,9 +50,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           Positioned.fill(child: Container(color: bg)),
 
           Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
+            top: 0, left: 0, right: 0,
             height: heroHeight,
             child: HeroMatchPager(
               controller: _pageController,
@@ -65,9 +62,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
 
           Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
+            top: 0, left: 0, right: 0,
             height: topInset + 120,
             child: Container(
               decoration: BoxDecoration(
@@ -85,16 +80,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
 
           Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
+            top: 0, left: 0, right: 0,
             child: HomeHeader(topInset: topInset),
           ),
 
           Positioned(
             top: heroHeight,
-            left: 0,
-            right: 0,
+            left: 0, right: 0,
             bottom: bottomNavHeight,
             child: SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
@@ -107,11 +99,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   ),
                   const SizedBox(height: 20),
 
+                  // "See all →" navigates to Match > Discover tab
                   _TravelersSeeAllRow(
                     destination: HomeMockData.matches.first.destination,
                   ),
                   const SizedBox(height: 16),
 
+                  // Trays navigate to Match > Requests tab
                   ...HomeMockData.trays.asMap().entries.map(
                         (entry) => Padding(
                       padding: const EdgeInsets.only(bottom: 12),
@@ -119,10 +113,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         title: entry.value.title,
                         subtitle: entry.value.subtitle,
                         badgeCount: entry.key == 1 ? 2 : null,
-                        onTap: () {
-                          ref.read(bottomNavIndexProvider.notifier).setIndex(2);
-                          ref.read(matchTabProvider.notifier).showRequests();
-                        },
+                        onTap: () => context.go('/match', extra: 'requests'),
                       ),
                     ),
                   ),
@@ -134,8 +125,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
 
           Positioned(
-            left: 12,
-            right: 12,
+            left: 12, right: 12,
             bottom: 12 + bottomInset,
             child: const HomeBottomNav(),
           ),
@@ -145,37 +135,31 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 }
 
-class _TravelersSeeAllRow extends ConsumerWidget {
+class _TravelersSeeAllRow extends StatelessWidget {
   final String destination;
   const _TravelersSeeAllRow({required this.destination});
 
-  static const text = Color(0xFFEAF7F3);
+  static const text  = Color(0xFFEAF7F3);
   static const teal2 = Color(0xFF58DAD0);
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () {
-        ref.read(bottomNavIndexProvider.notifier).setIndex(2);
-        ref.read(matchTabProvider.notifier).showDiscover();
-      },
+      // "See all →" → Match Discover tab
+      onTap: () => context.go('/match', extra: 'discover'),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: const [
           Text(
             'More travelers going soon',
             style: TextStyle(
-              color: text,
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
+              color: text, fontSize: 15, fontWeight: FontWeight.w700,
             ),
           ),
           Text(
             'See all →',
             style: TextStyle(
-              color: teal2,
-              fontSize: 13,
-              fontWeight: FontWeight.w800,
+              color: teal2, fontSize: 13, fontWeight: FontWeight.w800,
             ),
           ),
         ],

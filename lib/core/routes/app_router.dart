@@ -1,4 +1,7 @@
+// lib/core/routes/app_router.dart
+
 import 'package:go_router/go_router.dart';
+
 import '../../features/splash/screens/splash_screen.dart';
 import '../../features/onboarding/screens/onboarding_screen.dart';
 import '../../features/auth/screens/login_screen.dart';
@@ -6,6 +9,7 @@ import '../../features/auth/screens/signup_screen.dart';
 import '../../features/auth/screens/phone_otp_screen.dart';
 import '../../features/auth/screens/email_verify_screen.dart';
 import '../../features/home/screens/home_screen.dart';
+import '../../features/match/screens/match_screen.dart';
 
 final goRouter = GoRouter(
   initialLocation: '/splash',
@@ -40,6 +44,16 @@ final goRouter = GoRouter(
       path: '/home',
       name: 'home',
       builder: (context, state) => const HomeScreen(),
+    ),
+
+    // ── THIS IS THE MISSING ROUTE ──────────────────────────────────
+    GoRoute(
+      path: '/match',
+      name: 'match',
+      builder: (context, state) {
+        final tab = state.extra as String? ?? 'discover';
+        return MatchScreen(initialTab: tab);
+      },
     ),
   ],
 );
