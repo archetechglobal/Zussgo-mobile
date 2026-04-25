@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 class HomeHeader extends StatelessWidget {
   final double topInset;
@@ -42,56 +43,59 @@ class HomeHeader extends StatelessWidget {
                 ],
               ),
               const Spacer(),
-              Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  Container(
-                    width: 42,
-                    height: 42,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(14),
-                      gradient: const LinearGradient(
-                        colors: [teal2, teal, gold],
-                      ),
-                    ),
-                    child: const Center(
-                      child: Text(
-                        'A',
-                        style: TextStyle(
-                          color: Color(0xFF041818),
-                          fontSize: 15,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    top: -4,
-                    right: -4,
-                    child: Container(
-                      width: 17,
-                      height: 17,
+              GestureDetector(
+                onTap: () => context.push('/notifications'),
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Container(
+                      width: 42,
+                      height: 42,
                       decoration: BoxDecoration(
-                        color: gold,
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: const Color(0xFF0B1516),
-                          width: 2,
+                        borderRadius: BorderRadius.circular(14),
+                        gradient: const LinearGradient(
+                          colors: [teal2, teal, gold],
                         ),
                       ),
                       child: const Center(
                         child: Text(
-                          '2',
+                          'A',
                           style: TextStyle(
                             color: Color(0xFF041818),
-                            fontSize: 8,
-                            fontWeight: FontWeight.w900,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
                           ),
                         ),
                       ),
                     ),
-                  ),
-                ],
+                    Positioned(
+                      top: -4,
+                      right: -4,
+                      child: Container(
+                        width: 17,
+                        height: 17,
+                        decoration: BoxDecoration(
+                          color: gold,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: const Color(0xFF0B1516),
+                            width: 2,
+                          ),
+                        ),
+                        child: const Center(
+                          child: Text(
+                            '2',
+                            style: TextStyle(
+                              color: Color(0xFF041818),
+                              fontSize: 8,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),

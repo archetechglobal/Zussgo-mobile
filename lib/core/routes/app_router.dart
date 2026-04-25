@@ -14,6 +14,8 @@ import '../../features/profile/screens/my_profile_screen.dart';
 import '../../features/explore/screens/explore_screen.dart';
 import '../../features/trips/screens/active_trip_screen.dart';
 import '../../features/trips/screens/trip_rating_screen.dart';
+import '../../features/setup/screens/profile_setup_screen.dart';
+import '../../features/notifications/screens/notification_screen.dart';
 
 final goRouter = GoRouter(
   initialLocation: '/splash',
@@ -58,6 +60,18 @@ final goRouter = GoRouter(
       path: '/explore',
       name: 'explore',
       builder: (c, s) => const ExploreScreen(),
+    ),
+
+    GoRoute(
+      path: '/setup',
+      name: 'setup',
+      builder: (c, s) => const ProfileSetupScreen(),
+    ),
+
+    GoRoute(
+      path: '/notifications',
+      name: 'notifications',
+      builder: (c, s) => const NotificationsScreen(),
     ),
 
     GoRoute(

@@ -40,7 +40,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
     ref.listen(authProvider, (_, next) {
       if (next is AuthSuccess) {
-        context.go('/home'); // ← fixed
+        context.go('/setup'); // ← goes to profile setup first time
       }
     });
 

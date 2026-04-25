@@ -12,148 +12,121 @@ import '../../trips/screens/create_trip_sheet.dart';
 // ─── Colours ──────────────────────────────────────────────────────────────────
 
 const _kBg     = Color(0xFF070E0F);
-const _kS1     = Color(0xFF0D1819);
-const _kS2     = Color(0xFF121F21);
 const _kTeal   = Color(0xFF1EC9B8);
 const _kTeal2  = Color(0xFF58DAD0);
 const _kGold   = Color(0xFFF7B84E);
 const _kText   = Color(0xFFEDF7F4);
 const _kMuted  = Color(0xFFA8C4BF);
 const _kFaint  = Color(0xFF6A8882);
-const _kBorder = Color(0x0FFFFFFF);
 
-// ─── Data models ──────────────────────────────────────────────────────────────
+// ─── Models ───────────────────────────────────────────────────────────────────
 
-class _VibeCard {
+class _VibeItem {
   final String emoji;
   final String label;
-  final Color startColor;
+  final Color color;
   final String filter;
-  const _VibeCard(this.emoji, this.label, this.startColor, this.filter);
+  const _VibeItem(this.emoji, this.label, this.color, this.filter);
 }
 
-class _Destination {
+class _Dest {
   final String name;
   final String badge;
   final Color badgeColor;
-  final int travelerCount;
+  final int count;
   final String vibe;
-  final String description;
-  final List<String> vibeFilters;
-  final List<_MatchUser> topMatches;
-  final List<_OpenTrip> openTrips;
-  final Color heroStart;
-  const _Destination({
+  final String desc;
+  final List<String> filters;
+  final Color heroColor;
+  final List<_Match> matches;
+  final List<_Trip> trips;
+  const _Dest({
     required this.name, required this.badge, required this.badgeColor,
-    required this.travelerCount, required this.vibe, required this.description,
-    required this.vibeFilters, required this.topMatches,
-    required this.openTrips, required this.heroStart,
+    required this.count, required this.vibe, required this.desc,
+    required this.filters, required this.heroColor,
+    required this.matches, required this.trips,
   });
 }
 
-class _MatchUser {
+class _Match {
   final String name;
   final int age;
-  final int matchPct;
-  final Color avatarColor;
-  const _MatchUser(this.name, this.age, this.matchPct, this.avatarColor);
+  final int pct;
+  final Color color;
+  const _Match(this.name, this.age, this.pct, this.color);
 }
 
-class _OpenTrip {
+class _Trip {
   final String title;
   final String dates;
-  final String description;
-  final int totalSpots;
-  final int filledSpots;
-  const _OpenTrip(this.title, this.dates, this.description, this.totalSpots, this.filledSpots);
+  final String desc;
+  final int total;
+  final int filled;
+  const _Trip(this.title, this.dates, this.desc, this.total, this.filled);
 }
 
-// ─── Mock data ────────────────────────────────────────────────────────────────
+// ─── Data ─────────────────────────────────────────────────────────────────────
 
 const _vibes = [
-  _VibeCard('🌊', 'Beach &\nSocial',   Color(0xFF1EC9B8), 'beach'),
-  _VibeCard('🏔️', 'Mountains\n& Trek', Color(0xFF9FD9BE), 'mountains'),
-  _VibeCard('🎪', 'Culture &\nFestivals',Color(0xFFF7B84E), 'culture'),
-  _VibeCard('✨', 'Wellness\n& Retreat', Color(0xFFFFB3C1), 'wellness'),
+  _VibeItem('🌊', 'Beach &\nSocial',    Color(0xFF1EC9B8), 'beach'),
+  _VibeItem('🏔️', 'Mountains\n& Trek',  Color(0xFF9FD9BE), 'mountains'),
+  _VibeItem('🎪', 'Culture &\nFestivals',Color(0xFFF7B84E), 'culture'),
+  _VibeItem('✨', 'Wellness\n& Retreat', Color(0xFFFFB3C1), 'wellness'),
 ];
 
-final _destinations = <_Destination>[
-  _Destination(
-    name: 'Goa',
-    badge: '🔥 #1 Most Active',
-    badgeColor: _kTeal2,
-    travelerCount: 78,
-    vibe: '🌊 Beach & Social',
-    description: 'The ultimate escape. Perfect for weekend parties, beach cafes, and meeting new people.',
-    vibeFilters: ['beach'],
-    heroStart: const Color(0xFF1C3E40),
-    topMatches: [
-      _MatchUser('Meera', 24, 97, Color(0xFFF7B84E)),
-      _MatchUser('Priya', 23, 88, Color(0xFFFFB3C1)),
-      _MatchUser('Dev',   26, 84, Color(0xFF1EC9B8)),
+final _dests = <_Dest>[
+  _Dest(
+    name: 'Goa', badge: '🔥 #1 Most Active', badgeColor: _kTeal2,
+    count: 78, vibe: '🌊 Beach & Social',
+    desc: 'The ultimate escape. Perfect for weekend parties, beach cafes, and meeting new people.',
+    filters: ['beach'], heroColor: const Color(0xFF1C3E40),
+    matches: [
+      _Match('Meera', 24, 97, Color(0xFFF7B84E)),
+      _Match('Priya', 23, 88, Color(0xFFFFB3C1)),
+      _Match('Dev',   26, 84, Color(0xFF1EC9B8)),
     ],
-    openTrips: [
-      _OpenTrip('South Goa Chill Weekend', 'May 12 – 15',
-          'Looking for 2 more people to split a villa in Palolem. Very laid back vibe.', 4, 2),
-    ],
+    trips: [_Trip('South Goa Chill Weekend', 'May 12–15',
+        'Looking for 2 more to split a villa in Palolem. Very laid back vibe.', 4, 2)],
   ),
-  _Destination(
-    name: 'Pushkar',
-    badge: '🎪 Upcoming Festival',
-    badgeColor: _kGold,
-    travelerCount: 42,
-    vibe: '🎪 Culture & Festival',
-    description: 'Sacred ghats, desert vibes, and the famous Camel Fair. Culture overload in the best way.',
-    vibeFilters: ['culture'],
-    heroStart: const Color(0xFF36261A),
-    topMatches: [
-      _MatchUser('Anika', 26, 92, Color(0xFFB57BFF)),
-      _MatchUser('Sara',  24, 85, Color(0xFF1EC9B8)),
+  _Dest(
+    name: 'Pushkar', badge: '🎪 Upcoming Festival', badgeColor: _kGold,
+    count: 42, vibe: '🎪 Culture & Festival',
+    desc: 'Sacred ghats, desert vibes, and the famous Camel Fair. Culture overload in the best way.',
+    filters: ['culture'], heroColor: const Color(0xFF36261A),
+    matches: [
+      _Match('Anika', 26, 92, Color(0xFFB57BFF)),
+      _Match('Sara',  24, 85, Color(0xFF1EC9B8)),
     ],
-    openTrips: [
-      _OpenTrip('Pushkar Festival Group', 'May 18 – 21',
-          'Group of 3 heading for the festival. Need 1 more. Staying in a heritage haveli.', 4, 3),
-    ],
+    trips: [_Trip('Pushkar Festival Group', 'May 18–21',
+        'Group of 3 heading for the festival. Need 1 more. Heritage haveli stay.', 4, 3)],
   ),
-  _Destination(
-    name: 'Spiti Valley',
-    badge: '🏔 Adventure Pick',
-    badgeColor: _kTeal2,
-    travelerCount: 34,
-    vibe: '🏔 Mountains & Trek',
-    description: 'Raw Himalayas at 14,000ft. Monastery hops, stargazing, and the kind of silence that resets you.',
-    vibeFilters: ['mountains'],
-    heroStart: const Color(0xFF1A2E3A),
-    topMatches: [
-      _MatchUser('Arjun', 28, 94, Color(0xFFF7B84E)),
-      _MatchUser('Rohan', 27, 88, Color(0xFF1EC9B8)),
+  _Dest(
+    name: 'Spiti Valley', badge: '🏔 Adventure Pick', badgeColor: _kTeal2,
+    count: 34, vibe: '🏔 Mountains & Trek',
+    desc: 'Raw Himalayas at 14,000ft. Monastery hops, stargazing, and silence that resets you.',
+    filters: ['mountains'], heroColor: const Color(0xFF1A2E3A),
+    matches: [
+      _Match('Arjun', 28, 94, Color(0xFFF7B84E)),
+      _Match('Rohan', 27, 88, Color(0xFF1EC9B8)),
     ],
-    openTrips: [
-      _OpenTrip('Spiti 8-Day Circuit', 'May 10 – 18',
-          'Kaza base, Key monastery, Chandratal lake. Self-drive. Looking for 1–2.', 3, 2),
-    ],
+    trips: [_Trip('Spiti 8-Day Circuit', 'May 10–18',
+        'Kaza base, Key monastery, Chandratal lake. Self-drive. Looking for 1–2.', 3, 2)],
   ),
-  _Destination(
-    name: 'Kerala',
-    badge: '🌿 Trending Now',
-    badgeColor: _kTeal2,
-    travelerCount: 56,
-    vibe: '✨ Wellness & Retreat',
-    description: 'Backwaters, Ayurveda, and coffee estates. The slow travel capital of India.',
-    vibeFilters: ['wellness', 'beach'],
-    heroStart: const Color(0xFF1A2E20),
-    topMatches: [
-      _MatchUser('Priya', 25, 91, Color(0xFF1EC9B8)),
-      _MatchUser('Dev',   25, 87, Color(0xFFF7B84E)),
+  _Dest(
+    name: 'Kerala', badge: '🌿 Trending Now', badgeColor: _kTeal2,
+    count: 56, vibe: '✨ Wellness & Retreat',
+    desc: 'Backwaters, Ayurveda, and coffee estates. The slow travel capital of India.',
+    filters: ['wellness', 'beach'], heroColor: const Color(0xFF1A2E20),
+    matches: [
+      _Match('Priya', 25, 91, Color(0xFF1EC9B8)),
+      _Match('Dev',   25, 87, Color(0xFFF7B84E)),
     ],
-    openTrips: [
-      _OpenTrip('Kerala Backwaters 5D', 'May 20 – 25',
-          'Alleppey houseboat + Munnar. Chill group, open to suggestions.', 4, 2),
-    ],
+    trips: [_Trip('Kerala Backwaters 5D', 'May 20–25',
+        'Alleppey houseboat + Munnar. Chill group, open to suggestions.', 4, 2)],
   ),
 ];
 
-// ─── Main screen ──────────────────────────────────────────────────────────────
+// ─── Screen ───────────────────────────────────────────────────────────────────
 
 class ExploreScreen extends ConsumerStatefulWidget {
   const ExploreScreen({super.key});
@@ -163,8 +136,8 @@ class ExploreScreen extends ConsumerStatefulWidget {
 }
 
 class _ExploreScreenState extends ConsumerState<ExploreScreen> {
-  String? _activeVibeFilter; // null = All
-  _Destination? _openDetail;
+  String? _filter;
+  _Dest?  _detail;
 
   @override
   void initState() {
@@ -178,259 +151,160 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
     });
   }
 
-  List<_Destination> get _filtered {
-    if (_activeVibeFilter == null) return _destinations;
-    return _destinations
-        .where((d) => d.vibeFilters.contains(_activeVibeFilter))
-        .toList();
-  }
+  List<_Dest> get _filtered => _filter == null
+      ? _dests
+      : _dests.where((d) => d.filters.contains(_filter)).toList();
 
   @override
   Widget build(BuildContext context) {
-    final topInset    = MediaQuery.of(context).padding.top;
-    final bottomInset = MediaQuery.of(context).padding.bottom;
+    final top    = MediaQuery.of(context).padding.top;
+    final bottom = MediaQuery.of(context).padding.bottom;
+    final navH   = 88.0 + bottom + 12;
 
     return Scaffold(
       backgroundColor: _kBg,
-      extendBody: true,
-      body: Stack(
-        children: [
-          // ── Feed (or detail) ───────────────────────────────────────────────
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 300),
-            child: _openDetail != null
-                ? _DestinationDetail(
-              key: ValueKey(_openDetail!.name),
-              destination: _openDetail!,
-              topInset: topInset,
-              bottomInset: bottomInset,
-              onBack: () => setState(() => _openDetail = null),
-            )
-                : _ExploreFeed(
-              key: const ValueKey('feed'),
-              topInset: topInset,
-              bottomInset: bottomInset,
-              activeFilter: _activeVibeFilter,
-              destinations: _filtered,
-              onVibeSelect: (f) => setState(() =>
-              _activeVibeFilter = _activeVibeFilter == f ? null : f),
-              onDestinationTap: (d) =>
-                  setState(() => _openDetail = d),
-            ),
-          ),
-
-          // ── Bottom nav ────────────────────────────────────────────────────
-          if (_openDetail == null)
-            Positioned(
-              left: 12, right: 12,
-              bottom: 12 + bottomInset,
-              child: const HomeBottomNav(),
-            ),
-        ],
+      body: _detail != null
+          ? _DetailView(
+        dest: _detail!,
+        top: top, bottom: bottom,
+        onBack: () => setState(() => _detail = null),
+      )
+          : _FeedView(
+        top: top, navH: navH, bottom: bottom,
+        filter: _filter,
+        dests: _filtered,
+        onVibeSelect: (f) =>
+            setState(() => _filter = _filter == f ? null : f),
+        onDestTap: (d) => setState(() => _detail = d),
+        nav: const HomeBottomNav(),
       ),
     );
   }
 }
 
-// ─── Explore Feed ─────────────────────────────────────────────────────────────
+// ─── Feed ─────────────────────────────────────────────────────────────────────
 
-class _ExploreFeed extends StatelessWidget {
-  final double topInset, bottomInset;
-  final String? activeFilter;
-  final List<_Destination> destinations;
+class _FeedView extends StatelessWidget {
+  final double top, navH, bottom;
+  final String? filter;
+  final List<_Dest> dests;
   final ValueChanged<String> onVibeSelect;
-  final ValueChanged<_Destination> onDestinationTap;
+  final ValueChanged<_Dest> onDestTap;
+  final Widget nav;
 
-  const _ExploreFeed({
-    super.key,
-    required this.topInset, required this.bottomInset,
-    required this.activeFilter, required this.destinations,
-    required this.onVibeSelect, required this.onDestinationTap,
+  const _FeedView({
+    required this.top, required this.navH, required this.bottom,
+    required this.filter, required this.dests,
+    required this.onVibeSelect, required this.onDestTap, required this.nav,
   });
 
   @override
   Widget build(BuildContext context) {
-    final navH = 88.0 + bottomInset + 12;
-
-    return CustomScrollView(
-      slivers: [
-
-        // ── Sticky header ──────────────────────────────────────────────────
-        SliverPersistentHeader(
-          pinned: true,
-          delegate: _StickyHeaderDelegate(
-            topInset: topInset,
-            child: _ExploreHeader(),
-          ),
-        ),
-
-        // ── Vibe blocks ────────────────────────────────────────────────────
-        SliverToBoxAdapter(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
-                child: const Text('Pick your vibe', style: TextStyle(
-                  color: _kText, fontSize: 18, fontWeight: FontWeight.w700,
-                  letterSpacing: -.2,
-                )),
-              ),
-              SizedBox(
-                height: 110,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  itemCount: _vibes.length,
-                  separatorBuilder: (_, __) => const SizedBox(width: 12),
-                  itemBuilder: (_, i) {
-                    final v = _vibes[i];
-                    final active = activeFilter == v.filter;
-                    return GestureDetector(
-                      onTap: () => onVibeSelect(v.filter),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        width: 100, height: 110,
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: [
-                              v.startColor.withOpacity(active ? .40 : .25),
-                              const Color(0xFF112425),
-                            ],
-                          ),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: active
-                                ? v.startColor.withOpacity(.60)
-                                : Colors.white.withOpacity(.06),
-                            width: active ? 1.5 : 1,
-                          ),
-                        ),
-                        child: Stack(
-                          children: [
-                            // Gradient overlay
-                            Positioned.fill(
-                              child: DecoratedBox(
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    begin: Alignment.topCenter,
-                                    end: Alignment.bottomCenter,
-                                    colors: [Colors.transparent, Colors.black.withOpacity(.55)],
-                                  ),
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                              ),
-                            ),
-                            // Emoji top-right
-                            Positioned(
-                              top: 12, right: 12,
-                              child: Text(v.emoji, style: const TextStyle(fontSize: 20)),
-                            ),
-                            // Label bottom-left
-                            Positioned(
-                              left: 12, bottom: 12,
-                              child: Text(v.label, style: const TextStyle(
-                                color: _kText, fontSize: 13,
-                                fontWeight: FontWeight.w700, height: 1.25,
-                              )),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-
-              // ── Trending destinations ────────────────────────────────────
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('Trending this weekend', style: TextStyle(
-                      color: _kText, fontSize: 18, fontWeight: FontWeight.w700,
-                      letterSpacing: -.2,
-                    )),
-                    Text('See all', style: TextStyle(
-                      color: _kTeal2, fontSize: 12, fontWeight: FontWeight.w700,
-                    )),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-
-        // ── Destination hero cards ─────────────────────────────────────────
-        SliverPadding(
-          padding: EdgeInsets.fromLTRB(16, 0, 16, navH + 8),
-          sliver: SliverList(
-            delegate: SliverChildBuilderDelegate(
-                  (_, i) => Padding(
-                padding: const EdgeInsets.only(bottom: 16),
-                child: _DestHeroCard(
-                  destination: destinations[i],
-                  onTap: () => onDestinationTap(destinations[i]),
-                ),
-              ),
-              childCount: destinations.length,
+    return Stack(
+      children: [
+        // Scrollable feed
+        ListView(
+          padding: EdgeInsets.only(top: top + 72, bottom: navH + 16),
+          children: [
+            // Vibe section label
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 8, 16, 12),
+              child: Text('Pick your vibe', style: TextStyle(
+                color: _kText, fontSize: 18, fontWeight: FontWeight.w700,
+                letterSpacing: -.2,
+              )),
             ),
-          ),
+
+            // Vibe horizontal scroll
+            SizedBox(
+              height: 110,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: _vibes.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 12),
+                itemBuilder: (_, i) => _VibeCard(
+                  vibe: _vibes[i],
+                  active: filter == _vibes[i].filter,
+                  onTap: () => onVibeSelect(_vibes[i].filter),
+                ),
+              ),
+            ),
+
+            // Trending label
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Trending this weekend', style: TextStyle(
+                    color: _kText, fontSize: 18, fontWeight: FontWeight.w700,
+                    letterSpacing: -.2,
+                  )),
+                  Text('See all', style: const TextStyle(
+                    color: _kTeal2, fontSize: 12, fontWeight: FontWeight.w700,
+                  )),
+                ],
+              ),
+            ),
+
+            // Destination cards
+            ...dests.map((d) => Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: _HeroCard(dest: d, onTap: () => onDestTap(d)),
+            )),
+          ],
+        ),
+
+        // Sticky header (search bar)
+        Positioned(
+          top: 0, left: 0, right: 0,
+          child: _SearchHeader(top: top),
+        ),
+
+        // Bottom nav
+        Positioned(
+          left: 12, right: 12,
+          bottom: 12 + bottom,
+          child: nav,
         ),
       ],
     );
   }
 }
 
-// ─── Sticky header delegate ───────────────────────────────────────────────────
+// ─── Search header ────────────────────────────────────────────────────────────
 
-class _StickyHeaderDelegate extends SliverPersistentHeaderDelegate {
-  final double topInset;
-  final Widget child;
-  const _StickyHeaderDelegate({required this.topInset, required this.child});
+class _SearchHeader extends StatelessWidget {
+  final double top;
+  const _SearchHeader({required this.top});
 
-  @override double get minExtent => topInset + 72;
-  @override double get maxExtent => topInset + 72;
-
-  @override
-  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
-    return child;
-  }
-
-  @override
-  bool shouldRebuild(_StickyHeaderDelegate old) => false;
-}
-
-class _ExploreHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    final topInset = MediaQuery.of(context).padding.top;
     return Container(
-      padding: EdgeInsets.fromLTRB(16, topInset + 10, 16, 14),
+      padding: EdgeInsets.fromLTRB(16, top + 10, 16, 14),
       decoration: BoxDecoration(
-        color: _kBg.withOpacity(.92),
-        border: Border(bottom: BorderSide(color: Colors.white.withOpacity(.04))),
+        color: _kBg.withOpacity(.94),
+        border: Border(
+          bottom: BorderSide(color: Colors.white.withOpacity(.04)),
+        ),
       ),
       child: Row(
         children: [
-          // Search box
           Expanded(
             child: Container(
               height: 44,
               decoration: BoxDecoration(
                 color: Colors.white.withOpacity(.04),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: _kBorder),
+                border: Border.all(color: Colors.white.withOpacity(.07)),
               ),
-              child: Row(
+              child: const Row(
                 children: [
-                  const SizedBox(width: 12),
+                  SizedBox(width: 12),
                   Icon(Icons.search_rounded, color: _kFaint, size: 17),
-                  const SizedBox(width: 8),
-                  const Text('Where to next?', style: TextStyle(
+                  SizedBox(width: 8),
+                  Text('Where to next?', style: TextStyle(
                     color: _kFaint, fontSize: 13,
                   )),
                 ],
@@ -438,7 +312,6 @@ class _ExploreHeader extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 10),
-          // Map button
           Container(
             width: 44, height: 44,
             decoration: BoxDecoration(
@@ -446,7 +319,7 @@ class _ExploreHeader extends StatelessWidget {
               borderRadius: BorderRadius.circular(16),
               border: Border.all(color: _kTeal.withOpacity(.22)),
             ),
-            child: Icon(Icons.map_outlined, color: _kTeal2, size: 20),
+            child: const Icon(Icons.map_outlined, color: _kTeal2, size: 20),
           ),
         ],
       ),
@@ -454,16 +327,74 @@ class _ExploreHeader extends StatelessWidget {
   }
 }
 
-// ─── Destination hero card ────────────────────────────────────────────────────
+// ─── Vibe card ────────────────────────────────────────────────────────────────
 
-class _DestHeroCard extends StatelessWidget {
-  final _Destination destination;
+class _VibeCard extends StatelessWidget {
+  final _VibeItem vibe;
+  final bool active;
   final VoidCallback onTap;
-  const _DestHeroCard({required this.destination, required this.onTap});
+  const _VibeCard({required this.vibe, required this.active, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    final d = destination;
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        width: 100, height: 110,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft, end: Alignment.bottomRight,
+            colors: [
+              vibe.color.withOpacity(active ? .42 : .22),
+              const Color(0xFF112425),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: active
+                ? vibe.color.withOpacity(.65)
+                : Colors.white.withOpacity(.06),
+            width: active ? 1.5 : 1,
+          ),
+        ),
+        child: Stack(
+          children: [
+            // Gradient overlay
+            Positioned.fill(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(20),
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter, end: Alignment.bottomCenter,
+                    colors: [Colors.transparent, Colors.black.withOpacity(.55)],
+                  ),
+                ),
+              ),
+            ),
+            Positioned(top: 12, right: 12,
+                child: Text(vibe.emoji, style: const TextStyle(fontSize: 20))),
+            Positioned(left: 12, bottom: 12,
+                child: Text(vibe.label, style: const TextStyle(
+                  color: _kText, fontSize: 13, fontWeight: FontWeight.w700, height: 1.25,
+                ))),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Hero destination card ────────────────────────────────────────────────────
+
+class _HeroCard extends StatelessWidget {
+  final _Dest dest;
+  final VoidCallback onTap;
+  const _HeroCard({required this.dest, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final d = dest;
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -471,43 +402,38 @@ class _DestHeroCard extends StatelessWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(28),
           border: Border.all(color: Colors.white.withOpacity(.08)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(.30),
-              blurRadius: 30, offset: const Offset(0, 10),
-            ),
-          ],
+          boxShadow: [BoxShadow(
+            color: Colors.black.withOpacity(.30),
+            blurRadius: 30, offset: const Offset(0, 10),
+          )],
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(28),
           child: Stack(
             fit: StackFit.expand,
             children: [
-              // Hero bg gradient
+              // Hero bg
               Container(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [d.heroStart, const Color(0xFF0B1516)],
+                    begin: Alignment.topLeft, end: Alignment.bottomRight,
+                    colors: [d.heroColor, const Color(0xFF0B1516)],
                   ),
                 ),
               ),
-              // Bottom dark overlay
+              // Bottom dark fade
               Positioned.fill(
                 child: DecoratedBox(
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
+                      begin: Alignment.topCenter, end: Alignment.bottomCenter,
                       colors: [Colors.transparent, Colors.black.withOpacity(.88)],
-                      stops: const [0.38, 1.0],
+                      stops: const [0.35, 1.0],
                     ),
                   ),
                 ),
               ),
-
-              // Badge top-left
+              // Badge
               Positioned(
                 top: 14, left: 14,
                 child: Container(
@@ -518,12 +444,10 @@ class _DestHeroCard extends StatelessWidget {
                     border: Border.all(color: Colors.white.withOpacity(.10)),
                   ),
                   child: Text(d.badge, style: TextStyle(
-                    color: d.badgeColor, fontSize: 11,
-                    fontWeight: FontWeight.w800,
+                    color: d.badgeColor, fontSize: 11, fontWeight: FontWeight.w800,
                   )),
                 ),
               ),
-
               // Bottom info
               Positioned(
                 left: 16, right: 16, bottom: 16,
@@ -540,15 +464,12 @@ class _DestHeroCard extends StatelessWidget {
                             fontWeight: FontWeight.w700, letterSpacing: -.3,
                           )),
                           const SizedBox(height: 4),
-                          Text(
-                            '${d.travelerCount} solo travelers going',
-                            style: const TextStyle(color: _kMuted, fontSize: 12),
-                          ),
+                          Text('${d.count} solo travelers going',
+                              style: const TextStyle(color: _kMuted, fontSize: 12)),
                         ],
                       ),
                     ),
-                    // Stacked avatars
-                    _AvatarStack(users: d.topMatches, extra: d.travelerCount - 3),
+                    _AvatarStack(matches: d.matches, extra: d.count - d.matches.length),
                   ],
                 ),
               ),
@@ -560,40 +481,39 @@ class _DestHeroCard extends StatelessWidget {
   }
 }
 
+// ─── Avatar stack ─────────────────────────────────────────────────────────────
+
 class _AvatarStack extends StatelessWidget {
-  final List<_MatchUser> users;
+  final List<_Match> matches;
   final int extra;
-  const _AvatarStack({required this.users, required this.extra});
+  const _AvatarStack({required this.matches, required this.extra});
 
   @override
   Widget build(BuildContext context) {
+    final count = matches.length;
     return SizedBox(
       height: 28,
-      width: users.length * 20.0 + 32,
+      width: count * 20.0 + 32,
       child: Stack(
         children: [
-          ...users.asMap().entries.map((e) => Positioned(
+          ...matches.asMap().entries.map((e) => Positioned(
             left: e.key * 20.0,
             child: Container(
               width: 28, height: 28,
               decoration: BoxDecoration(
-                color: e.value.avatarColor.withOpacity(.80),
+                color: e.value.color.withOpacity(.85),
                 shape: BoxShape.circle,
                 border: Border.all(color: const Color(0xFF0B1516), width: 2),
               ),
               child: Center(
-                child: Text(
-                  e.value.name[0],
-                  style: const TextStyle(
-                    color: Colors.white, fontSize: 9,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
+                child: Text(e.value.name[0], style: const TextStyle(
+                  color: Colors.white, fontSize: 9, fontWeight: FontWeight.w800,
+                )),
               ),
             ),
           )),
           Positioned(
-            left: users.length * 20.0,
+            left: count * 20.0,
             child: Container(
               width: 28, height: 28,
               decoration: BoxDecoration(
@@ -602,13 +522,9 @@ class _AvatarStack extends StatelessWidget {
                 border: Border.all(color: const Color(0xFF0B1516), width: 2),
               ),
               child: Center(
-                child: Text(
-                  '+$extra',
-                  style: const TextStyle(
-                    color: Colors.white, fontSize: 8,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
+                child: Text('+$extra', style: const TextStyle(
+                  color: Colors.white, fontSize: 8, fontWeight: FontWeight.w800,
+                )),
               ),
             ),
           ),
@@ -618,95 +534,78 @@ class _AvatarStack extends StatelessWidget {
   }
 }
 
-// ─── Destination Detail ───────────────────────────────────────────────────────
+// ─── Destination detail ───────────────────────────────────────────────────────
 
-class _DestinationDetail extends StatelessWidget {
-  final _Destination destination;
-  final double topInset, bottomInset;
+class _DetailView extends StatelessWidget {
+  final _Dest dest;
+  final double top, bottom;
   final VoidCallback onBack;
-
-  const _DestinationDetail({
-    super.key,
-    required this.destination,
-    required this.topInset, required this.bottomInset,
-    required this.onBack,
+  const _DetailView({
+    required this.dest, required this.top,
+    required this.bottom, required this.onBack,
   });
 
   @override
   Widget build(BuildContext context) {
-    final d = destination;
-
+    final d = dest;
     return Stack(
       children: [
-        // Scrollable content
         SingleChildScrollView(
-          padding: EdgeInsets.only(bottom: 90 + bottomInset),
+          padding: EdgeInsets.only(bottom: 80 + bottom),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-
-              // ── Cover hero ──────────────────────────────────────────────
+              // ── Cover ──────────────────────────────────────────────────
               SizedBox(
                 height: 300,
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    // Gradient bg
                     Container(
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [d.heroStart, const Color(0xFF0B1516)],
+                          begin: Alignment.topLeft, end: Alignment.bottomRight,
+                          colors: [d.heroColor, const Color(0xFF0B1516)],
                         ),
                       ),
                     ),
-                    // Fade bottom
                     Positioned.fill(
                       child: DecoratedBox(
                         decoration: BoxDecoration(
                           gradient: LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
+                            begin: Alignment.topCenter, end: Alignment.bottomCenter,
                             colors: [Colors.transparent, const Color(0xFF0B1516)],
                             stops: const [0.40, 1.0],
                           ),
                         ),
                       ),
                     ),
-                    // Back + share row
+                    // Back + share
                     Positioned(
-                      top: topInset + 10,
-                      left: 16, right: 16,
+                      top: top + 10, left: 16, right: 16,
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          _GlassBtn(
-                            icon: Icons.arrow_back_ios_new_rounded,
-                            onTap: onBack,
-                          ),
-                          _GlassBtn(icon: Icons.ios_share_rounded),
+                          _GlassBtn(Icons.arrow_back_ios_new_rounded, onBack),
+                          _GlassBtn(Icons.ios_share_rounded, () {}),
                         ],
                       ),
                     ),
-                    // Info bottom
+                    // Info
                     Positioned(
                       left: 16, right: 16, bottom: 0,
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 4,
-                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                             decoration: BoxDecoration(
                               color: _kTeal.withOpacity(.15),
                               borderRadius: BorderRadius.circular(6),
                               border: Border.all(color: _kTeal.withOpacity(.22)),
                             ),
                             child: Text(d.vibe, style: const TextStyle(
-                              color: _kTeal2, fontSize: 10,
-                              fontWeight: FontWeight.w800,
+                              color: _kTeal2, fontSize: 10, fontWeight: FontWeight.w800,
                             )),
                           ),
                           const SizedBox(height: 10),
@@ -715,7 +614,7 @@ class _DestinationDetail extends StatelessWidget {
                             fontWeight: FontWeight.w700, letterSpacing: -.4,
                           )),
                           const SizedBox(height: 8),
-                          Text(d.description, style: const TextStyle(
+                          Text(d.desc, style: const TextStyle(
                             color: _kMuted, fontSize: 13, height: 1.5,
                           )),
                           const SizedBox(height: 16),
@@ -726,7 +625,7 @@ class _DestinationDetail extends StatelessWidget {
                 ),
               ),
 
-              // ── Live stats bar ──────────────────────────────────────────
+              // ── Live stats ──────────────────────────────────────────────
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
                 child: Container(
@@ -743,10 +642,9 @@ class _DestinationDetail extends StatelessWidget {
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('${d.travelerCount} travelers active here',
+                          Text('${d.count} travelers active here',
                               style: const TextStyle(
-                                color: _kText, fontSize: 15,
-                                fontWeight: FontWeight.w700,
+                                color: _kText, fontSize: 15, fontWeight: FontWeight.w700,
                               )),
                           const SizedBox(height: 2),
                           const Text('High match rate for your vibe',
@@ -759,66 +657,55 @@ class _DestinationDetail extends StatelessWidget {
               ),
 
               // ── Top matches ─────────────────────────────────────────────
-              _SectionHeader(title: 'Your top matches going here', link: 'See all'),
+              _SectionHeader('Your top matches going here', 'See all'),
               SizedBox(
                 height: 120,
                 child: ListView.separated(
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.symmetric(horizontal: 16),
-                  itemCount: d.topMatches.length,
+                  itemCount: d.matches.length,
                   separatorBuilder: (_, __) => const SizedBox(width: 12),
-                  itemBuilder: (_, i) {
-                    final u = d.topMatches[i];
-                    return GestureDetector(
-                      onTap: () => UserProfileSheet.show(context, name: u.name),
-                      child: _MatchMiniCard(user: u),
-                    );
-                  },
+                  itemBuilder: (_, i) => GestureDetector(
+                    onTap: () => UserProfileSheet.show(
+                        context, name: d.matches[i].name),
+                    child: _MatchCard(m: d.matches[i]),
+                  ),
                 ),
               ),
 
               // ── Open trips ──────────────────────────────────────────────
-              _SectionHeader(title: 'Open trips to join'),
+              _SectionHeader('Open trips to join', null),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Column(
-                  children: d.openTrips.map((t) => _TripCard(trip: t)).toList(),
+                  children: d.trips.map((t) => _TripCard(trip: t, dest: d.name)).toList(),
                 ),
               ),
-
-              const SizedBox(height: 12),
             ],
           ),
         ),
 
-        // ── Sticky CTA "Plan a trip to X" ──────────────────────────────────
+        // ── Sticky CTA ──────────────────────────────────────────────────
         Positioned(
-          left: 12, right: 12,
-          bottom: 12 + bottomInset,
+          left: 12, right: 12, bottom: 12 + bottom,
           child: GestureDetector(
             onTap: () => CreateTripSheet.show(context),
             child: Container(
               height: 56,
               decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [_kTeal2, _kTeal],
-                ),
+                gradient: const LinearGradient(colors: [_kTeal2, _kTeal]),
                 borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: _kTeal.withOpacity(.25),
-                    blurRadius: 32, offset: const Offset(0, 16),
-                  ),
-                ],
+                boxShadow: [BoxShadow(
+                  color: _kTeal.withOpacity(.28),
+                  blurRadius: 32, offset: const Offset(0, 16),
+                )],
               ),
               child: Center(
-                child: Text(
-                  'Plan a trip to ${d.name}',
-                  style: const TextStyle(
-                    color: Color(0xFF041818),
-                    fontSize: 15, fontWeight: FontWeight.w800,
-                  ),
-                ),
+                child: Text('Plan a trip to ${d.name}',
+                    style: const TextStyle(
+                      color: Color(0xFF041818),
+                      fontSize: 15, fontWeight: FontWeight.w800,
+                    )),
               ),
             ),
           ),
@@ -828,12 +715,12 @@ class _DestinationDetail extends StatelessWidget {
   }
 }
 
-// ─── Glass back/share button ──────────────────────────────────────────────────
+// ─── Glass button ─────────────────────────────────────────────────────────────
 
 class _GlassBtn extends StatelessWidget {
   final IconData icon;
-  final VoidCallback? onTap;
-  const _GlassBtn({required this.icon, this.onTap});
+  final VoidCallback onTap;
+  const _GlassBtn(this.icon, this.onTap);
 
   @override
   Widget build(BuildContext context) {
@@ -857,7 +744,7 @@ class _GlassBtn extends StatelessWidget {
 class _SectionHeader extends StatelessWidget {
   final String title;
   final String? link;
-  const _SectionHeader({required this.title, this.link});
+  const _SectionHeader(this.title, this.link);
 
   @override
   Widget build(BuildContext context) {
@@ -869,20 +756,21 @@ class _SectionHeader extends StatelessWidget {
           Text(title, style: const TextStyle(
             color: _kText, fontSize: 16, fontWeight: FontWeight.w700,
           )),
-          if (link != null) Text(link!, style: const TextStyle(
-            color: _kTeal2, fontSize: 12, fontWeight: FontWeight.w700,
-          )),
+          if (link != null)
+            Text(link!, style: const TextStyle(
+              color: _kTeal2, fontSize: 12, fontWeight: FontWeight.w700,
+            )),
         ],
       ),
     );
   }
 }
 
-// ─── Match mini card ──────────────────────────────────────────────────────────
+// ─── Match card ───────────────────────────────────────────────────────────────
 
-class _MatchMiniCard extends StatelessWidget {
-  final _MatchUser user;
-  const _MatchMiniCard({required this.user});
+class _MatchCard extends StatelessWidget {
+  final _Match m;
+  const _MatchCard({required this.m});
 
   @override
   Widget build(BuildContext context) {
@@ -903,13 +791,12 @@ class _MatchMiniCard extends StatelessWidget {
               Container(
                 width: 48, height: 48,
                 decoration: BoxDecoration(
-                  color: user.avatarColor.withOpacity(.80),
+                  color: m.color.withOpacity(.80),
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Center(
-                  child: Text(user.name[0], style: const TextStyle(
-                    color: Colors.white, fontSize: 18,
-                    fontWeight: FontWeight.w800,
+                  child: Text(m.name[0], style: const TextStyle(
+                    color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800,
                   )),
                 ),
               ),
@@ -922,7 +809,7 @@ class _MatchMiniCard extends StatelessWidget {
                     borderRadius: BorderRadius.circular(999),
                     border: Border.all(color: _kGold.withOpacity(.20)),
                   ),
-                  child: Text('${user.matchPct}%', style: const TextStyle(
+                  child: Text('${m.pct}%', style: const TextStyle(
                     color: _kGold, fontSize: 9, fontWeight: FontWeight.w900,
                   )),
                 ),
@@ -930,23 +817,22 @@ class _MatchMiniCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 14),
-          Text(user.name, style: const TextStyle(
+          Text(m.name, style: const TextStyle(
             color: _kText, fontSize: 12, fontWeight: FontWeight.w700,
           )),
-          Text('${user.age}', style: const TextStyle(
-            color: _kFaint, fontSize: 10,
-          )),
+          Text('${m.age}', style: const TextStyle(color: _kFaint, fontSize: 10)),
         ],
       ),
     );
   }
 }
 
-// ─── Open trip card ───────────────────────────────────────────────────────────
+// ─── Trip card ────────────────────────────────────────────────────────────────
 
 class _TripCard extends StatelessWidget {
-  final _OpenTrip trip;
-  const _TripCard({required this.trip});
+  final _Trip trip;
+  final String dest;
+  const _TripCard({required this.trip, required this.dest});
 
   @override
   Widget build(BuildContext context) {
@@ -969,8 +855,7 @@ class _TripCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(trip.title, style: const TextStyle(
-                      color: _kText, fontSize: 15,
-                      fontWeight: FontWeight.w700,
+                      color: _kText, fontSize: 15, fontWeight: FontWeight.w700,
                     )),
                     const SizedBox(height: 4),
                     Text(trip.dates, style: const TextStyle(
@@ -979,33 +864,24 @@ class _TripCard extends StatelessWidget {
                   ],
                 ),
               ),
-              // Spots indicator
               Row(
-                children: List.generate(trip.totalSpots, (i) {
-                  final filled = i < trip.filledSpots;
+                children: List.generate(trip.total, (i) {
+                  final filled = i < trip.filled;
                   return Container(
                     width: 20, height: 20,
                     margin: const EdgeInsets.only(left: 4),
                     decoration: BoxDecoration(
-                      color: filled
-                          ? _kTeal.withOpacity(.15)
-                          : Colors.white.withOpacity(.05),
+                      color: filled ? _kTeal.withOpacity(.15) : Colors.white.withOpacity(.05),
                       shape: BoxShape.circle,
                       border: Border.all(
-                        color: filled
-                            ? _kTeal2
-                            : Colors.white.withOpacity(.10),
-                        style: filled ? BorderStyle.solid : BorderStyle.solid,
+                        color: filled ? _kTeal2 : Colors.white.withOpacity(.10),
                       ),
                     ),
                     child: Center(
-                      child: Text(
-                        filled ? '✓' : '+',
-                        style: TextStyle(
-                          color: filled ? _kTeal2 : _kFaint,
-                          fontSize: 10,
-                        ),
-                      ),
+                      child: Text(filled ? '✓' : '+',
+                          style: TextStyle(
+                            color: filled ? _kTeal2 : _kFaint, fontSize: 10,
+                          )),
                     ),
                   );
                 }),
@@ -1013,13 +889,12 @@ class _TripCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
-          Text(trip.description, style: const TextStyle(
+          Text(trip.desc, style: const TextStyle(
             color: _kMuted, fontSize: 12, height: 1.4,
           )),
           const SizedBox(height: 14),
           Container(
-            width: double.infinity,
-            height: 42,
+            width: double.infinity, height: 42,
             decoration: BoxDecoration(
               color: Colors.white.withOpacity(.05),
               borderRadius: BorderRadius.circular(12),
@@ -1047,8 +922,7 @@ class _PulseDot extends StatefulWidget {
 class _PulseDotState extends State<_PulseDot>
     with SingleTickerProviderStateMixin {
   late final AnimationController _ctrl;
-  late final Animation<double> _scale;
-  late final Animation<double> _fade;
+  late final Animation<double> _scale, _fade;
 
   @override
   void initState() {
@@ -1056,9 +930,9 @@ class _PulseDotState extends State<_PulseDot>
     _ctrl = AnimationController(
       vsync: this, duration: const Duration(milliseconds: 1500),
     )..repeat();
-    _scale = Tween(begin: 1.0, end: 2.2).animate(
-        CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
-    _fade = Tween(begin: 0.6, end: 0.0).animate(_ctrl);
+    _scale = Tween(begin: 1.0, end: 2.2)
+        .animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
+    _fade  = Tween(begin: 0.6, end: 0.0).animate(_ctrl);
   }
 
   @override
@@ -1086,9 +960,7 @@ class _PulseDotState extends State<_PulseDot>
           ),
           Container(
             width: 12, height: 12,
-            decoration: const BoxDecoration(
-              color: _kTeal2, shape: BoxShape.circle,
-            ),
+            decoration: const BoxDecoration(color: _kTeal2, shape: BoxShape.circle),
           ),
         ],
       ),
