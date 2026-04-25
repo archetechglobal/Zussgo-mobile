@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/providers/nav_provider.dart';
 import '../../home/widgets/home_bottom_nav.dart';
 import '../../profile/widgets/user_profile_sheet.dart';
+import '../../trips/screens/create_trip_sheet.dart';
 
 class MatchScreen extends ConsumerStatefulWidget {
   final String initialTab;
@@ -290,6 +291,13 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
               ],
             ),
           ),
+          // ── Create Trip FAB ──────────────────────────────────────────────
+          Positioned(
+            right: 20,
+            bottom: 88 + bottomInset + 20,
+            child: _CreateTripFab(),
+          ),
+
           Positioned(
             left: 12,
             right: 12,
@@ -926,4 +934,80 @@ class _RequestData {
     required this.verified,
     required this.avatarVariant,
   });
+}
+// ─── Create Trip FAB ──────────────────────────────────────────────────────────
+
+class _CreateTripFab extends StatefulWidget {
+  @override
+  State<_CreateTripFab> createState() => _CreateTripFabState();
+}
+
+class _CreateTripFabState extends State<_CreateTripFab>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _glow;
+
+  static const _teal  = Color(0xFF1EC9B8);
+  static const _teal2 = Color(0xFF58DAD0);
+  static const _dark  = Color(0xFF041818);
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this, duration: const Duration(seconds: 2),
+    )..repeat(reverse: true);
+    _glow = Tween(begin: 0.30, end: 0.55)
+        .animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut));
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _glow,
+      builder: (_, __) => GestureDetector(
+        onTap: () => CreateTripSheet.show(context),
+        child: Container(
+          height: 52,
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [_teal2, _teal],
+            ),
+            borderRadius: BorderRadius.circular(26),
+            boxShadow: [
+              BoxShadow(
+                color: _teal.withOpacity(_glow.value),
+                blurRadius: 20,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: const [
+              Icon(Icons.add_rounded, color: _dark, size: 20),
+              SizedBox(width: 6),
+              Text(
+                'Create Trip',
+                style: TextStyle(
+                  color: _dark,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }

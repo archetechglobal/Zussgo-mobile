@@ -12,6 +12,8 @@ import '../../features/chat/screens/chat_list_screen.dart';   // ← list
 import '../../features/chat/screens/chat_screen.dart';         // ← individual
 import '../../features/profile/screens/my_profile_screen.dart';
 import '../../features/explore/screens/explore_screen.dart';
+import '../../features/trips/screens/active_trip_screen.dart';
+import '../../features/trips/screens/trip_rating_screen.dart';
 
 final goRouter = GoRouter(
   initialLocation: '/splash',
@@ -56,6 +58,33 @@ final goRouter = GoRouter(
       path: '/explore',
       name: 'explore',
       builder: (c, s) => const ExploreScreen(),
+    ),
+
+    GoRoute(
+      path: '/active-trip',
+      name: 'active-trip',
+      builder: (c, s) {
+        final args = s.extra as Map<String, String>?;
+        return ActiveTripScreen(
+          tripName:         args?['tripName']     ?? 'Trip',
+          partnerName:      args?['partnerName']  ?? 'Partner',
+          partnerImageUrl:  args?['imageUrl']     ?? '',
+          startTime:        args?['startTime']    ?? 'Now',
+        );
+      },
+    ),
+
+    GoRoute(
+      path: '/trip-rating',
+      name: 'trip-rating',
+      builder: (c, s) {
+        final args = s.extra as Map<String, String>?;
+        return TripRatingScreen(
+          partnerName:      args?['partnerName'] ?? 'Partner',
+          partnerImageUrl:  args?['imageUrl']    ?? '',
+          tripName:         args?['tripName']    ?? 'Trip',
+        );
+      },
     ),
   ],
 );

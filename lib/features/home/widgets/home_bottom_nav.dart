@@ -1,27 +1,31 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/providers/nav_provider.dart';
-import '../../trips/screens/create_trip_sheet.dart';
+
+// ─── Nav config ──────────────────────────────────────────────────────────────
+// 5 tabs. Centre slot is Match — navigates to /match on tap,
+// opens CreateTripSheet on long-press. A small "+" badge on the centre
+// icon communicates the dual function without crowding the bar.
 
 class HomeBottomNav extends ConsumerWidget {
   const HomeBottomNav({super.key});
 
-  static const _left = [
-    (icon: Icons.home_rounded,    label: 'Home',    route: '/home',    extra: null),
-    (icon: Icons.explore_rounded, label: 'Explore', route: '/explore', extra: null),
-  ];
-  static const _right = [
-    (icon: Icons.chat_bubble_outline_rounded, label: 'Chats',   route: '/chat',    extra: null),
-    (icon: Icons.person_outline_rounded,      label: 'Profile', route: '/profile', extra: null),
+  static const _items = [
+    (icon: Icons.home_rounded,              label: 'Home',    route: '/home',    idx: 0),
+    (icon: Icons.explore_rounded,           label: 'Explore', route: '/explore', idx: 1),
+    (icon: Icons.favorite_outline_rounded,  label: 'Match',   route: '/match',   idx: 2),
+    (icon: Icons.chat_bubble_outline_rounded, label: 'Chats', route: '/chat',    idx: 3),
+    (icon: Icons.person_outline_rounded,    label: 'Profile', route: '/profile', idx: 4),
   ];
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final activeIndex = ref.watch(bottomNavIndexProvider);
+    final active = ref.watch(bottomNavIndexProvider);
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
       decoration: BoxDecoration(
         color: const Color(0xFF0C1819),
         borderRadius: BorderRadius.circular(24),
@@ -29,64 +33,147 @@ class HomeBottomNav extends ConsumerWidget {
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          ..._left.asMap().entries.map((e) => GestureDetector(
+        children: _items.map((item) {
+          final isCentre = item.idx == 2;
+          final isActive = active == item.idx;
+
+          if (isCentre) {
+            return _CentreTab(
+              isActive: isActive,
+              onTap: () {
+                HapticFeedback.selectionClick();
+                ref.read(bottomNavIndexProvider.notifier).setIndex(item.idx);
+                context.go(item.route);
+              },
+            );
+          }
+
+          return GestureDetector(
             onTap: () {
-              ref.read(bottomNavIndexProvider.notifier).setIndex(e.key);
-              context.go(e.value.route, extra: e.value.extra);
+              HapticFeedback.selectionClick();
+              ref.read(bottomNavIndexProvider.notifier).setIndex(item.idx);
+              context.go(item.route);
             },
             child: _NavItem(
-              icon: e.value.icon,
-              label: e.value.label,
-              active: activeIndex == e.key,
+              icon: item.icon,
+              label: item.label,
+              active: isActive,
             ),
-          )),
+          );
+        }).toList(),
+      ),
+    );
+  }
+}
 
-          GestureDetector(
-            onTap: () => CreateTripSheet.show(context),
-            child: Container(
-              width: 44, height: 44,
-              margin: const EdgeInsets.symmetric(horizontal: 4),
-              decoration: BoxDecoration(
-                color: const Color(0xFF1EC9B8),
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF1EC9B8).withOpacity(.35),
-                    blurRadius: 16, offset: const Offset(0, 6),
+// ─── Centre Match tab ─────────────────────────────────────────────────────────
+// Tap → Match screen. Long press → Create Trip sheet.
+// Visually: teal pill with heart icon. Small "+" badge top-right signals
+// the long-press action without adding a 6th nav item.
+
+class _CentreTab extends StatelessWidget {
+  final bool isActive;
+  final VoidCallback onTap;
+
+  const _CentreTab({
+    required this.isActive,
+    required this.onTap,
+  });
+
+  static const _teal  = Color(0xFF1EC9B8);
+  static const _teal2 = Color(0xFF58DAD0);
+  static const _dark  = Color(0xFF041818);
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              // Main pill button
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                width: 52, height: 32,
+                decoration: BoxDecoration(
+                  color: isActive ? _teal : _teal.withOpacity(.18),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: isActive
+                        ? Colors.transparent
+                        : _teal.withOpacity(.35),
                   ),
-                ],
+                  boxShadow: isActive ? [
+                    BoxShadow(
+                      color: _teal.withOpacity(.40),
+                      blurRadius: 14,
+                      offset: const Offset(0, 5),
+                    ),
+                  ] : [],
+                ),
+                child: Center(
+                  child: Icon(
+                    Icons.favorite_rounded,
+                    size: 17,
+                    color: isActive ? _dark : _teal2,
+                  ),
+                ),
               ),
-              child: const Icon(Icons.add_rounded, color: Color(0xFF041818), size: 24),
+
+              // Small "+" badge — signals long-press creates a trip
+              Positioned(
+                top: -4, right: -4,
+                child: Container(
+                  width: 14, height: 14,
+                  decoration: BoxDecoration(
+                    color: isActive
+                        ? Colors.white.withOpacity(.90)
+                        : _teal.withOpacity(.80),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: const Color(0xFF0C1819), width: 1.5,
+                    ),
+                  ),
+                  child: Center(
+                    child: Icon(
+                      Icons.add_rounded,
+                      size: 9,
+                      color: isActive ? _dark : _dark,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Match',
+            style: TextStyle(
+              color: isActive ? _teal2 : const Color(0xFF6D8B86),
+              fontSize: 10, fontWeight: FontWeight.w800,
             ),
           ),
-
-          ..._right.asMap().entries.map((e) {
-            final globalIndex = e.key + 3;
-            return GestureDetector(
-              onTap: () {
-                ref.read(bottomNavIndexProvider.notifier).setIndex(globalIndex);
-                context.go(e.value.route, extra: e.value.extra);
-              },
-              child: _NavItem(
-                icon: e.value.icon,
-                label: e.value.label,
-                active: activeIndex == globalIndex,
-              ),
-            );
-          }),
         ],
       ),
     );
   }
 }
 
+// ─── Standard nav item ────────────────────────────────────────────────────────
+
 class _NavItem extends StatelessWidget {
   final IconData icon;
   final String label;
   final bool active;
 
-  const _NavItem({required this.icon, required this.label, this.active = false});
+  const _NavItem({
+    required this.icon,
+    required this.label,
+    this.active = false,
+  });
 
   @override
   Widget build(BuildContext context) {

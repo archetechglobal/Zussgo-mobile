@@ -11,6 +11,7 @@ import '../widgets/ai_spark_chip.dart';
 import '../widgets/itinerary_tray.dart';
 import '../widgets/message_bubble.dart';
 import '../widgets/suggest_place_sheet.dart';
+import '../../trips/screens/active_trip_screen.dart';
 
 class ChatScreen extends ConsumerStatefulWidget {
   final String peerId;      // ← added
@@ -32,6 +33,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   final _controller = TextEditingController();
   final _scrollController = ScrollController();
   bool _showItinerary = false;
+  bool _tripStarted   = false; // becomes true once trip is live
 
   static const _bg    = Color(0xFF070E0F);
   static const _teal  = Color(0xFF1EC9B8);
@@ -97,6 +99,46 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     });
   }
 
+  void _startTrip() {
+    HapticFeedback.heavyImpact();
+    Navigator.of(context).push(
+      PageRouteBuilder(
+        opaque: true,
+        transitionDuration: const Duration(milliseconds: 420),
+        pageBuilder: (_, __, ___) => ActiveTripScreen(
+          tripName: widget.tripLabel,
+          partnerName: widget.peerName,
+          partnerImageUrl:
+          'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?q=80&w=200&auto=format&fit=crop',
+          startTime: _formattedNow(),
+        ),
+        transitionsBuilder: (_, animation, __, child) {
+          final curved = CurvedAnimation(
+            parent: animation, curve: Curves.easeOutCubic,
+          );
+          return FadeTransition(
+            opacity: curved,
+            child: SlideTransition(
+              position: Tween<Offset>(
+                begin: const Offset(0, 0.04),
+                end: Offset.zero,
+              ).animate(curved),
+              child: child,
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  String _formattedNow() {
+    final now = DateTime.now();
+    final hour = now.hour > 12 ? now.hour - 12 : now.hour == 0 ? 12 : now.hour;
+    final min  = now.minute.toString().padLeft(2, '0');
+    final ampm = now.hour >= 12 ? 'PM' : 'AM';
+    return 'Today, $hour:$min $ampm';
+  }
+
   void _openSuggestSheet({PlanCardData? prefilled}) {
     showModalBottomSheet(
       context: context,
@@ -150,6 +192,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 onExpand: () {},
               )
                   : const SizedBox.shrink(),
+            ),
+
+            // ── Start Trip banner — pinned above messages ─────────────────
+            _StartTripBanner(
+              peerName: widget.peerName,
+              tripLabel: widget.tripLabel,
+              onStart: _startTrip,
             ),
 
             Expanded(
@@ -430,6 +479,160 @@ class _InputBar extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+// ─── Start Trip Banner ────────────────────────────────────────────────────────
+// Pinned between the app bar and the messages list.
+// Appears when a trip date is approaching — one tap launches ActiveTripScreen.
+
+class _StartTripBanner extends StatefulWidget {
+  final String peerName;
+  final String tripLabel;
+  final VoidCallback onStart;
+
+  const _StartTripBanner({
+    required this.peerName,
+    required this.tripLabel,
+    required this.onStart,
+  });
+
+  @override
+  State<_StartTripBanner> createState() => _StartTripBannerState();
+}
+
+class _StartTripBannerState extends State<_StartTripBanner>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _pulse;
+  late final Animation<double> _glow;
+
+  static const _teal  = Color(0xFF1EC9B8);
+  static const _teal2 = Color(0xFF58DAD0);
+  static const _text  = Color(0xFFEDF7F4);
+  static const _faint = Color(0xFF6A8882);
+
+  @override
+  void initState() {
+    super.initState();
+    _pulse = AnimationController(
+      vsync: this, duration: const Duration(seconds: 2),
+    )..repeat(reverse: true);
+    _glow = Tween(begin: 0.20, end: 0.45).animate(
+      CurvedAnimation(parent: _pulse, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _pulse.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _pulse,
+      builder: (_, __) => Container(
+        margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              _teal.withOpacity(.12),
+              Colors.transparent,
+            ],
+          ),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: _teal.withOpacity(_glow.value),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: _teal.withOpacity(_glow.value * 0.5),
+              blurRadius: 16,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
+          child: Row(
+            children: [
+              // Pulsing live dot
+              SizedBox(
+                width: 14, height: 14,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Container(
+                      width: 14, height: 14,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: _teal.withOpacity(_glow.value * 0.6),
+                      ),
+                    ),
+                    Container(
+                      width: 7, height: 7,
+                      decoration: const BoxDecoration(
+                        color: _teal2, shape: BoxShape.circle,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              // Text
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.tripLabel,
+                      style: const TextStyle(
+                        color: _teal2, fontSize: 12,
+                        fontWeight: FontWeight.w800, letterSpacing: .02,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    const Text(
+                      'Plans locked in? Start live tracking.',
+                      style: TextStyle(color: _faint, fontSize: 11),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              // Start button
+              GestureDetector(
+                onTap: widget.onStart,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14, vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: _teal,
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: _teal.withOpacity(.30),
+                        blurRadius: 12, offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: const Text(
+                    'Start Trip',
+                    style: TextStyle(
+                      color: Color(0xFF041818),
+                      fontSize: 12, fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
