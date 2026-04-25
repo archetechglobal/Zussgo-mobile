@@ -10,6 +10,8 @@ import '../../features/home/screens/home_screen.dart';
 import '../../features/match/screens/match_screen.dart';
 import '../../features/chat/screens/chat_list_screen.dart';   // ← list
 import '../../features/chat/screens/chat_screen.dart';         // ← individual
+import '../../features/profile/screens/my_profile_screen.dart';
+import '../../features/explore/screens/explore_screen.dart';
 
 final goRouter = GoRouter(
   initialLocation: '/splash',
@@ -42,6 +44,18 @@ final goRouter = GoRouter(
       path: '/chat/:id',
       name: 'chat',
       builder: (c, s) => ChatScreen(peerId: s.pathParameters['id'] ?? ''),
+    ),
+
+    GoRoute(
+      path: '/profile',
+      name: 'profile',
+      builder: (c, s) => const MyProfileScreen(),
+    ),
+
+    GoRoute(
+      path: '/explore',
+      name: 'explore',
+      builder: (c, s) => const ExploreScreen(),
     ),
   ],
 );
