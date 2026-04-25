@@ -2,7 +2,9 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../profile/providers/profile_provider.dart';
 
 // ─── Colours ──────────────────────────────────────────────────────────────────
 
@@ -17,14 +19,14 @@ const _kFaint = Color(0xFF6A8882);
 
 // ─── Setup screen ─────────────────────────────────────────────────────────────
 
-class ProfileSetupScreen extends StatefulWidget {
+class ProfileSetupScreen extends ConsumerStatefulWidget {
   const ProfileSetupScreen({super.key});
 
   @override
-  State<ProfileSetupScreen> createState() => _ProfileSetupScreenState();
+  ConsumerState<ProfileSetupScreen> createState() => _ProfileSetupScreenState();
 }
 
-class _ProfileSetupScreenState extends State<ProfileSetupScreen>
+class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen>
     with TickerProviderStateMixin {
   int _step = 0;
   final _totalSteps = 5;
@@ -70,7 +72,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen>
     super.dispose();
   }
 
-  void _next() {
+  Future<void> _next() async {
     if (_step < _totalSteps - 1) {
       _progressCtrl.animateTo(
         (_step + 2) / _totalSteps,
@@ -80,7 +82,22 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen>
       _stepCtrl.forward(from: 0);
       setState(() => _step++);
     } else {
-      context.go('/home');
+      // Final step — save to Supabase
+      try {
+        await ref.read(myProfileProvider.notifier).saveSetup(
+          name:          _nameCtrl.text.trim(),
+          age:           int.tryParse(_ageCtrl.text.trim()) ?? 0,
+          baseCity:      _cityCtrl.text.trim(),
+          bio:           _bioCtrl.text.trim(),
+          vibes:         _vibes.toList(),
+          budget:        _budget,
+          pace:          _pace,
+          accommodation: _accomm,
+        );
+      } catch (e) {
+        // Don't block — still navigate to home
+      }
+      if (mounted) context.go('/home');
     }
   }
 

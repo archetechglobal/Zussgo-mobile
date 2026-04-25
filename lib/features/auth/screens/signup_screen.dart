@@ -56,7 +56,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
 
     ref.listen(authProvider, (_, next) {
       if (next is AuthSuccess) {
-        context.go('/home'); // ← fixed
+        context.go('/setup'); // ← profile setup first
       }
       if (next is AuthAwaitingVerification) {
         context.go('/verify-email', extra: next.email); // ← verification flow

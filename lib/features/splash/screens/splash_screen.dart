@@ -1,6 +1,8 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/supabase/supabase_client.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_fonts.dart';
 
@@ -62,8 +64,26 @@ class _SplashScreenState extends State<SplashScreen>
             () { if (mounted) _contentCtrl.forward(); });
     Future.delayed(const Duration(milliseconds: 800),
             () { if (mounted) _barCtrl.forward(); });
-    Future.delayed(const Duration(milliseconds: 3200),
-            () { if (mounted) context.go('/onboarding'); });
+    Future.delayed(const Duration(milliseconds: 3200), () async {
+      if (!mounted) return;
+      final session = supabase.auth.currentSession;
+      if (session == null) {
+        context.go('/onboarding');
+        return;
+      }
+      // Logged in — check if profile setup is done
+      try {
+        final data = await supabase
+            .from('profiles')
+            .select('is_setup_done')
+            .eq('id', session.user.id)
+            .maybeSingle();
+        final setupDone = data?['is_setup_done'] == true;
+        if (mounted) context.go(setupDone ? '/home' : '/setup');
+      } catch (_) {
+        if (mounted) context.go('/home');
+      }
+    });
   }
 
   @override

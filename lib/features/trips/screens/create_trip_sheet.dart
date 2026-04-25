@@ -2,6 +2,8 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../providers/trips_provider.dart';
 
 // ─── Entry point ──────────────────────────────────────────────────────────────
 
@@ -30,14 +32,14 @@ const _kFaint   = Color(0xFF6A8882);
 
 // ─── Root flow widget ─────────────────────────────────────────────────────────
 
-class _CreateTripFlow extends StatefulWidget {
+class _CreateTripFlow extends ConsumerStatefulWidget {
   const _CreateTripFlow();
 
   @override
-  State<_CreateTripFlow> createState() => _CreateTripFlowState();
+  ConsumerState<_CreateTripFlow> createState() => _CreateTripFlowState();
 }
 
-class _CreateTripFlowState extends State<_CreateTripFlow> {
+class _CreateTripFlowState extends ConsumerState<_CreateTripFlow> {
   int _step = 0; // 0 = builder, 1 = preview
 
   // Trip data
@@ -87,9 +89,20 @@ class _CreateTripFlowState extends State<_CreateTripFlow> {
           intent:      _intent,
           bottomInset: bi,
           onBack: () => setState(() => _step = 0),
-          onBroadcast: () {
-            Navigator.of(context).pop();
-            _showSuccessSnack(context);
+          onBroadcast: () async {
+            try {
+              await ref.read(createTripProvider.notifier).create(
+                destination: _destination,
+                dates:       _dates,
+                vibe:        _vibe.isNotEmpty ? _vibe : null,
+                budget:      _budget.isNotEmpty ? _budget : null,
+                intent:      _intent.isNotEmpty ? _intent : null,
+              );
+            } catch (_) {}
+            if (mounted) {
+              Navigator.of(context).pop();
+              _showSuccessSnack(context);
+            }
           },
         ),
       ),

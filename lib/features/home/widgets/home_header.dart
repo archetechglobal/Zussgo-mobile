@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../notifications/providers/notifications_provider.dart';
 
-class HomeHeader extends StatelessWidget {
+class HomeHeader extends ConsumerWidget {
   final double topInset;
   const HomeHeader({super.key, required this.topInset});
 
@@ -12,7 +14,8 @@ class HomeHeader extends StatelessWidget {
   static const gold = Color(0xFFF7B84E);
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final unread = ref.watch(unreadCountProvider);
     return Padding(
       padding: EdgeInsets.fromLTRB(16, topInset + 10, 16, 0),
       child: Column(
@@ -68,32 +71,33 @@ class HomeHeader extends StatelessWidget {
                         ),
                       ),
                     ),
-                    Positioned(
-                      top: -4,
-                      right: -4,
-                      child: Container(
-                        width: 17,
-                        height: 17,
-                        decoration: BoxDecoration(
-                          color: gold,
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: const Color(0xFF0B1516),
-                            width: 2,
+                    if (unread > 0)
+                      Positioned(
+                        top: -4,
+                        right: -4,
+                        child: Container(
+                          width: 17,
+                          height: 17,
+                          decoration: BoxDecoration(
+                            color: gold,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: const Color(0xFF0B1516),
+                              width: 2,
+                            ),
                           ),
-                        ),
-                        child: const Center(
-                          child: Text(
-                            '2',
-                            style: TextStyle(
-                              color: Color(0xFF041818),
-                              fontSize: 8,
-                              fontWeight: FontWeight.w900,
+                          child: Center(
+                            child: Text(
+                              unread > 9 ? '9+' : '$unread',
+                              style: const TextStyle(
+                                color: Color(0xFF041818),
+                                fontSize: 8,
+                                fontWeight: FontWeight.w900,
+                              ),
                             ),
                           ),
                         ),
                       ),
-                    ),
                   ],
                 ),
               ),

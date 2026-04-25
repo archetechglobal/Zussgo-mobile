@@ -2,8 +2,12 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../providers/notifications_provider.dart';
+import '../models/notification_model.dart';
 import '../../profile/widgets/user_profile_sheet.dart';
+import '../../connections/providers/connections_provider.dart';
 
 // ─── Colours ──────────────────────────────────────────────────────────────────
 
@@ -18,106 +22,17 @@ const _kFaint = Color(0xFF6A8882);
 
 // ─── Notif types ─────────────────────────────────────────────────────────────
 
-enum _NType { tripRequest, matchAlert, accepted, review, system }
-
-class _Notif {
-  final _NType type;
-  final String title;
-  final String body;
-  final String time;
-  final String? avatarInitial;
-  final Color? avatarColor;
-  final bool unread;
-  final String? actionLabel;
-
-  const _Notif({
-    required this.type, required this.title,
-    required this.body, required this.time,
-    this.avatarInitial, this.avatarColor,
-    this.unread = false, this.actionLabel,
-  });
-}
-
-// ─── Mock data ────────────────────────────────────────────────────────────────
-
-final _notifs = [
-  _Notif(
-    type: _NType.tripRequest,
-    title: 'Trip Request from Meera',
-    body: 'Hey! Your Spiti Valley trip sounds exactly like what I\'m looking for. Can I join?',
-    time: '2m ago',
-    avatarInitial: 'M', avatarColor: const Color(0xFF58DAD0),
-    unread: true, actionLabel: 'Respond',
-  ),
-  _Notif(
-    type: _NType.matchAlert,
-    title: '97% Match — Kabir is going to Goa',
-    body: 'Kabir D. from Mumbai is heading to Goa May 12–15. Your vibe match is 97%.',
-    time: '18m ago',
-    avatarInitial: 'K', avatarColor: const Color(0xFFF7B84E),
-    unread: true, actionLabel: 'View Profile',
-  ),
-  _Notif(
-    type: _NType.accepted,
-    title: 'Anika accepted your request!',
-    body: 'You can now message Anika. Your chat for the Jaipur Heritage trip is open.',
-    time: '1h ago',
-    avatarInitial: 'A', avatarColor: const Color(0xFFB57BFF),
-    unread: true, actionLabel: 'Open Chat',
-  ),
-  _Notif(
-    type: _NType.review,
-    title: 'Arjun left you a review',
-    body: 'Arjun K. rated your trip to Leh ⭐⭐⭐⭐⭐ and left a public review.',
-    time: '3h ago',
-    avatarInitial: 'A', avatarColor: const Color(0xFFF7B84E),
-    unread: false, actionLabel: 'See Review',
-  ),
-  _Notif(
-    type: _NType.tripRequest,
-    title: 'Trip Request from Dev',
-    body: 'Dev S. wants to join your Kerala Backwaters trip. May 20–25.',
-    time: '5h ago',
-    avatarInitial: 'D', avatarColor: const Color(0xFF1EC9B8),
-    unread: false, actionLabel: 'Respond',
-  ),
-  _Notif(
-    type: _NType.matchAlert,
-    title: '91% Match — Priya is going to Kerala',
-    body: 'Priya K. from Bangalore matches your travel style. She\'s going May 20.',
-    time: 'Yesterday',
-    avatarInitial: 'P', avatarColor: const Color(0xFF9FD9BE),
-    unread: false, actionLabel: 'View Profile',
-  ),
-  _Notif(
-    type: _NType.system,
-    title: 'Complete your Trust Score',
-    body: 'Link a Govt. ID to unlock Priority Matching and reach more travelers.',
-    time: 'Yesterday',
-    avatarInitial: null, avatarColor: null,
-    unread: false, actionLabel: 'Boost Score',
-  ),
-  _Notif(
-    type: _NType.accepted,
-    title: 'Sara accepted your connection!',
-    body: 'You and Sara are now connected. Start planning your Udaipur trip.',
-    time: '2 days ago',
-    avatarInitial: 'S', avatarColor: const Color(0xFF1EC9B8),
-    unread: false, actionLabel: 'Open Chat',
-  ),
-];
-
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
-class NotificationsScreen extends StatefulWidget {
+class NotificationsScreen extends ConsumerStatefulWidget {
   const NotificationsScreen({super.key});
 
   @override
-  State<NotificationsScreen> createState() => _NotificationsScreenState();
+  ConsumerState<NotificationsScreen> createState() =>
+      _NotificationsScreenState();
 }
 
-class _NotificationsScreenState extends State<NotificationsScreen> {
-  final Set<int> _dismissed = {};
+class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
 
   @override
   void initState() {
@@ -128,26 +43,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     ));
   }
 
-  int get _unreadCount =>
-      _notifs.where((n) => n.unread).length -
-          _dismissed.where((i) => _notifs[i].unread).length;
-
-  List<_Notif> get _today =>
-      _notifs.asMap().entries
-          .where((e) => !_dismissed.contains(e.key) &&
-          (e.value.time.contains('m ago') || e.value.time.contains('h ago')))
-          .map((e) => e.value).toList();
-
-  List<_Notif> get _earlier =>
-      _notifs.asMap().entries
-          .where((e) => !_dismissed.contains(e.key) &&
-          (e.value.time.contains('day') || e.value.time == 'Yesterday'))
-          .map((e) => e.value).toList();
-
   @override
   Widget build(BuildContext context) {
     final top    = MediaQuery.of(context).padding.top;
     final bottom = MediaQuery.of(context).padding.bottom;
+    final notifsAsync = ref.watch(notificationsStreamProvider);
+    final unread = ref.watch(unreadCountProvider);
 
     return Scaffold(
       backgroundColor: _kBg,
@@ -158,18 +59,13 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             padding: EdgeInsets.fromLTRB(20, top + 12, 20, 16),
             decoration: BoxDecoration(
               color: _kBg,
-              border: Border(
-                bottom: BorderSide(color: Colors.white.withOpacity(.05)),
-              ),
+              border: Border(bottom: BorderSide(color: Colors.white.withOpacity(.05))),
             ),
             child: Row(
               children: [
                 GestureDetector(
                   onTap: () => Navigator.of(context).pop(),
-                  child: const Icon(
-                    Icons.arrow_back_ios_new_rounded,
-                    color: _kText, size: 18,
-                  ),
+                  child: const Icon(Icons.arrow_back_ios_new_rounded, color: _kText, size: 18),
                 ),
                 const SizedBox(width: 16),
                 const Expanded(
@@ -177,13 +73,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                     color: _kText, fontSize: 18, fontWeight: FontWeight.w700,
                   )),
                 ),
-                if (_unreadCount > 0)
+                if (unread > 0)
                   GestureDetector(
-                    onTap: () => setState(() {
-                      for (int i = 0; i < _notifs.length; i++) {
-                        _dismissed.add(i);
-                      }
-                    }),
+                    onTap: () => ref.read(markAllReadProvider.future),
                     child: const Text('Mark all read', style: TextStyle(
                       color: _kTeal2, fontSize: 12, fontWeight: FontWeight.w700,
                     )),
@@ -194,20 +86,41 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
           // ── List ──────────────────────────────────────────────────────
           Expanded(
-            child: ListView(
-              padding: EdgeInsets.only(bottom: 24 + bottom),
-              children: [
-                if (_today.isNotEmpty) ...[
-                  _SectionLabel('Today', _unreadCount),
-                  ..._buildGroup(_today),
-                ],
-                if (_earlier.isNotEmpty) ...[
-                  _SectionLabel('Earlier', 0),
-                  ..._buildGroup(_earlier),
-                ],
-                if (_today.isEmpty && _earlier.isEmpty)
-                  _EmptyState(),
-              ],
+            child: notifsAsync.when(
+              loading: () => const Center(
+                child: CircularProgressIndicator(color: _kTeal2, strokeWidth: 2),
+              ),
+              error: (e, _) => Center(
+                child: Text('Error: $e', style: const TextStyle(color: _kMuted)),
+              ),
+              data: (notifs) {
+                if (notifs.isEmpty) return _EmptyState();
+                final today = notifs.where((n) =>
+                DateTime.now().difference(n.createdAt).inHours < 24).toList();
+                final earlier = notifs.where((n) =>
+                DateTime.now().difference(n.createdAt).inHours >= 24).toList();
+                return ListView(
+                  padding: EdgeInsets.only(bottom: 24 + bottom),
+                  children: [
+                    if (today.isNotEmpty) ...[
+                      _SectionLabel('Today', today.where((n) => !n.isRead).length),
+                      ...today.map((n) => _NotifTile(
+                        notif: n,
+                        onAction: () => _onAction(n),
+                        onDismiss: () => ref.read(markReadProvider(n.id).future),
+                      )),
+                    ],
+                    if (earlier.isNotEmpty) ...[
+                      _SectionLabel('Earlier', 0),
+                      ...earlier.map((n) => _NotifTile(
+                        notif: n,
+                        onAction: () => _onAction(n),
+                        onDismiss: () => ref.read(markReadProvider(n.id).future),
+                      )),
+                    ],
+                  ],
+                );
+              },
             ),
           ),
         ],
@@ -215,53 +128,40 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     );
   }
 
-  List<Widget> _buildGroup(List<_Notif> notifs) {
-    return notifs.map((n) {
-      final globalIdx = _notifs.indexOf(n);
-      return Dismissible(
-        key: ValueKey('${n.title}-$globalIdx'),
-        direction: DismissDirection.endToStart,
-        background: Container(
-          alignment: Alignment.centerRight,
-          padding: const EdgeInsets.only(right: 20),
-          color: Colors.red.withOpacity(.15),
-          child: const Icon(Icons.delete_outline_rounded,
-              color: Color(0xFFFF4D4D), size: 22),
-        ),
-        onDismissed: (_) => setState(() => _dismissed.add(globalIdx)),
-        child: _NotifTile(
-          notif: n,
-          onAction: () => _onAction(n),
-        ),
-      );
-    }).toList();
-  }
+  void _onAction(NotificationModel n) {
+    // Mark read
+    ref.read(markReadProvider(n.id).future);
 
-  void _onAction(_Notif n) {
     switch (n.type) {
-      case _NType.tripRequest:
-        _showTripRequestSheet(n);
+      case 'trip_request':
+        final connId = n.data['connection_id'] as String?;
+        if (connId != null) _showTripRequestSheet(n, connId);
         break;
-      case _NType.matchAlert:
-        UserProfileSheet.show(
-          context,
-          name: n.avatarInitial ?? 'Traveler',
-        );
-        break;
-      case _NType.accepted:
-        Navigator.of(context).pop();
+      case 'match_alert':
+        UserProfileSheet.show(context, name: n.title.split(' — ').last.split(' ').first);
         break;
       default:
         break;
     }
   }
 
-  void _showTripRequestSheet(_Notif n) {
+  void _showTripRequestSheet(NotificationModel n, String connectionId) {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (_) => _TripRequestSheet(notif: n),
+      builder: (_) => _TripRequestSheet(
+        notif: n,
+        connectionId: connectionId,
+        onAccept: () async {
+          await ref.read(acceptRequestProvider(connectionId).future);
+          if (mounted) Navigator.of(context).pop();
+        },
+        onDecline: () async {
+          await ref.read(declineRequestProvider(connectionId).future);
+          if (mounted) Navigator.of(context).pop();
+        },
+      ),
     );
   }
 }
