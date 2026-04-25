@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/providers/nav_provider.dart';
 import '../../home/widgets/home_bottom_nav.dart';
+import '../../profile/screens/companion_profile_screen.dart';
 import '../../profile/widgets/user_profile_sheet.dart';
 
 class MatchScreen extends ConsumerStatefulWidget {
@@ -761,7 +762,10 @@ class _TravelerCardWidget extends StatelessWidget {
     final scoreColor = data.scoreColor == 'teal' ? teal2 : gold;
 
     return GestureDetector(
-      onTap: () => UserProfileSheet.show(context, name: data.name),
+      onTap: () {
+        final profile = profileDataFromName(data.name);
+        Navigator.of(context).push(CompanionProfileScreen.route(profile));
+      },
       child: ClipRRect(
         borderRadius: BorderRadius.circular(24),
         child: Stack(
