@@ -1,288 +1,150 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:app_links/app_links.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../providers/auth_provider.dart';
-import '../widgets/auth_painters.dart';
-import '../../../core/theme/app_colors.dart';
+
+const _kBg    = Color(0xFF070E0F);
+const _kTeal  = Color(0xFF1EC9B8);
+const _kTeal2 = Color(0xFF58DAD0);
+const _kText  = Color(0xFFEDF7F4);
+const _kMuted = Color(0xFFA8C4BF);
+const _kFaint = Color(0xFF6A8882);
 
 class EmailVerifyScreen extends ConsumerStatefulWidget {
   final String email;
   const EmailVerifyScreen({super.key, required this.email});
-
   @override
   ConsumerState<EmailVerifyScreen> createState() => _EmailVerifyScreenState();
 }
 
 class _EmailVerifyScreenState extends ConsumerState<EmailVerifyScreen> {
-  int _resendTimer = 0;
-  bool _resent = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _listenForDeepLink();
-  }
-
-  // ── Listen for the email link tap ─────────────────────────────────────────
-  void _listenForDeepLink() {
-    AppLinks().uriLinkStream.listen((uri) {
-      // Supabase handles session from deep link automatically
-      final session = Supabase.instance.client.auth.currentSession;
-      if (session != null && mounted) {
-        context.go('/home');
-      }
-    });
-  }
+  bool _resending = false;
+  bool _resent    = false;
 
   Future<void> _resend() async {
-    await ref
-        .read(authProvider.notifier)
-        .resendVerification(email: widget.email);
-    setState(() {
-      _resent = true;
-      _resendTimer = 60;
-    });
-    _startTimer();
-  }
-
-  void _startTimer() {
-    Future.doWhile(() async {
-      await Future.delayed(const Duration(seconds: 1));
-      if (!mounted) return false;
-      setState(() => _resendTimer--);
-      return _resendTimer > 0;
-    });
+    if (_resending) return;
+    setState(() { _resending = true; _resent = false; });
+    await ref.read(authProvider.notifier).resendEmailVerification(widget.email);
+    if (mounted) setState(() { _resending = false; _resent = true; });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: _kBg,
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 32),
+          padding: const EdgeInsets.all(24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // ── Back ──────────────────────────────────────────────────────
               GestureDetector(
-                onTap: () => context.go('/login'),
+                onTap: () => context.go('/signup'),
                 child: Container(
-                  width: 38,
-                  height: 38,
+                  width: 36, height: 36,
                   decoration: BoxDecoration(
-                    color: AppColors.surface1,
-                    border: Border.all(color: AppColors.border),
-                    borderRadius: BorderRadius.circular(11),
+                    color: Colors.white.withOpacity(.05),
+                    borderRadius: BorderRadius.circular(12),
                   ),
                   child: const Icon(Icons.arrow_back_ios_new_rounded,
-                      size: 15, color: AppColors.textMuted),
+                      color: _kText, size: 16),
                 ),
               ),
-              const SizedBox(height: 40),
-
-              // ── Icon ──────────────────────────────────────────────────────
+              const Spacer(),
               Container(
-                width: 64,
-                height: 64,
+                width: 72, height: 72,
                 decoration: BoxDecoration(
-                  color: AppColors.tealSoft,
-                  border: Border.all(color: AppColors.tealBorder),
-                  borderRadius: BorderRadius.circular(18),
+                  color: _kTeal.withOpacity(.12),
+                  borderRadius: BorderRadius.circular(22),
+                  border: Border.all(color: _kTeal.withOpacity(.25)),
                 ),
                 child: const Center(
-                  child: Icon(Icons.mark_email_unread_outlined,
-                      color: AppColors.primary, size: 28),
+                  child: Text('✉️', style: TextStyle(fontSize: 32)),
                 ),
               ),
               const SizedBox(height: 24),
-
-              // ── Title ─────────────────────────────────────────────────────
-              const Text(
-                'Verify your email',
-                style: TextStyle(
-                  fontFamily: 'ClashDisplay',
-                  fontSize: 26,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.text,
-                  letterSpacing: -0.6,
-                ),
-              ),
+              const Text('Verify your email', style: TextStyle(
+                color: _kText, fontSize: 28,
+                fontWeight: FontWeight.w800, letterSpacing: -.4,
+              )),
               const SizedBox(height: 10),
               RichText(
                 text: TextSpan(
-                  style: const TextStyle(
-                    fontFamily: 'Satoshi',
-                    fontSize: 14,
-                    color: AppColors.textMuted,
-                    height: 1.6,
-                  ),
+                  style: const TextStyle(color: _kMuted, fontSize: 15, height: 1.6),
                   children: [
-                    const TextSpan(text: 'We sent a verification link to\n'),
+                    const TextSpan(text: "We've sent a verification link to\n"),
                     TextSpan(
-                      text: widget.email,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.text,
-                      ),
+                      text: widget.email.isEmpty ? 'your email' : widget.email,
+                      style: const TextStyle(color: _kTeal2, fontWeight: FontWeight.w600),
                     ),
-                    const TextSpan(
-                        text: '\n\nClick the link in the email to activate your account.'),
+                    const TextSpan(text: '\n\nTap the link in that email to activate your account.'),
                   ],
                 ),
               ),
-              const SizedBox(height: 40),
-
-              // ── Steps ─────────────────────────────────────────────────────
-              _step('1', 'Open your email app'),
-              const SizedBox(height: 14),
-              _step('2', 'Find the email from Zussgo'),
-              const SizedBox(height: 14),
-              _step('3', 'Tap "Verify my email"'),
-
               const Spacer(),
-
-              // ── Resent confirmation ───────────────────────────────────────
               if (_resent)
                 Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 14, vertical: 12),
                   margin: const EdgeInsets.only(bottom: 16),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   decoration: BoxDecoration(
-                    color: const Color(0x1579C66B),
-                    border: Border.all(color: const Color(0x3379C66B)),
+                    color: _kTeal.withOpacity(.08),
                     borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: _kTeal.withOpacity(.2)),
                   ),
-                  child: Row(
-                    children: const [
-                      Icon(Icons.check_circle_outline_rounded,
-                          size: 16, color: AppColors.success),
-                      SizedBox(width: 8),
-                      Text(
-                        'Verification email resent!',
-                        style: TextStyle(
-                          fontFamily: 'Satoshi',
-                          fontSize: 13,
-                          color: AppColors.success,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.check_circle_rounded, color: _kTeal2, size: 18),
+                      SizedBox(width: 10),
+                      Text('Verification email resent!',
+                          style: TextStyle(color: _kTeal2, fontSize: 14)),
                     ],
                   ),
                 ),
-
-              // ── Resend button ─────────────────────────────────────────────
               GestureDetector(
-                onTap: _resendTimer > 0 ? null : _resend,
+                onTap: _resend,
                 child: Container(
-                  width: double.infinity,
                   height: 52,
                   decoration: BoxDecoration(
-                    color: AppColors.surface1,
-                    border: Border.all(color: AppColors.border),
-                    borderRadius: BorderRadius.circular(14),
+                    color: Colors.white.withOpacity(.04),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.white.withOpacity(.08)),
                   ),
                   child: Center(
-                    child: Text(
-                      _resendTimer > 0
-                          ? 'Resend in ${_resendTimer}s'
-                          : 'Resend verification email',
-                      style: TextStyle(
-                        fontFamily: 'Satoshi',
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: _resendTimer > 0
-                            ? AppColors.textFaint
-                            : AppColors.primary,
-                      ),
-                    ),
+                    child: _resending
+                        ? const SizedBox(width: 18, height: 18,
+                        child: CircularProgressIndicator(
+                            color: _kTeal2, strokeWidth: 2))
+                        : const Text("Resend email", style: TextStyle(
+                      color: _kMuted, fontSize: 14, fontWeight: FontWeight.w600,
+                    )),
                   ),
                 ),
               ),
               const SizedBox(height: 12),
-
-              // ── Wrong email ───────────────────────────────────────────────
-              Center(
-                child: GestureDetector(
-                  onTap: () => context.go('/signup'),
-                  child: const Text(
-                    'Wrong email? Go back',
-                    style: TextStyle(
-                      fontFamily: 'Satoshi',
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textMuted,
-                    ),
+              GestureDetector(
+                onTap: () => context.go('/login'),
+                child: Container(
+                  height: 52,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(colors: [_kTeal2, _kTeal]),
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [BoxShadow(
+                      color: _kTeal.withOpacity(.25),
+                      blurRadius: 20, offset: const Offset(0, 8),
+                    )],
                   ),
-                ),
-              ),
-
-              // ── Security badge ────────────────────────────────────────────
-              const SizedBox(height: 24),
-              Center(
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    SizedBox(
-                      width: 14,
-                      height: 14,
-                      child: CustomPaint(painter: ShieldPainter()),
-                    ),
-                    const SizedBox(width: 6),
-                    const Text(
-                      'Secured with Supabase Auth',
-                      style: TextStyle(
-                        fontFamily: 'Satoshi',
-                        fontSize: 11,
-                        color: AppColors.textFaint,
-                      ),
-                    ),
-                  ],
+                  child: const Center(
+                    child: Text("I've verified — Log in", style: TextStyle(
+                      color: Color(0xFF041818), fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                    )),
+                  ),
                 ),
               ),
             ],
           ),
         ),
       ),
-    );
-  }
-
-  Widget _step(String number, String label) {
-    return Row(
-      children: [
-        Container(
-          width: 28,
-          height: 28,
-          decoration: BoxDecoration(
-            color: AppColors.tealSoft,
-            border: Border.all(color: AppColors.tealBorder),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Center(
-            child: Text(
-              number,
-              style: const TextStyle(
-                fontFamily: 'ClashDisplay',
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                color: AppColors.primary,
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Text(
-          label,
-          style: const TextStyle(
-            fontFamily: 'Satoshi',
-            fontSize: 14,
-            color: AppColors.textSub,
-          ),
-        ),
-      ],
     );
   }
 }

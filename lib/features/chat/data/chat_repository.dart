@@ -1,64 +1,79 @@
-// lib/features/chat/data/chat_repository.dart
-
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/supabase/supabase_client.dart';
+import '../../../core/constants/app_constants.dart';
+import '../models/message_model.dart';
 
 class ChatRepository {
-  // ── Send message ──────────────────────────────────────────────────────────
-  Future<void> sendMessage({
-    required String connectionId,
-    required String content,
-    String type = 'text',
-    Map<String, dynamic>? metadata,
+  Future<List<MessageModel>> getMessages({
+    required String userId,
+    required String peerId,
+    int limit = 50,
   }) async {
-    final uid = supabase.auth.currentUser?.id;
-    if (uid == null) throw Exception('Not authenticated');
-    await supabase.from('messages').insert({
-      'connection_id': connectionId,
-      'sender_id':     uid,
-      'content':       content,
-      'type':          type,
-      'metadata':      metadata,
+    final data = await supabase
+        .from(AppConstants.messagesTable)
+        .select()
+        .or('and(sender_id.eq.$userId,receiver_id.eq.$peerId),'
+        'and(sender_id.eq.$peerId,receiver_id.eq.$userId)')
+        .order('created_at', ascending: true)
+        .limit(limit);
+    return (data as List).map((e) => MessageModel.fromJson(e)).toList();
+  }
+
+  Future<void> sendMessage({
+    required String senderId,
+    required String receiverId,
+    required String content,
+  }) async {
+    await supabase.from(AppConstants.messagesTable).insert({
+      'sender_id':   senderId,
+      'receiver_id': receiverId,
+      'content':     content,
+      'is_read':     false,
     });
   }
 
-  // ── Fetch messages for a connection ───────────────────────────────────────
-  Future<List<Map<String, dynamic>>> fetchMessages(
-      String connectionId, {int limit = 50}) async {
-    final data = await supabase
-        .from('messages')
-        .select('*, sender:sender_id(id, name, avatar_url)')
-        .eq('connection_id', connectionId)
-        .order('created_at', ascending: true)
-        .limit(limit);
-    return List<Map<String, dynamic>>.from(data as List);
-  }
-
-  // ── Realtime stream ───────────────────────────────────────────────────────
-  Stream<List<Map<String, dynamic>>> stream(String connectionId) {
+  Stream<List<MessageModel>> messagesStream({
+    required String userId,
+    required String peerId,
+  }) {
     return supabase
-        .from('messages')
+        .from(AppConstants.messagesTable)
         .stream(primaryKey: ['id'])
-        .eq('connection_id', connectionId)
         .order('created_at', ascending: true)
-        .limit(50)
-        .map((rows) => List<Map<String, dynamic>>.from(rows));
+        .map((rows) => rows
+        .where((r) =>
+    (r['sender_id'] == userId && r['receiver_id'] == peerId) ||
+        (r['sender_id'] == peerId && r['receiver_id'] == userId))
+        .map((e) => MessageModel.fromJson(e))
+        .toList());
   }
 
-  // ── Fetch chat list (connections with last message) ───────────────────────
-  Future<List<Map<String, dynamic>>> fetchChatList() async {
-    final uid = supabase.auth.currentUser?.id;
-    if (uid == null) return [];
+  Future<void> markAsRead({
+    required String senderId,
+    required String receiverId,
+  }) async {
+    await supabase
+        .from(AppConstants.messagesTable)
+        .update({'is_read': true})
+        .eq('sender_id', senderId)
+        .eq('receiver_id', receiverId)
+        .eq('is_read', false);
+  }
+
+  Future<List<Map<String, dynamic>>> getConversations(String userId) async {
     final data = await supabase
-        .from('connections')
-        .select('''
-          id, status, updated_at,
-          requester:requester_id(id, name, avatar_url),
-          receiver:receiver_id(id, name, avatar_url),
-          trip:trip_id(destination, dates)
-        ''')
-        .eq('status', 'accepted')
-        .or('requester_id.eq.$uid,receiver_id.eq.$uid')
-        .order('updated_at', ascending: false);
-    return List<Map<String, dynamic>>.from(data as List);
+        .from(AppConstants.messagesTable)
+        .select('*, profiles!messages_sender_id_fkey(id, name, avatar_url)')
+        .or('sender_id.eq.$userId,receiver_id.eq.$userId')
+        .order('created_at', ascending: false);
+    // De-duplicate by peer
+    final Map<String, Map<String, dynamic>> seen = {};
+    for (final row in (data as List)) {
+      final peer = row['sender_id'] == userId
+          ? row['receiver_id'] as String
+          : row['sender_id'] as String;
+      if (!seen.containsKey(peer)) seen[peer] = row;
+    }
+    return seen.values.toList();
   }
 }

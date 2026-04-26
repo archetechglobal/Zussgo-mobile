@@ -1,44 +1,32 @@
-// lib/features/notifications/data/notifications_repository.dart
-
 import '../../../core/supabase/supabase_client.dart';
+import '../../../core/constants/app_constants.dart';
 import '../models/notification_model.dart';
 
 class NotificationsRepository {
-  Future<List<NotificationModel>> fetchAll() async {
-    final uid = supabase.auth.currentUser?.id;
-    if (uid == null) return [];
+  Future<List<NotificationModel>> getNotifications(String userId) async {
     final data = await supabase
-        .from('notifications')
-        .select('*')
-        .eq('user_id', uid)
+        .from(AppConstants.notificationsTable)
+        .select()
+        .eq('user_id', userId)
         .order('created_at', ascending: false)
         .limit(50);
-    return (data as List).map((e) => NotificationModel.fromMap(e)).toList();
+    return (data as List).map((e) => NotificationModel.fromJson(e)).toList();
   }
 
-  Future<void> markRead(String id) async {
-    await supabase.from('notifications').update({'is_read': true}).eq('id', id);
-  }
-
-  Future<void> markAllRead() async {
-    final uid = supabase.auth.currentUser?.id;
-    if (uid == null) return;
+  Future<void> markAllRead(String userId) async {
     await supabase
-        .from('notifications')
+        .from(AppConstants.notificationsTable)
         .update({'is_read': true})
-        .eq('user_id', uid)
+        .eq('user_id', userId)
         .eq('is_read', false);
   }
 
-  Stream<List<NotificationModel>> stream() {
-    final uid = supabase.auth.currentUser?.id;
-    if (uid == null) return const Stream.empty();
+  Stream<List<NotificationModel>> notificationsStream(String userId) {
     return supabase
-        .from('notifications')
+        .from(AppConstants.notificationsTable)
         .stream(primaryKey: ['id'])
-        .eq('user_id', uid)
+        .eq('user_id', userId)
         .order('created_at', ascending: false)
-        .limit(50)
-        .map((rows) => rows.map(NotificationModel.fromMap).toList());
+        .map((rows) => rows.map((e) => NotificationModel.fromJson(e)).toList());
   }
 }

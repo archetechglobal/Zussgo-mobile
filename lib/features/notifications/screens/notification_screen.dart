@@ -1,8 +1,9 @@
-// lib/features/notifications/screens/notifications_screen.dart
+// lib/features/notifications/screens/notification_screen.dart
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../providers/notifications_provider.dart';
 import '../models/notification_model.dart';
@@ -10,9 +11,7 @@ import '../../profile/widgets/user_profile_sheet.dart';
 import '../../connections/providers/connections_provider.dart';
 
 // ─── Colours ──────────────────────────────────────────────────────────────────
-
 const _kBg    = Color(0xFF070E0F);
-const _kS1    = Color(0xFF0D1819);
 const _kTeal  = Color(0xFF1EC9B8);
 const _kTeal2 = Color(0xFF58DAD0);
 const _kGold  = Color(0xFFF7B84E);
@@ -20,10 +19,7 @@ const _kText  = Color(0xFFEDF7F4);
 const _kMuted = Color(0xFFA8C4BF);
 const _kFaint = Color(0xFF6A8882);
 
-// ─── Notif types ─────────────────────────────────────────────────────────────
-
 // ─── Screen ───────────────────────────────────────────────────────────────────
-
 class NotificationsScreen extends ConsumerStatefulWidget {
   const NotificationsScreen({super.key});
 
@@ -32,7 +28,8 @@ class NotificationsScreen extends ConsumerStatefulWidget {
       _NotificationsScreenState();
 }
 
-class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
+class _NotificationsScreenState
+    extends ConsumerState<NotificationsScreen> {
 
   @override
   void initState() {
@@ -48,74 +45,105 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     final top    = MediaQuery.of(context).padding.top;
     final bottom = MediaQuery.of(context).padding.bottom;
     final notifsAsync = ref.watch(notificationsStreamProvider);
-    final unread = ref.watch(unreadCountProvider);
+    final unread      = ref.watch(unreadCountProvider);
 
     return Scaffold(
       backgroundColor: _kBg,
       body: Column(
         children: [
-          // ── Header ────────────────────────────────────────────────────
+          // ── Header ──────────────────────────────────────────────────────
           Container(
             padding: EdgeInsets.fromLTRB(20, top + 12, 20, 16),
             decoration: BoxDecoration(
               color: _kBg,
-              border: Border(bottom: BorderSide(color: Colors.white.withOpacity(.05))),
+              border: Border(
+                bottom: BorderSide(color: Colors.white.withOpacity(.05)),
+              ),
             ),
             child: Row(
               children: [
                 GestureDetector(
-                  onTap: () => Navigator.of(context).pop(),
-                  child: const Icon(Icons.arrow_back_ios_new_rounded, color: _kText, size: 18),
+                  onTap: () => context.pop(), // ✅ go_router
+                  child: const Icon(
+                    Icons.arrow_back_ios_new_rounded,
+                    color: _kText,
+                    size: 18,
+                  ),
                 ),
                 const SizedBox(width: 16),
                 const Expanded(
-                  child: Text('Notifications', style: TextStyle(
-                    color: _kText, fontSize: 18, fontWeight: FontWeight.w700,
-                  )),
+                  child: Text(
+                    'Notifications',
+                    style: TextStyle(
+                      color: _kText,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                 ),
                 if (unread > 0)
                   GestureDetector(
                     onTap: () => ref.read(markAllReadProvider.future),
-                    child: const Text('Mark all read', style: TextStyle(
-                      color: _kTeal2, fontSize: 12, fontWeight: FontWeight.w700,
-                    )),
+                    child: const Text(
+                      'Mark all read',
+                      style: TextStyle(
+                        color: _kTeal2,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                   ),
               ],
             ),
           ),
 
-          // ── List ──────────────────────────────────────────────────────
+          // ── List ────────────────────────────────────────────────────────
           Expanded(
             child: notifsAsync.when(
               loading: () => const Center(
-                child: CircularProgressIndicator(color: _kTeal2, strokeWidth: 2),
+                child: CircularProgressIndicator(
+                    color: _kTeal2, strokeWidth: 2),
               ),
               error: (e, _) => Center(
-                child: Text('Error: $e', style: const TextStyle(color: _kMuted)),
+                child: Text(
+                  'Error: $e',
+                  style: const TextStyle(color: _kMuted),
+                ),
               ),
               data: (notifs) {
-                if (notifs.isEmpty) return _EmptyState();
-                final today = notifs.where((n) =>
-                DateTime.now().difference(n.createdAt).inHours < 24).toList();
-                final earlier = notifs.where((n) =>
-                DateTime.now().difference(n.createdAt).inHours >= 24).toList();
+                if (notifs.isEmpty) return const _EmptyState();
+
+                final today = notifs
+                    .where((n) =>
+                DateTime.now().difference(n.createdAt).inHours < 24)
+                    .toList();
+                final earlier = notifs
+                    .where((n) =>
+                DateTime.now().difference(n.createdAt).inHours >= 24)
+                    .toList();
+
                 return ListView(
                   padding: EdgeInsets.only(bottom: 24 + bottom),
                   children: [
                     if (today.isNotEmpty) ...[
-                      _SectionLabel('Today', today.where((n) => !n.isRead).length),
+                      _SectionLabel(
+                        'Today',
+                        today.where((n) => !n.isRead).length,
+                      ),
                       ...today.map((n) => _NotifTile(
                         notif: n,
                         onAction: () => _onAction(n),
-                        onDismiss: () => ref.read(markReadProvider(n.id).future),
+                        onDismiss: () =>
+                            ref.read(markReadProvider(n.id).future),
                       )),
                     ],
                     if (earlier.isNotEmpty) ...[
-                      _SectionLabel('Earlier', 0),
+                      const _SectionLabel('Earlier', 0),
                       ...earlier.map((n) => _NotifTile(
                         notif: n,
                         onAction: () => _onAction(n),
-                        onDismiss: () => ref.read(markReadProvider(n.id).future),
+                        onDismiss: () =>
+                            ref.read(markReadProvider(n.id).future),
                       )),
                     ],
                   ],
@@ -129,7 +157,6 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
   }
 
   void _onAction(NotificationModel n) {
-    // Mark read
     ref.read(markReadProvider(n.id).future);
 
     switch (n.type) {
@@ -138,7 +165,9 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
         if (connId != null) _showTripRequestSheet(n, connId);
         break;
       case 'match_alert':
-        UserProfileSheet.show(context, name: n.title.split(' — ').last.split(' ').first);
+      // Pull sender name from data map safely
+        final name = (n.data['sender_name'] as String?) ?? 'Traveller';
+        UserProfileSheet.show(context, name: name);
         break;
       default:
         break;
@@ -155,19 +184,18 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
         connectionId: connectionId,
         onAccept: () async {
           await ref.read(acceptRequestProvider(connectionId).future);
-          if (mounted) Navigator.of(context).pop();
+          if (mounted) context.pop(); // ✅ go_router
         },
         onDecline: () async {
           await ref.read(declineRequestProvider(connectionId).future);
-          if (mounted) Navigator.of(context).pop();
+          if (mounted) context.pop(); // ✅ go_router
         },
       ),
     );
   }
 }
 
-// ─── Section label ────────────────────────────────────────────────────────────
-
+// ─── Section label ─────────────────────────────────────────────────────────────
 class _SectionLabel extends StatelessWidget {
   final String label;
   final int unread;
@@ -179,21 +207,32 @@ class _SectionLabel extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
       child: Row(
         children: [
-          Text(label.toUpperCase(), style: const TextStyle(
-            color: _kFaint, fontSize: 10, fontWeight: FontWeight.w800,
-            letterSpacing: .08,
-          )),
+          Text(
+            label.toUpperCase(),
+            style: const TextStyle(
+              color: _kFaint,
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              letterSpacing: .08,
+            ),
+          ),
           if (unread > 0) ...[
             const SizedBox(width: 8),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+              padding:
+              const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
               decoration: BoxDecoration(
                 color: _kTeal.withOpacity(.15),
                 borderRadius: BorderRadius.circular(999),
               ),
-              child: Text('$unread new', style: const TextStyle(
-                color: _kTeal2, fontSize: 10, fontWeight: FontWeight.w800,
-              )),
+              child: Text(
+                '$unread new',
+                style: const TextStyle(
+                  color: _kTeal2,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
             ),
           ],
         ],
@@ -202,32 +241,46 @@ class _SectionLabel extends StatelessWidget {
   }
 }
 
-// ─── Notification tile ────────────────────────────────────────────────────────
+// ─── Notification tile ─────────────────────────────────────────────────────────
+// ✅ Now takes NotificationModel directly — no phantom _Notif class needed
 
 class _NotifTile extends StatelessWidget {
-  final _Notif notif;
+  final NotificationModel notif;
   final VoidCallback onAction;
-  const _NotifTile({required this.notif, required this.onAction});
+  final VoidCallback onDismiss; // ✅ was missing from constructor
 
+  const _NotifTile({
+    required this.notif,
+    required this.onAction,
+    required this.onDismiss,
+  });
+
+  // Derive icon + color from the real type string
   IconData get _typeIcon {
     switch (notif.type) {
-      case _NType.tripRequest: return Icons.flight_takeoff_rounded;
-      case _NType.matchAlert:  return Icons.favorite_rounded;
-      case _NType.accepted:    return Icons.check_circle_rounded;
-      case _NType.review:      return Icons.star_rounded;
-      case _NType.system:      return Icons.shield_rounded;
+      case 'trip_request': return Icons.flight_takeoff_rounded;
+      case 'match_alert':  return Icons.favorite_rounded;
+      case 'accepted':     return Icons.check_circle_rounded;
+      case 'review':       return Icons.star_rounded;
+      default:             return Icons.shield_rounded;
     }
   }
 
   Color get _typeColor {
     switch (notif.type) {
-      case _NType.tripRequest: return _kTeal;
-      case _NType.matchAlert:  return const Color(0xFFFF6B9D);
-      case _NType.accepted:    return _kTeal2;
-      case _NType.review:      return _kGold;
-      case _NType.system:      return _kGold;
+      case 'trip_request': return _kTeal;
+      case 'match_alert':  return const Color(0xFFFF6B9D);
+      case 'accepted':     return _kTeal2;
+      case 'review':       return _kGold;
+      default:             return _kGold;
     }
   }
+
+  // Safe avatar initial — first char of title
+  String get _avatarInitial =>
+      notif.title.isNotEmpty ? notif.title[0].toUpperCase() : '?';
+
+  Color get _avatarColor => _typeColor;
 
   @override
   Widget build(BuildContext context) {
@@ -239,12 +292,12 @@ class _NotifTile extends StatelessWidget {
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: notif.unread
+          color: !notif.isRead
               ? _kTeal.withOpacity(.05)
               : Colors.white.withOpacity(.02),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: notif.unread
+            color: !notif.isRead
                 ? _kTeal.withOpacity(.12)
                 : Colors.white.withOpacity(.04),
           ),
@@ -252,47 +305,43 @@ class _NotifTile extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Avatar or type icon
+            // Avatar
             Stack(
               clipBehavior: Clip.none,
               children: [
-                notif.avatarInitial != null
-                    ? Container(
-                  width: 46, height: 46,
+                Container(
+                  width: 46,
+                  height: 46,
                   decoration: BoxDecoration(
-                    color: notif.avatarColor!.withOpacity(.18),
+                    color: _avatarColor.withOpacity(.18),
                     borderRadius: BorderRadius.circular(14),
                   ),
                   child: Center(
-                    child: Text(notif.avatarInitial!, style: TextStyle(
-                      color: notif.avatarColor,
-                      fontSize: 18, fontWeight: FontWeight.w800,
-                    )),
-                  ),
-                )
-                    : Container(
-                  width: 46, height: 46,
-                  decoration: BoxDecoration(
-                    color: _kGold.withOpacity(.12),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: const Center(
-                    child: Icon(Icons.shield_rounded,
-                        color: _kGold, size: 20),
+                    child: Text(
+                      _avatarInitial,
+                      style: TextStyle(
+                        color: _avatarColor,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
                   ),
                 ),
-                // Type badge
                 Positioned(
-                  bottom: -4, right: -4,
+                  bottom: -4,
+                  right: -4,
                   child: Container(
-                    width: 18, height: 18,
+                    width: 18,
+                    height: 18,
                     decoration: BoxDecoration(
                       color: _kBg,
                       shape: BoxShape.circle,
-                      border: Border.all(color: _typeColor.withOpacity(.30)),
+                      border: Border.all(
+                          color: _typeColor.withOpacity(.30)),
                     ),
                     child: Center(
-                      child: Icon(_typeIcon, color: _typeColor, size: 10),
+                      child: Icon(_typeIcon,
+                          color: _typeColor, size: 10),
                     ),
                   ),
                 ),
@@ -308,49 +357,65 @@ class _NotifTile extends StatelessWidget {
                   Row(
                     children: [
                       Expanded(
-                        child: Text(notif.title, style: TextStyle(
-                          color: _kText,
-                          fontSize: 13, fontWeight: FontWeight.w700,
-                          height: 1.3,
-                        )),
+                        child: Text(
+                          notif.title,
+                          style: const TextStyle(
+                            color: _kText,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            height: 1.3,
+                          ),
+                        ),
                       ),
                       const SizedBox(width: 8),
-                      if (notif.unread)
+                      if (!notif.isRead)
                         Container(
-                          width: 7, height: 7,
+                          width: 7,
+                          height: 7,
                           decoration: const BoxDecoration(
-                            color: _kTeal2, shape: BoxShape.circle,
+                            color: _kTeal2,
+                            shape: BoxShape.circle,
                           ),
                         ),
                     ],
                   ),
                   const SizedBox(height: 4),
-                  Text(notif.body, style: const TextStyle(
-                    color: _kMuted, fontSize: 12, height: 1.4,
-                  )),
+                  Text(
+                    notif.body,
+                    style: const TextStyle(
+                        color: _kMuted, fontSize: 12, height: 1.4),
+                  ),
                   const SizedBox(height: 8),
                   Row(
                     children: [
-                      Text(notif.time, style: const TextStyle(
-                        color: _kFaint, fontSize: 11,
-                      )),
-                      if (notif.actionLabel != null) ...[
+                      Text(
+                        notif.timeAgo, // ✅ uses model's computed getter
+                        style: const TextStyle(
+                            color: _kFaint, fontSize: 11),
+                      ),
+                      // Show action button for actionable types
+                      if (notif.type == 'trip_request' ||
+                          notif.type == 'match_alert') ...[
                         const Spacer(),
                         Container(
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 5,
-                          ),
+                              horizontal: 12, vertical: 5),
                           decoration: BoxDecoration(
                             color: _typeColor.withOpacity(.12),
                             borderRadius: BorderRadius.circular(8),
                             border: Border.all(
-                              color: _typeColor.withOpacity(.22),
+                                color: _typeColor.withOpacity(.22)),
+                          ),
+                          child: Text(
+                            notif.type == 'trip_request'
+                                ? 'View Request'
+                                : 'See Profile',
+                            style: TextStyle(
+                              color: _typeColor,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
                             ),
                           ),
-                          child: Text(notif.actionLabel!, style: TextStyle(
-                            color: _typeColor,
-                            fontSize: 11, fontWeight: FontWeight.w800,
-                          )),
                         ),
                       ],
                     ],
@@ -366,10 +431,23 @@ class _NotifTile extends StatelessWidget {
 }
 
 // ─── Trip request bottom sheet ────────────────────────────────────────────────
+// ✅ Was missing connectionId, onAccept, onDecline from constructor
 
 class _TripRequestSheet extends StatelessWidget {
-  final _Notif notif;
-  const _TripRequestSheet({required this.notif});
+  final NotificationModel notif;
+  final String connectionId;          // ✅ added
+  final VoidCallback onAccept;        // ✅ added
+  final VoidCallback onDecline;       // ✅ added
+
+  const _TripRequestSheet({
+    required this.notif,
+    required this.connectionId,
+    required this.onAccept,
+    required this.onDecline,
+  });
+
+  String get _initial =>
+      notif.title.isNotEmpty ? notif.title[0].toUpperCase() : '?';
 
   @override
   Widget build(BuildContext context) {
@@ -386,7 +464,8 @@ class _TripRequestSheet extends StatelessWidget {
           // Handle
           Center(
             child: Container(
-              width: 40, height: 4,
+              width: 40,
+              height: 4,
               margin: const EdgeInsets.only(bottom: 20),
               decoration: BoxDecoration(
                 color: Colors.white.withOpacity(.15),
@@ -395,56 +474,67 @@ class _TripRequestSheet extends StatelessWidget {
             ),
           ),
 
-          // Requester avatar + name
+          // Requester
           Row(
             children: [
               Container(
-                width: 52, height: 52,
+                width: 52,
+                height: 52,
                 decoration: BoxDecoration(
-                  color: notif.avatarColor!.withOpacity(.18),
+                  color: _kTeal.withOpacity(.18),
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Center(
-                  child: Text(notif.avatarInitial!, style: TextStyle(
-                    color: notif.avatarColor,
-                    fontSize: 22, fontWeight: FontWeight.w800,
-                  )),
+                  child: Text(
+                    _initial,
+                    style: const TextStyle(
+                      color: _kTeal,
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
                 ),
               ),
               const SizedBox(width: 14),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    notif.title.replaceAll('Trip Request from ', ''),
-                    style: const TextStyle(
-                      color: _kText, fontSize: 17, fontWeight: FontWeight.w700,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      notif.title
+                          .replaceAll('Trip Request from ', ''),
+                      style: const TextStyle(
+                        color: _kText,
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 2),
-                  const Text('wants to join your trip', style: TextStyle(
-                    color: _kFaint, fontSize: 12,
-                  )),
-                ],
+                    const SizedBox(height: 2),
+                    const Text(
+                      'wants to join your trip',
+                      style: TextStyle(color: _kFaint, fontSize: 12),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
           const SizedBox(height: 16),
 
-          // Their message
+          // Message
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
               color: Colors.white.withOpacity(.03),
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: Colors.white.withOpacity(.06)),
+              border:
+              Border.all(color: Colors.white.withOpacity(.06)),
             ),
             child: Text(
               '"${notif.body}"',
               style: const TextStyle(
-                color: _kText, fontSize: 13, height: 1.5,
-              ),
+                  color: _kText, fontSize: 13, height: 1.5),
             ),
           ),
           const SizedBox(height: 20),
@@ -454,19 +544,24 @@ class _TripRequestSheet extends StatelessWidget {
             children: [
               Expanded(
                 child: GestureDetector(
-                  onTap: () => Navigator.of(context).pop(),
+                  onTap: onDecline, // ✅ calls real callback
                   child: Container(
                     height: 50,
                     decoration: BoxDecoration(
                       color: Colors.white.withOpacity(.04),
                       borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: Colors.white.withOpacity(.08)),
+                      border: Border.all(
+                          color: Colors.white.withOpacity(.08)),
                     ),
                     child: const Center(
-                      child: Text('Decline', style: TextStyle(
-                        color: _kMuted, fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                      )),
+                      child: Text(
+                        'Decline',
+                        style: TextStyle(
+                          color: _kMuted,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -475,22 +570,29 @@ class _TripRequestSheet extends StatelessWidget {
               Expanded(
                 flex: 2,
                 child: GestureDetector(
-                  onTap: () => Navigator.of(context).pop(),
+                  onTap: onAccept, // ✅ calls real callback
                   child: Container(
                     height: 50,
                     decoration: BoxDecoration(
                       color: _kTeal2,
                       borderRadius: BorderRadius.circular(14),
-                      boxShadow: [BoxShadow(
-                        color: _kTeal.withOpacity(.25),
-                        blurRadius: 16, offset: const Offset(0, 6),
-                      )],
+                      boxShadow: [
+                        BoxShadow(
+                          color: _kTeal.withOpacity(.25),
+                          blurRadius: 16,
+                          offset: const Offset(0, 6),
+                        ),
+                      ],
                     ),
                     child: const Center(
-                      child: Text('Accept & Open Chat', style: TextStyle(
-                        color: Color(0xFF041818), fontSize: 14,
-                        fontWeight: FontWeight.w800,
-                      )),
+                      child: Text(
+                        'Accept & Open Chat',
+                        style: TextStyle(
+                          color: Color(0xFF041818),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -503,21 +605,30 @@ class _TripRequestSheet extends StatelessWidget {
   }
 }
 
-// ─── Empty state ──────────────────────────────────────────────────────────────
-
+// ─── Empty state ───────────────────────────────────────────────────────────────
 class _EmptyState extends StatelessWidget {
+  const _EmptyState();
+
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 80, horizontal: 40),
       child: Column(
         children: [
-          Icon(Icons.notifications_none_rounded,
-              color: _kFaint.withOpacity(.40), size: 56),
+          Icon(
+            Icons.notifications_none_rounded,
+            color: _kFaint.withOpacity(.40),
+            size: 56,
+          ),
           const SizedBox(height: 16),
-          const Text('All caught up', style: TextStyle(
-            color: _kText, fontSize: 18, fontWeight: FontWeight.w700,
-          )),
+          const Text(
+            'All caught up',
+            style: TextStyle(
+              color: _kText,
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
           const SizedBox(height: 8),
           const Text(
             'Trip requests, match alerts, and reviews will show up here.',

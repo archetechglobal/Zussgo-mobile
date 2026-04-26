@@ -6,44 +6,57 @@ import '../models/trip_model.dart';
 
 final tripsRepositoryProvider = Provider((_) => TripsRepository());
 
-// ── Active trips feed ──────────────────────────────────────────────────────────
+// All active trips for discover/home hero
 final activeTripsProvider = FutureProvider<List<TripModel>>((ref) async {
-  return ref.read(tripsRepositoryProvider).fetchActiveTrips();
+  return ref.watch(tripsRepositoryProvider).fetchActiveTrips();
 });
 
-// ── My trips ───────────────────────────────────────────────────────────────────
+// My created trips
 final myTripsProvider = FutureProvider<List<TripModel>>((ref) async {
-  return ref.read(tripsRepositoryProvider).fetchMyTrips();
+  return ref.watch(tripsRepositoryProvider).fetchMyTrips();
 });
 
-// ── Create trip notifier ───────────────────────────────────────────────────────
-class CreateTripNotifier extends AsyncNotifier<void> {
-  @override
-  Future<void> build() async {}
+// Trips I've joined
+final joinedTripsProvider = FutureProvider<List<TripModel>>((ref) async {
+  return ref.watch(tripsRepositoryProvider).fetchJoinedTrips();
+});
 
-  Future<TripModel> create({
+// Pending companion requests for my trips
+final pendingRequestsProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
+  return ref.watch(tripsRepositoryProvider).fetchPendingRequests();
+});
+
+// Create trip notifier
+class CreateTripNotifier extends StateNotifier<AsyncValue<TripModel?>> {
+  final TripsRepository _repo;
+  CreateTripNotifier(this._repo) : super(const AsyncValue.data(null));
+
+  Future<TripModel?> create({
     required String destination,
     required String dates,
     String? vibe,
     String? budget,
     String? intent,
   }) async {
-    state = const AsyncLoading();
-    final result = await AsyncValue.guard(() =>
-        ref.read(tripsRepositoryProvider).createTrip(
-          destination: destination,
-          dates: dates,
-          vibe: vibe,
-          budget: budget,
-          intent: intent,
-        ));
-    state = result;
-    // Refresh active trips
-    ref.invalidate(activeTripsProvider);
-    ref.invalidate(myTripsProvider);
-    return result.value!;
+    state = const AsyncValue.loading();
+    try {
+      final trip = await _repo.createTrip(
+        destination: destination,
+        dates: dates,
+        vibe: vibe,
+        budget: budget,
+        intent: intent,
+      );
+      state = AsyncValue.data(trip);
+      return trip;
+    } catch (e, st) {
+      state = AsyncValue.error(e, st);
+      return null;
+    }
   }
 }
 
 final createTripProvider =
-AsyncNotifierProvider<CreateTripNotifier, void>(CreateTripNotifier.new);
+StateNotifierProvider<CreateTripNotifier, AsyncValue<TripModel?>>((ref) {
+  return CreateTripNotifier(ref.watch(tripsRepositoryProvider));
+});

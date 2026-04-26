@@ -1,140 +1,102 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import '../models/app_auth_state.dart';
 import '../data/auth_repository.dart';
 
-// ── Repository provider ────────────────────────────────────────────────────
+final authRepositoryProvider = Provider<AuthRepository>((ref) {
+  return AuthRepository();
+});
 
-final authRepositoryProvider = Provider<AuthRepository>(
-      (_) => AuthRepository(),
-);
-
-// ── State ──────────────────────────────────────────────────────────────────
-
-sealed class AuthState {}
-class AuthInitial extends AuthState {}
-class AuthLoading extends AuthState {}
-class AuthSuccess extends AuthState {
-  final User user;
-  AuthSuccess(this.user);
-}
-class AuthAwaitingVerification extends AuthState {
-  final String email; // so verify screen can show it + resend
-  AuthAwaitingVerification(this.email);
-}
-class AuthError extends AuthState {
-  final String message;
-  AuthError(this.message);
-}
-
-// ── Notifier ───────────────────────────────────────────────────────────────
-
-class AuthNotifier extends StateNotifier<AuthState> {
+class AuthNotifier extends StateNotifier<AppAuthState> {
   final AuthRepository _repo;
 
-  AuthNotifier(this._repo) : super(AuthInitial());
+  AuthNotifier(this._repo) : super(AppAuthInitial());
 
-  // ── Sign up ──────────────────────────────────────────────────────────────
-  Future<void> signup({
-    required String name,
+  Future<void> signUpWithEmail({
     required String email,
     required String password,
-    required String phone,
   }) async {
-    state = AuthLoading();
+    state = AppAuthLoading();
     try {
-      final response = await _repo.signUp(
-        name: name,
-        email: email,
-        password: password,
-        phone: phone,
-      );
-      // Supabase returns user but session is null until email is verified
-      if (response.session == null) {
-        state = AuthAwaitingVerification(email);
+      final res = await _repo.signUpWithEmail(email: email, password: password);
+      if (res.user != null) {
+        if (res.user!.emailConfirmedAt == null) {
+          state = AppAuthAwaitingVerification(email);
+        } else {
+          state = AppAuthSuccess(res.user!);
+        }
       } else {
-        state = AuthSuccess(response.user!);
+        state = AppAuthError('Signup failed. Please try again.');
       }
-    } on AuthException catch (e) {
-      state = AuthError(e.message);
     } catch (e) {
-      state = AuthError(e.toString());
+      state = AppAuthError(_parseError(e));
     }
   }
 
-  // ── Login ────────────────────────────────────────────────────────────────
-  Future<void> login({
+  Future<void> signInWithEmail({
     required String email,
     required String password,
   }) async {
-    state = AuthLoading();
+    state = AppAuthLoading();
     try {
-      final response = await _repo.signIn(
-        email: email,
-        password: password,
-      );
-      final user = response.user;
-      if (user == null) throw Exception('Login failed. Please try again.');
-      state = AuthSuccess(user);
-    } on AuthException catch (e) {
-      state = AuthError(e.message);
+      final res = await _repo.signInWithEmail(email: email, password: password);
+      if (res.user != null) {
+        state = AppAuthSuccess(res.user!);
+      } else {
+        state = AppAuthError('Login failed. Please try again.');
+      }
     } catch (e) {
-      state = AuthError(e.toString());
+      state = AppAuthError(_parseError(e));
     }
   }
 
-  // ── Resend verification email ────────────────────────────────────────────
-  Future<void> resendVerification({required String email}) async {
+  Future<void> signInWithPhone(String phone) async {
+    state = AppAuthLoading();
     try {
-      await _repo.resendVerificationEmail(email: email);
-    } on AuthException catch (e) {
-      state = AuthError(e.message);
+      await _repo.signInWithPhone(phone);
+      state = AppAuthAwaitingVerification(phone);
     } catch (e) {
-      state = AuthError(e.toString());
+      state = AppAuthError(_parseError(e));
     }
   }
 
-  // ── Send OTP ─────────────────────────────────────────────────────────────
-  Future<void> sendOtp({required String phone}) async {
-    state = AuthLoading();
-    try {
-      await _repo.sendOtp(phone: phone);
-      state = AuthInitial();
-    } on AuthException catch (e) {
-      state = AuthError(e.message);
-    } catch (e) {
-      state = AuthError(e.toString());
-    }
-  }
-
-  // ── Verify OTP ───────────────────────────────────────────────────────────
-  Future<void> verifyOtp({
+  Future<void> verifyPhoneOtp({
     required String phone,
-    required String otp,
+    required String token,
   }) async {
-    state = AuthLoading();
+    state = AppAuthLoading();
     try {
-      final response = await _repo.verifyOtp(phone: phone, otp: otp);
-      final user = response.user;
-      if (user == null) throw Exception('Verification failed. Try again.');
-      state = AuthSuccess(user);
-    } on AuthException catch (e) {
-      state = AuthError(e.message);
+      final res = await _repo.verifyPhoneOtp(phone: phone, token: token);
+      if (res.user != null) {
+        state = AppAuthSuccess(res.user!);
+      } else {
+        state = AppAuthError('Invalid OTP. Please try again.');
+      }
     } catch (e) {
-      state = AuthError(e.toString());
+      state = AppAuthError(_parseError(e));
     }
   }
 
-  // ── Logout ───────────────────────────────────────────────────────────────
-  Future<void> logout() async {
-    await _repo.signOut();
-    state = AuthInitial();
+  Future<void> resendEmailVerification(String email) async {
+    try {
+      await _repo.resendEmailVerification(email);
+    } catch (e) {
+      state = AppAuthError(_parseError(e));
+    }
   }
 
-  void reset() => state = AuthInitial();
+  Future<void> signOut() async {
+    await _repo.signOut();
+    state = AppAuthInitial();
+  }
+
+  void reset() => state = AppAuthInitial();
+
+  String _parseError(dynamic e) {
+    if (e is AuthException) return e.message;
+    return e.toString().replaceAll('Exception: ', '');
+  }
 }
 
-// ── Provider ───────────────────────────────────────────────────────────────
-
-final authProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
+final authProvider = StateNotifierProvider<AuthNotifier, AppAuthState>((ref) {
   return AuthNotifier(ref.watch(authRepositoryProvider));
 });

@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/providers/nav_provider.dart';
 import '../../profile/widgets/user_profile_sheet.dart';
+import '../../trips/providers/trips_provider.dart';
 import '../data/home_mock_data.dart';
 import '../providers/home_provider.dart';
 import '../widgets/hero_match_dots.dart';
@@ -42,12 +43,26 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     const bg = Color(0xFF081314);
-    final currentIndex = ref.watch(homePageIndexProvider);
-    final screenHeight  = MediaQuery.of(context).size.height;
-    final topInset      = MediaQuery.of(context).padding.top;
-    final bottomInset   = MediaQuery.of(context).padding.bottom;
-    final heroHeight    = screenHeight * 0.63;
+    final currentIndex    = ref.watch(homePageIndexProvider);
+    final screenHeight    = MediaQuery.of(context).size.height;
+    final topInset        = MediaQuery.of(context).padding.top;
+    final bottomInset     = MediaQuery.of(context).padding.bottom;
+    final heroHeight      = screenHeight * 0.63;
     final bottomNavHeight = 88.0 + bottomInset;
+
+    // Live data for trays
+    final myTripsAsync      = ref.watch(myTripsProvider);
+    final pendingAsync      = ref.watch(pendingRequestsProvider);
+    final activeTripsAsync  = ref.watch(activeTripsProvider);
+
+    final activeCount  = activeTripsAsync.asData?.value.length ?? 0;
+    final myTripTitle  = myTripsAsync.asData?.value.isNotEmpty == true
+        ? '${myTripsAsync.asData!.value.first.destination} trip · Live'
+        : 'Your trips';
+    final myTripSub    = myTripsAsync.asData?.value.isNotEmpty == true
+        ? '${myTripsAsync.asData!.value.first.dates}'
+        : 'No active trips yet';
+    final pendingCount = pendingAsync.asData?.value.length ?? 0;
 
     return Scaffold(
       backgroundColor: bg,
@@ -56,24 +71,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         children: [
           Positioned.fill(child: Container(color: bg)),
 
-          // ── Hero pager ────────────────────────────────────────────────────
+          // ── Hero pager (live data) ──────────────────────────────────────────
           Positioned(
-            top: 0, left: 0, right: 0,
-            height: heroHeight,
+            top: 0, left: 0, right: 0, height: heroHeight,
             child: HeroMatchPager(
               controller: _pageController,
               height: heroHeight,
               onPageChanged: (index) {
                 ref.read(homePageIndexProvider.notifier).setIndex(index);
               },
-              // Tap on hero card → open profile sheet
               onCardTap: (match) {
                 UserProfileSheet.show(context, name: match.name);
               },
             ),
           ),
 
-          // Status-bar gradient overlay
+          // Status-bar gradient overlay — UNCHANGED
           Positioned(
             top: 0, left: 0, right: 0,
             height: topInset + 120,
@@ -92,7 +105,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
           ),
 
-          // Header (search / notifs)
+          // Header (now shows real name + avatar)
           Positioned(
             top: 0, left: 0, right: 0,
             child: HomeHeader(topInset: topInset),
@@ -109,7 +122,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 children: [
                   HeroMatchDots(
                     currentIndex: currentIndex,
-                    count: HomeMockData.matches.length,
+                    count: activeCount > 0 ? activeCount : 1,
                   ),
                   const SizedBox(height: 20),
 
@@ -121,20 +134,33 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   ),
                   const SizedBox(height: 16),
 
-                  ...HomeMockData.trays.asMap().entries.map(
-                        (entry) => Padding(
+                  // Tray 1 — My active trip
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: HomeInfoTray(
+                      title: myTripTitle,
+                      subtitle: myTripSub,
+                      onTap: () {
+                        ref.read(bottomNavIndexProvider.notifier).setIndex(2);
+                        context.go('/match', extra: 'discover');
+                      },
+                    ),
+                  ),
+
+                  // Tray 2 — Companion requests (live badge count)
+                  if (pendingCount > 0)
+                    Padding(
                       padding: const EdgeInsets.only(bottom: 12),
                       child: HomeInfoTray(
-                        title: entry.value.title,
-                        subtitle: entry.value.subtitle,
-                        badgeCount: entry.key == 1 ? 2 : null,
+                        title: 'Companion requests',
+                        subtitle: '$pendingCount ${pendingCount == 1 ? 'person wants' : 'people want'} to join',
+                        badgeCount: pendingCount,
                         onTap: () {
                           ref.read(bottomNavIndexProvider.notifier).setIndex(2);
                           context.go('/match', extra: 'requests');
                         },
                       ),
                     ),
-                  ),
 
                   const SizedBox(height: 8),
                 ],
@@ -142,7 +168,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
           ),
 
-          // ── Bottom nav ────────────────────────────────────────────────────
+          // ── Bottom nav — UNCHANGED ────────────────────────────────────────
           Positioned(
             left: 12, right: 12,
             bottom: 12 + bottomInset,

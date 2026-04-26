@@ -1,23 +1,28 @@
-// lib/features/profile/providers/profile_provider.dart
-
+import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../data/profile_repository.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/profile_model.dart';
+import '../data/profile_repository.dart';
 
-final profileRepositoryProvider = Provider((_) => ProfileRepository());
+final profileRepositoryProvider = Provider<ProfileRepository>((ref) {
+  return ProfileRepository();
+});
 
-// ── My own profile ─────────────────────────────────────────────────────────────
+class ProfileNotifier extends StateNotifier<AsyncValue<ProfileModel?>> {
+  final ProfileRepository _repo;
+  final String _userId;
 
-class MyProfileNotifier extends AsyncNotifier<ProfileModel?> {
-  @override
-  Future<ProfileModel?> build() => _repo.fetchMyProfile();
+  ProfileNotifier(this._repo, this._userId) : super(const AsyncValue.loading()) {
+    _load();
+  }
 
-  ProfileRepository get _repo =>
-      ref.read(profileRepositoryProvider);
-
-  Future<void> refresh() async {
-    state = const AsyncLoading();
-    state = await AsyncValue.guard(() => _repo.fetchMyProfile());
+  Future<void> _load() async {
+    try {
+      final profile = await _repo.getProfile(_userId);
+      state = AsyncValue.data(profile);
+    } catch (e, st) {
+      state = AsyncValue.error(e, st);
+    }
   }
 
   Future<void> saveSetup({
@@ -30,41 +35,49 @@ class MyProfileNotifier extends AsyncNotifier<ProfileModel?> {
     required String pace,
     required String accommodation,
   }) async {
-    await _repo.upsertProfile({
-      'name':          name,
-      'age':           age,
-      'base_city':     baseCity,
-      'bio':           bio,
-      'vibes':         vibes,
-      'budget':        budget,
-      'pace':          pace,
-      'accommodation': accommodation,
-      'is_setup_done': true,
-    });
-    await refresh();
+    final profile = ProfileModel(
+      id:            _userId,
+      name:          name,
+      age:           age,
+      baseCity:      baseCity,
+      bio:           bio,
+      vibes:         vibes,
+      budget:        budget,
+      pace:          pace,
+      accommodation: accommodation,
+      isSetupDone:   true,
+    );
+    await _repo.upsertProfile(profile);
+    state = AsyncValue.data(profile);
   }
 
-  Future<void> updateProfile(Map<String, dynamic> data) async {
-    await _repo.upsertProfile(data);
-    await refresh();
+  Future<void> uploadAvatar(File file) async {
+    try {
+      final url = await _repo.uploadAvatar(userId: _userId, file: file);
+      final current = state.value;
+      if (current != null && url != null) {
+        final updated = current.copyWith(avatarUrl: url);
+        await _repo.upsertProfile(updated);
+        state = AsyncValue.data(updated);
+      }
+    } catch (e, st) {
+      state = AsyncValue.error(e, st);
+    }
   }
+
+  Future<void> refresh() => _load();
 }
 
-final myProfileProvider =
-AsyncNotifierProvider<MyProfileNotifier, ProfileModel?>(
-    MyProfileNotifier.new);
-
-// ── Travelers list (for Discover / Home feed) ──────────────────────────────────
-
-final travelersProvider = FutureProvider<List<ProfileModel>>((ref) async {
-  final repo = ref.read(profileRepositoryProvider);
-  return repo.fetchTravelers();
+final myProfileProvider = StateNotifierProvider<ProfileNotifier, AsyncValue<ProfileModel?>>((ref) {
+  final userId = Supabase.instance.client.auth.currentUser?.id ?? '';
+  return ProfileNotifier(
+    ref.watch(profileRepositoryProvider),
+    userId,
+  );
 });
 
-// ── Any profile by id (for sheets) ────────────────────────────────────────────
-
-final profileByIdProvider =
-FutureProvider.family<ProfileModel?, String>((ref, id) async {
-  final repo = ref.read(profileRepositoryProvider);
-  return repo.fetchById(id);
+// Provider to get any user's profile by ID
+final userProfileProvider = FutureProvider.family<ProfileModel?, String>((ref, userId) async {
+  final repo = ref.watch(profileRepositoryProvider);
+  return repo.getProfile(userId);
 });

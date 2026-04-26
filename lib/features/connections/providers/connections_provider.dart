@@ -1,55 +1,48 @@
-// lib/features/connections/providers/connections_provider.dart
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../data/connections_repository.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/connection_model.dart';
+import '../data/connections_repository.dart';
 
-final connectionsRepositoryProvider =
-Provider((_) => ConnectionsRepository());
-
-// ── Accepted connections (chat list source) ────────────────────────────────────
-final myConnectionsProvider =
-FutureProvider<List<ConnectionModel>>((ref) async {
-  return ref.read(connectionsRepositoryProvider).fetchMyConnections();
+final connectionsRepositoryProvider = Provider<ConnectionsRepository>((ref) {
+  return ConnectionsRepository();
 });
 
-// ── Pending received requests ──────────────────────────────────────────────────
-final pendingRequestsProvider =
-FutureProvider<List<ConnectionModel>>((ref) async {
-  return ref.read(connectionsRepositoryProvider).fetchPendingReceived();
+final connectionsProvider = FutureProvider<List<ConnectionModel>>((ref) async {
+  final repo   = ref.watch(connectionsRepositoryProvider);
+  final userId = Supabase.instance.client.auth.currentUser?.id ?? '';
+  return repo.getConnections(userId);
 });
 
-// ── Send request notifier ──────────────────────────────────────────────────────
-class SendRequestNotifier extends AsyncNotifier<void> {
-  @override
-  Future<void> build() async {}
+final pendingRequestsProvider = FutureProvider<List<ConnectionModel>>((ref) async {
+  final repo   = ref.watch(connectionsRepositoryProvider);
+  final userId = Supabase.instance.client.auth.currentUser?.id ?? '';
+  return repo.getPendingRequests(userId);
+});
 
-  Future<void> send({
-    required String receiverId,
-    required String tripId,
-    required String message,
-  }) async {
-    state = const AsyncLoading();
-    state = await AsyncValue.guard(() =>
-        ref.read(connectionsRepositoryProvider).sendRequest(
-          receiverId: receiverId,
-          tripId: tripId,
-          message: message,
-        ));
+class ConnectionsNotifier extends StateNotifier<AsyncValue<void>> {
+  final ConnectionsRepository _repo;
+  final String _userId;
+
+  ConnectionsNotifier(this._repo, this._userId)
+      : super(const AsyncValue.data(null));
+
+  Future<void> sendRequest(String receiverId) async {
+    state = const AsyncValue.loading();
+    try {
+      await _repo.sendRequest(requesterId: _userId, receiverId: receiverId);
+      state = const AsyncValue.data(null);
+    } catch (e, st) {
+      state = AsyncValue.error(e, st);
+    }
+  }
+
+  Future<void> respond({required String connectionId, required bool accept}) async {
+    await _repo.respondToRequest(connectionId: connectionId, accept: accept);
   }
 }
 
-final sendRequestProvider =
-AsyncNotifierProvider<SendRequestNotifier, void>(SendRequestNotifier.new);
-
-// ── Accept/decline ─────────────────────────────────────────────────────────────
-final acceptRequestProvider = FutureProvider.family<void, String>((ref, id) async {
-  await ref.read(connectionsRepositoryProvider).acceptRequest(id);
-  ref.invalidate(pendingRequestsProvider);
-  ref.invalidate(myConnectionsProvider);
-});
-
-final declineRequestProvider = FutureProvider.family<void, String>((ref, id) async {
-  await ref.read(connectionsRepositoryProvider).declineRequest(id);
-  ref.invalidate(pendingRequestsProvider);
+final connectionsNotifierProvider =
+StateNotifierProvider<ConnectionsNotifier, AsyncValue<void>>((ref) {
+  final userId = Supabase.instance.client.auth.currentUser?.id ?? '';
+  return ConnectionsNotifier(ref.watch(connectionsRepositoryProvider), userId);
 });

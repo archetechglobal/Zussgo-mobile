@@ -1,5 +1,10 @@
 class AppConstants {
-  // Replace these with your actual Supabase project URL and Anon Key later
-  static const String supabaseUrl = 'YOUR_SUPABASE_URL';
-  static const String supabaseAnonKey = 'YOUR_SUPABASE_ANON_KEY';
+  static const String appName = 'ZussGo';
+  static const String profilesTable = 'profiles';
+  static const String messagesTable = 'messages';
+  static const String connectionsTable = 'connections';
+  static const String tripsTable = 'trips';
+  static const String notificationsTable = 'notifications';
+  static const String avatarsBucket = 'avatars';
+  static const String deepLinkScheme = 'zussgo://auth/callback';
 }

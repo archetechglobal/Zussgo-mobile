@@ -1,14 +1,16 @@
 // lib/features/home/widgets/hero_match_pager.dart
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../trips/providers/trips_provider.dart';
 import '../data/home_mock_data.dart';
 import 'hero_match_card.dart';
 
-class HeroMatchPager extends StatelessWidget {
+class HeroMatchPager extends ConsumerWidget {
   final PageController controller;
   final ValueChanged<int> onPageChanged;
   final double height;
-  final ValueChanged<HomeMatch>? onCardTap; // ← NEW
+  final ValueChanged<HomeMatch>? onCardTap;
 
   const HeroMatchPager({
     super.key,
@@ -19,21 +21,88 @@ class HeroMatchPager extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    return PageView.builder(
-      controller: controller,
-      itemCount: HomeMockData.matches.length,
-      onPageChanged: onPageChanged,
-      itemBuilder: (_, index) {
-        final match = HomeMockData.matches[index];
-        return GestureDetector(
-          onTap: () => onCardTap?.call(match),
-          child: HeroMatchCard(
-            match: match,
-            height: height,
-          ),
+  Widget build(BuildContext context, WidgetRef ref) {
+    final tripsAsync = ref.watch(activeTripsProvider);
+
+    return tripsAsync.when(
+      loading: () => _ShimmerHero(height: height),
+      error: (_, __) => _EmptyHero(height: height),
+      data: (trips) {
+        if (trips.isEmpty) return _EmptyHero(height: height);
+
+        // Convert TripModel → HomeMatch shape for the existing card widget
+        final matches = trips.map((t) => HomeMatch.fromTrip(
+          tripId:       t.id,
+          creatorName:  t.creator?.name ?? 'Traveler',
+          creatorAge:   t.creator?.age ?? 0,
+          destination:  t.destination,
+          dates:        t.dates,
+          avatarUrl:    t.creator?.avatarUrl,
+          vibe:         t.vibe,
+          rating:       t.creator?.rating ?? 0,
+          trustScore:   t.creator?.trustScore ?? 0,
+        )).toList();
+
+        return PageView.builder(
+          controller: controller,
+          itemCount: matches.length,
+          onPageChanged: onPageChanged,
+          itemBuilder: (_, index) {
+            final match = matches[index];
+            return GestureDetector(
+              onTap: () => onCardTap?.call(match),
+              child: HeroMatchCard(match: match, height: height),
+            );
+          },
         );
       },
+    );
+  }
+}
+
+// ── Loading shimmer ──────────────────────────────────────────────────────────
+class _ShimmerHero extends StatelessWidget {
+  final double height;
+  const _ShimmerHero({required this.height});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: height,
+      color: const Color(0xFF0D1819),
+      child: const Center(
+        child: CircularProgressIndicator(
+          color: Color(0xFF1EC9B8), strokeWidth: 2,
+        ),
+      ),
+    );
+  }
+}
+
+// ── Empty state ───────────────────────────────────────────────────────────────
+class _EmptyHero extends StatelessWidget {
+  final double height;
+  const _EmptyHero({required this.height});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: height,
+      color: const Color(0xFF0D1819),
+      child: const Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('✈️', style: TextStyle(fontSize: 40)),
+            SizedBox(height: 12),
+            Text(
+              'No trips posted yet.\nBe the first to plan one!',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Color(0xFF6A8882), fontSize: 14),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
