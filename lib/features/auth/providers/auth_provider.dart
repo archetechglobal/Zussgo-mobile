@@ -1,4 +1,7 @@
+// lib/features/auth/providers/auth_provider.dart
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/app_auth_state.dart';
 import '../data/auth_repository.dart';
 

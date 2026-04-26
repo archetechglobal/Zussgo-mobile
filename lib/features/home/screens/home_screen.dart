@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/providers/nav_provider.dart';
 import '../../profile/widgets/user_profile_sheet.dart';
+import '../../connections/providers/connections_provider.dart';
 import '../../trips/providers/trips_provider.dart';
 import '../data/home_mock_data.dart';
 import '../providers/home_provider.dart';
@@ -52,7 +53,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     // Live data for trays
     final myTripsAsync      = ref.watch(myTripsProvider);
-    final pendingAsync      = ref.watch(pendingRequestsProvider);
+    final pendingAsync      = ref.watch(tripPendingRequestsProvider);
     final activeTripsAsync  = ref.watch(activeTripsProvider);
 
     final activeCount  = activeTripsAsync.asData?.value.length ?? 0;
@@ -86,7 +87,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
           ),
 
-          // Status-bar gradient overlay — UNCHANGED
+          // Status-bar gradient overlay
           Positioned(
             top: 0, left: 0, right: 0,
             height: topInset + 120,
@@ -105,7 +106,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
           ),
 
-          // Header (now shows real name + avatar)
+          // Header
           Positioned(
             top: 0, left: 0, right: 0,
             child: HomeHeader(topInset: topInset),
@@ -168,7 +169,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
           ),
 
-          // ── Bottom nav — UNCHANGED ────────────────────────────────────────
+          // ── Bottom nav ────────────────────────────────────────────────────
           Positioned(
             left: 12, right: 12,
             bottom: 12 + bottomInset,

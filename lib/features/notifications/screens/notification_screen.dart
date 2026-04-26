@@ -8,7 +8,6 @@ import 'package:go_router/go_router.dart';
 import '../providers/notifications_provider.dart';
 import '../models/notification_model.dart';
 import '../../profile/widgets/user_profile_sheet.dart';
-import '../../connections/providers/connections_provider.dart';
 
 // ─── Colours ──────────────────────────────────────────────────────────────────
 const _kBg    = Color(0xFF070E0F);
@@ -28,8 +27,7 @@ class NotificationsScreen extends ConsumerStatefulWidget {
       _NotificationsScreenState();
 }
 
-class _NotificationsScreenState
-    extends ConsumerState<NotificationsScreen> {
+class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
 
   @override
   void initState() {
@@ -42,8 +40,8 @@ class _NotificationsScreenState
 
   @override
   Widget build(BuildContext context) {
-    final top    = MediaQuery.of(context).padding.top;
-    final bottom = MediaQuery.of(context).padding.bottom;
+    final top         = MediaQuery.of(context).padding.top;
+    final bottom      = MediaQuery.of(context).padding.bottom;
     final notifsAsync = ref.watch(notificationsStreamProvider);
     final unread      = ref.watch(unreadCountProvider);
 
@@ -51,7 +49,8 @@ class _NotificationsScreenState
       backgroundColor: _kBg,
       body: Column(
         children: [
-          // ── Header ──────────────────────────────────────────────────────
+
+          // ── Header ────────────────────────────────────────────────────────
           Container(
             padding: EdgeInsets.fromLTRB(20, top + 12, 20, 16),
             decoration: BoxDecoration(
@@ -63,7 +62,7 @@ class _NotificationsScreenState
             child: Row(
               children: [
                 GestureDetector(
-                  onTap: () => context.pop(), // ✅ go_router
+                  onTap: () => context.pop(),
                   child: const Icon(
                     Icons.arrow_back_ios_new_rounded,
                     color: _kText,
@@ -97,12 +96,11 @@ class _NotificationsScreenState
             ),
           ),
 
-          // ── List ────────────────────────────────────────────────────────
+          // ── List ──────────────────────────────────────────────────────────
           Expanded(
             child: notifsAsync.when(
               loading: () => const Center(
-                child: CircularProgressIndicator(
-                    color: _kTeal2, strokeWidth: 2),
+                child: CircularProgressIndicator(color: _kTeal2, strokeWidth: 2),
               ),
               error: (e, _) => Center(
                 child: Text(
@@ -159,13 +157,12 @@ class _NotificationsScreenState
   void _onAction(NotificationModel n) {
     ref.read(markReadProvider(n.id).future);
 
-    switch (n.type) {
+    switch (n.typeString) {
       case 'trip_request':
         final connId = n.data['connection_id'] as String?;
         if (connId != null) _showTripRequestSheet(n, connId);
         break;
       case 'match_alert':
-      // Pull sender name from data map safely
         final name = (n.data['sender_name'] as String?) ?? 'Traveller';
         UserProfileSheet.show(context, name: name);
         break;
@@ -184,18 +181,18 @@ class _NotificationsScreenState
         connectionId: connectionId,
         onAccept: () async {
           await ref.read(acceptRequestProvider(connectionId).future);
-          if (mounted) context.pop(); // ✅ go_router
+          if (mounted) context.pop();
         },
         onDecline: () async {
           await ref.read(declineRequestProvider(connectionId).future);
-          if (mounted) context.pop(); // ✅ go_router
+          if (mounted) context.pop();
         },
       ),
     );
   }
 }
 
-// ─── Section label ─────────────────────────────────────────────────────────────
+// ─── Section label ────────────────────────────────────────────────────────────
 class _SectionLabel extends StatelessWidget {
   final String label;
   final int unread;
@@ -219,8 +216,7 @@ class _SectionLabel extends StatelessWidget {
           if (unread > 0) ...[
             const SizedBox(width: 8),
             Container(
-              padding:
-              const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
               decoration: BoxDecoration(
                 color: _kTeal.withOpacity(.15),
                 borderRadius: BorderRadius.circular(999),
@@ -241,13 +237,11 @@ class _SectionLabel extends StatelessWidget {
   }
 }
 
-// ─── Notification tile ─────────────────────────────────────────────────────────
-// ✅ Now takes NotificationModel directly — no phantom _Notif class needed
-
+// ─── Notification tile ────────────────────────────────────────────────────────
 class _NotifTile extends StatelessWidget {
   final NotificationModel notif;
   final VoidCallback onAction;
-  final VoidCallback onDismiss; // ✅ was missing from constructor
+  final VoidCallback onDismiss;
 
   const _NotifTile({
     required this.notif,
@@ -255,9 +249,8 @@ class _NotifTile extends StatelessWidget {
     required this.onDismiss,
   });
 
-  // Derive icon + color from the real type string
   IconData get _typeIcon {
-    switch (notif.type) {
+    switch (notif.typeString) {
       case 'trip_request': return Icons.flight_takeoff_rounded;
       case 'match_alert':  return Icons.favorite_rounded;
       case 'accepted':     return Icons.check_circle_rounded;
@@ -267,7 +260,7 @@ class _NotifTile extends StatelessWidget {
   }
 
   Color get _typeColor {
-    switch (notif.type) {
+    switch (notif.typeString) {
       case 'trip_request': return _kTeal;
       case 'match_alert':  return const Color(0xFFFF6B9D);
       case 'accepted':     return _kTeal2;
@@ -276,11 +269,8 @@ class _NotifTile extends StatelessWidget {
     }
   }
 
-  // Safe avatar initial — first char of title
   String get _avatarInitial =>
       notif.title.isNotEmpty ? notif.title[0].toUpperCase() : '?';
-
-  Color get _avatarColor => _typeColor;
 
   @override
   Widget build(BuildContext context) {
@@ -305,7 +295,8 @@ class _NotifTile extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Avatar
+
+            // ── Avatar ────────────────────────────────────────────────────
             Stack(
               clipBehavior: Clip.none,
               children: [
@@ -313,14 +304,14 @@ class _NotifTile extends StatelessWidget {
                   width: 46,
                   height: 46,
                   decoration: BoxDecoration(
-                    color: _avatarColor.withOpacity(.18),
+                    color: _typeColor.withOpacity(.18),
                     borderRadius: BorderRadius.circular(14),
                   ),
                   child: Center(
                     child: Text(
                       _avatarInitial,
                       style: TextStyle(
-                        color: _avatarColor,
+                        color: _typeColor,
                         fontSize: 18,
                         fontWeight: FontWeight.w800,
                       ),
@@ -336,12 +327,11 @@ class _NotifTile extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: _kBg,
                       shape: BoxShape.circle,
-                      border: Border.all(
-                          color: _typeColor.withOpacity(.30)),
+                      border:
+                      Border.all(color: _typeColor.withOpacity(.30)),
                     ),
                     child: Center(
-                      child: Icon(_typeIcon,
-                          color: _typeColor, size: 10),
+                      child: Icon(_typeIcon, color: _typeColor, size: 10),
                     ),
                   ),
                 ),
@@ -349,7 +339,7 @@ class _NotifTile extends StatelessWidget {
             ),
             const SizedBox(width: 12),
 
-            // Content
+            // ── Content ───────────────────────────────────────────────────
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -389,13 +379,12 @@ class _NotifTile extends StatelessWidget {
                   Row(
                     children: [
                       Text(
-                        notif.timeAgo, // ✅ uses model's computed getter
-                        style: const TextStyle(
-                            color: _kFaint, fontSize: 11),
+                        notif.timeAgo,
+                        style:
+                        const TextStyle(color: _kFaint, fontSize: 11),
                       ),
-                      // Show action button for actionable types
-                      if (notif.type == 'trip_request' ||
-                          notif.type == 'match_alert') ...[
+                      if (notif.typeString == 'trip_request' ||
+                          notif.typeString == 'match_alert') ...[
                         const Spacer(),
                         Container(
                           padding: const EdgeInsets.symmetric(
@@ -407,7 +396,7 @@ class _NotifTile extends StatelessWidget {
                                 color: _typeColor.withOpacity(.22)),
                           ),
                           child: Text(
-                            notif.type == 'trip_request'
+                            notif.typeString == 'trip_request'
                                 ? 'View Request'
                                 : 'See Profile',
                             style: TextStyle(
@@ -431,13 +420,11 @@ class _NotifTile extends StatelessWidget {
 }
 
 // ─── Trip request bottom sheet ────────────────────────────────────────────────
-// ✅ Was missing connectionId, onAccept, onDecline from constructor
-
 class _TripRequestSheet extends StatelessWidget {
   final NotificationModel notif;
-  final String connectionId;          // ✅ added
-  final VoidCallback onAccept;        // ✅ added
-  final VoidCallback onDecline;       // ✅ added
+  final String connectionId;
+  final VoidCallback onAccept;
+  final VoidCallback onDecline;
 
   const _TripRequestSheet({
     required this.notif,
@@ -461,6 +448,7 @@ class _TripRequestSheet extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+
           // Handle
           Center(
             child: Container(
@@ -474,7 +462,7 @@ class _TripRequestSheet extends StatelessWidget {
             ),
           ),
 
-          // Requester
+          // Requester row
           Row(
             children: [
               Container(
@@ -501,8 +489,7 @@ class _TripRequestSheet extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      notif.title
-                          .replaceAll('Trip Request from ', ''),
+                      notif.title.replaceAll('Trip Request from ', ''),
                       style: const TextStyle(
                         color: _kText,
                         fontSize: 17,
@@ -528,13 +515,12 @@ class _TripRequestSheet extends StatelessWidget {
             decoration: BoxDecoration(
               color: Colors.white.withOpacity(.03),
               borderRadius: BorderRadius.circular(14),
-              border:
-              Border.all(color: Colors.white.withOpacity(.06)),
+              border: Border.all(color: Colors.white.withOpacity(.06)),
             ),
             child: Text(
               '"${notif.body}"',
-              style: const TextStyle(
-                  color: _kText, fontSize: 13, height: 1.5),
+              style:
+              const TextStyle(color: _kText, fontSize: 13, height: 1.5),
             ),
           ),
           const SizedBox(height: 20),
@@ -544,7 +530,7 @@ class _TripRequestSheet extends StatelessWidget {
             children: [
               Expanded(
                 child: GestureDetector(
-                  onTap: onDecline, // ✅ calls real callback
+                  onTap: onDecline,
                   child: Container(
                     height: 50,
                     decoration: BoxDecoration(
@@ -570,7 +556,7 @@ class _TripRequestSheet extends StatelessWidget {
               Expanded(
                 flex: 2,
                 child: GestureDetector(
-                  onTap: onAccept, // ✅ calls real callback
+                  onTap: onAccept,
                   child: Container(
                     height: 50,
                     decoration: BoxDecoration(
@@ -605,7 +591,7 @@ class _TripRequestSheet extends StatelessWidget {
   }
 }
 
-// ─── Empty state ───────────────────────────────────────────────────────────────
+// ─── Empty state ──────────────────────────────────────────────────────────────
 class _EmptyState extends StatelessWidget {
   const _EmptyState();
 

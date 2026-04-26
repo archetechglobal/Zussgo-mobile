@@ -6,27 +6,31 @@ import '../models/trip_model.dart';
 
 final tripsRepositoryProvider = Provider((_) => TripsRepository());
 
-// All active trips for discover/home hero
+/// All active trips from other users.
+/// Used in home hero pager and Match → Discover tab.
 final activeTripsProvider = FutureProvider<List<TripModel>>((ref) async {
   return ref.watch(tripsRepositoryProvider).fetchActiveTrips();
 });
 
-// My created trips
+/// Trips I created.
 final myTripsProvider = FutureProvider<List<TripModel>>((ref) async {
   return ref.watch(tripsRepositoryProvider).fetchMyTrips();
 });
 
-// Trips I've joined
+/// Trips I've joined via an accepted connection.
 final joinedTripsProvider = FutureProvider<List<TripModel>>((ref) async {
   return ref.watch(tripsRepositoryProvider).fetchJoinedTrips();
 });
 
-// Pending companion requests for my trips
-final pendingRequestsProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
+/// Pending companion requests on MY trips.
+/// Named tripPendingRequestsProvider to avoid clashing with
+/// connections_provider's pendingRequestsProvider.
+final tripPendingRequestsProvider =
+FutureProvider<List<Map<String, dynamic>>>((ref) async {
   return ref.watch(tripsRepositoryProvider).fetchPendingRequests();
 });
 
-// Create trip notifier
+/// Create trip notifier
 class CreateTripNotifier extends StateNotifier<AsyncValue<TripModel?>> {
   final TripsRepository _repo;
   CreateTripNotifier(this._repo) : super(const AsyncValue.data(null));

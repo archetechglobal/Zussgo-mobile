@@ -1,3 +1,7 @@
+// ============================================================
+// FILE: lib/features/match/screens/match_screen.dart
+// ACTION: UPDATE (replace entire file)
+// ============================================================
 // lib/features/match/screens/match_screen.dart
 
 import 'package:flutter/material.dart';
@@ -9,6 +13,11 @@ import '../../../core/providers/nav_provider.dart';
 import '../../home/widgets/home_bottom_nav.dart';
 import '../../profile/widgets/user_profile_sheet.dart';
 import '../../trips/screens/create_trip_sheet.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:timeago/timeago.dart' as timeago;
+import '../../profile/providers/profile_provider.dart';
+import '../../trips/providers/trips_provider.dart';
+import '../../connections/providers/connections_provider.dart';
 
 class MatchScreen extends ConsumerStatefulWidget {
   final String initialTab;
@@ -39,80 +48,7 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
     'Budget',
   ];
 
-  final List<_TravelerData> _travelers = const [
-    _TravelerData(
-      name: 'Meera',
-      age: 24,
-      city: 'Pune',
-      vibe: '🏔 Adventure',
-      score: 97,
-      scoreColor: 'gold',
-      variant: 1,
-    ),
-    _TravelerData(
-      name: 'Kabir',
-      age: 26,
-      city: 'Mumbai',
-      vibe: '🎉 Festival',
-      score: 94,
-      scoreColor: 'teal',
-      variant: 2,
-    ),
-    _TravelerData(
-      name: 'Anika',
-      age: 23,
-      city: 'Delhi',
-      vibe: '☕ Chill',
-      score: 91,
-      scoreColor: 'teal',
-      variant: 3,
-    ),
-    _TravelerData(
-      name: 'Dev',
-      age: 25,
-      city: 'Bangalore',
-      vibe: '🥾 Trekking',
-      score: 89,
-      scoreColor: 'gold',
-      variant: 4,
-    ),
-    _TravelerData(
-      name: 'Priya',
-      age: 22,
-      city: 'Chennai',
-      vibe: '🌊 Beach',
-      score: 86,
-      scoreColor: 'teal',
-      variant: 1,
-    ),
-    _TravelerData(
-      name: 'Rohan',
-      age: 27,
-      city: 'Hyderabad',
-      vibe: '🎸 Party',
-      score: 83,
-      scoreColor: 'gold',
-      variant: 2,
-    ),
-    _TravelerData(
-      name: 'Sara',
-      age: 24,
-      city: 'Jaipur',
-      vibe: '🏛 Culture',
-      score: 81,
-      scoreColor: 'teal',
-      variant: 3,
-    ),
-    _TravelerData(
-      name: 'Arjun',
-      age: 28,
-      city: 'Kolkata',
-      vibe: '📸 Photo',
-      score: 78,
-      scoreColor: 'gold',
-      variant: 4,
-    ),
-  ];
+  // Traveler cards are now loaded live from activeTripsProvider in _DiscoverView.
 
   final List<_RequestData> _requests = const [
     _RequestData(
@@ -159,6 +95,10 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
     final topInset = MediaQuery.of(context).padding.top;
     final bottomInset = MediaQuery.of(context).padding.bottom;
     final bottomNavHeight = 88.0 + bottomInset;
+
+    // Live data
+    final pendingRequests = ref.watch(tripPendingRequestsProvider);
+    final pendingCount    = pendingRequests.asData?.value.length ?? 0;
 
     return Scaffold(
       backgroundColor: bg,
@@ -261,7 +201,7 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
                         _ToggleBtn(
                           label: 'Requests',
                           active: _tab == 1,
-                          badgeCount: 2,
+                          badgeCount: pendingCount,
                           onTap: () => setState(() => _tab = 1),
                         ),
                       ],
@@ -278,12 +218,11 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
                       chips: _chips,
                       activeChip: _activeChip,
                       onChipTap: (i) => setState(() => _activeChip = i),
-                      travelers: _travelers,
                       bottomInset: bottomInset,
                     )
-                        : _RequestsView(
+                        : _LiveRequestsView(
                       key: const ValueKey('requests'),
-                      requests: _requests,
+                      requestsAsync: pendingRequests,
                       bottomInset: bottomInset,
                     ),
                   ),
@@ -387,11 +326,10 @@ class _ToggleBtn extends StatelessWidget {
   }
 }
 
-class _DiscoverView extends StatelessWidget {
+class _DiscoverView extends ConsumerWidget {
   final List<String> chips;
   final int activeChip;
   final ValueChanged<int> onChipTap;
-  final List<_TravelerData> travelers;
   final double bottomInset;
 
   const _DiscoverView({
@@ -399,14 +337,28 @@ class _DiscoverView extends StatelessWidget {
     required this.chips,
     required this.activeChip,
     required this.onChipTap,
-    required this.travelers,
     required this.bottomInset,
   });
 
   static const text = Color(0xFFEDF7F4);
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final tripsAsync = ref.watch(activeTripsProvider);
+
+    // Convert live TripModel list → _TravelerData for the existing card widget
+    final travelers = tripsAsync.asData?.value.map((t) => _TravelerData(
+      id:        t.id,
+      name:      t.creator?.name ?? 'Traveler',
+      age:       t.creator?.age ?? 0,
+      city:      t.creator?.baseCity ?? '',
+      vibe:      t.vibe ?? '✈️ Traveler',
+      rating:    t.creator?.rating ?? 0,
+      avatarUrl: t.creator?.avatarUrl,
+      vibes:     t.creator?.vibes ?? [],
+      variant:   (t.hashCode % 4) + 1,
+    )).toList() ?? [];
+
     return Column(
       children: [
         SizedBox(
@@ -464,6 +416,209 @@ class _DiscoverView extends StatelessWidget {
       ],
     );
   }
+}
+
+class _LiveRequestsView extends StatelessWidget {
+  final AsyncValue<List<Map<String, dynamic>>> requestsAsync;
+  final double bottomInset;
+
+  const _LiveRequestsView({
+    super.key,
+    required this.requestsAsync,
+    required this.bottomInset,
+  });
+
+  static const text  = Color(0xFFEDF7F4);
+  static const muted = Color(0xFFA8C4BF);
+  static const faint = Color(0xFF6A8882);
+  static const teal2 = Color(0xFF58DAD0);
+
+  @override
+  Widget build(BuildContext context) {
+    return requestsAsync.when(
+      loading: () => const Center(
+        child: CircularProgressIndicator(color: Color(0xFF1EC9B8), strokeWidth: 2),
+      ),
+      error: (e, _) => Center(
+        child: Text('Could not load requests', style: const TextStyle(color: Color(0xFF6A8882))),
+      ),
+      data: (requests) {
+        if (requests.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('🎒', style: TextStyle(fontSize: 40)),
+                const SizedBox(height: 12),
+                const Text('No pending requests', style: TextStyle(
+                  color: Color(0xFFEDF7F4), fontSize: 16, fontWeight: FontWeight.w600,
+                )),
+                const SizedBox(height: 6),
+                const Text('Create a trip to start getting companion requests',
+                    style: TextStyle(color: Color(0xFF6A8882), fontSize: 13),
+                    textAlign: TextAlign.center),
+              ],
+            ),
+          );
+        }
+        return ListView.separated(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+          itemCount: requests.length,
+          separatorBuilder: (_, __) => const SizedBox(height: 16),
+          itemBuilder: (_, i) => _LiveRequestCard(request: requests[i]),
+        );
+      },
+    );
+  }
+}
+
+class _LiveRequestCard extends StatelessWidget {
+  final Map<String, dynamic> request;
+  const _LiveRequestCard({required this.request});
+
+  static const text  = Color(0xFFEDF7F4);
+  static const muted = Color(0xFFA8C4BF);
+  static const faint = Color(0xFF6A8882);
+  static const teal  = Color(0xFF1EC9B8);
+  static const teal2 = Color(0xFF58DAD0);
+
+  @override
+  Widget build(BuildContext context) {
+    final requester = request['requester'] as Map<String, dynamic>? ?? {};
+    final trip      = request['trip']      as Map<String, dynamic>? ?? {};
+    final name      = requester['name']  as String? ?? 'Someone';
+    final tripName  = trip['destination'] as String? ?? 'your trip';
+    final dates     = trip['dates']      as String? ?? '';
+    final avatarUrl = requester['avatar_url'] as String?;
+    final rating    = (requester['rating'] as num?)?.toDouble() ?? 0;
+    final createdAt = request['created_at'] as String?;
+    final timeAgo   = createdAt != null
+        ? timeago.format(DateTime.parse(createdAt), locale: 'en_short')
+        : '';
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(.02),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.white.withOpacity(.06)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Avatar
+              _LiveAvatar(url: avatarUrl, initial: name[0].toUpperCase()),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('$name wants to join your $tripName trip',
+                        style: const TextStyle(
+                          color: text, fontSize: 15, fontWeight: FontWeight.w700, height: 1.3,
+                        )),
+                    if (dates.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(dates, style: const TextStyle(color: muted, fontSize: 12)),
+                    ],
+                    if (timeAgo.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text('Requested $timeAgo', style: const TextStyle(color: faint, fontSize: 10)),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (rating > 0) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(.2),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text('★ ${rating.toStringAsFixed(1)} rating',
+                  style: const TextStyle(color: Color(0xFFF7B84E), fontSize: 12)),
+            ),
+          ],
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: GestureDetector(
+                  onTap: () {}, // TODO: decline
+                  child: Container(
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(.04),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.white.withOpacity(.08)),
+                    ),
+                    child: const Center(child: Text('Decline', style: TextStyle(
+                      color: muted, fontSize: 14, fontWeight: FontWeight.w600,
+                    ))),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: GestureDetector(
+                  onTap: () {}, // TODO: accept
+                  child: Container(
+                    height: 44,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF58DAD0), Color(0xFF1EC9B8)],
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Center(child: Text('Accept', style: TextStyle(
+                      color: Color(0xFF041818), fontSize: 14, fontWeight: FontWeight.w800,
+                    ))),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LiveAvatar extends StatelessWidget {
+  final String? url;
+  final String initial;
+  const _LiveAvatar({this.url, required this.initial});
+
+  @override
+  Widget build(BuildContext context) {
+    if (url != null && url!.isNotEmpty) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(14),
+        child: CachedNetworkImage(
+          imageUrl: url!, width: 48, height: 48, fit: BoxFit.cover,
+          errorWidget: (_, __, ___) => _fallback(),
+        ),
+      );
+    }
+    return _fallback();
+  }
+
+  Widget _fallback() => Container(
+    width: 48, height: 48,
+    decoration: BoxDecoration(
+      color: const Color(0xFF1EC9B8).withOpacity(.2),
+      borderRadius: BorderRadius.circular(14),
+    ),
+    child: Center(child: Text(initial, style: const TextStyle(
+      color: Color(0xFF58DAD0), fontSize: 18, fontWeight: FontWeight.w800,
+    ))),
+  );
 }
 
 class _RequestsView extends StatelessWidget {
@@ -765,8 +920,9 @@ class _TravelerCardWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = _gradients[(data.variant - 1) % 4];
-    final scoreColor = data.scoreColor == 'teal' ? teal2 : gold;
+    final colors     = _gradients[(data.variant - 1) % 4];
+    final hasAvatar  = data.avatarUrl != null && data.avatarUrl!.isNotEmpty;
+    final ratingStr  = data.rating > 0 ? '★ ${data.rating.toStringAsFixed(1)}' : null;
 
     return GestureDetector(
       onTap: () => UserProfileSheet.show(context, name: data.name),
@@ -775,109 +931,92 @@ class _TravelerCardWidget extends StatelessWidget {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: colors,
+            // Background: avatar photo or gradient fallback
+            if (hasAvatar)
+              CachedNetworkImage(
+                imageUrl: data.avatarUrl!,
+                fit: BoxFit.cover,
+                errorWidget: (_, __, ___) => Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft, end: Alignment.bottomRight,
+                      colors: colors,
+                    ),
+                  ),
+                ),
+              )
+            else
+              Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft, end: Alignment.bottomRight,
+                    colors: colors,
+                  ),
                 ),
               ),
-            ),
+            // Bottom scrim
             Container(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
+                  begin: Alignment.topCenter, end: Alignment.bottomCenter,
                   colors: [Colors.transparent, Colors.black.withOpacity(.82)],
                   stops: const [0.38, 1.0],
                 ),
               ),
             ),
-            Positioned(
-              top: 8,
-              right: 8,
-              child: Container(
-                padding:
-                const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: const Color(0xB20A1213),
-                  borderRadius: BorderRadius.circular(999),
-                  border: Border.all(color: Colors.white.withOpacity(.10)),
-                ),
-                child: Text(
-                  '${data.score}%',
-                  style: TextStyle(
-                    color: scoreColor,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w800,
+            // Rating badge
+            if (ratingStr != null)
+              Positioned(
+                top: 8, right: 8,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xB20A1213),
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(color: Colors.white.withOpacity(.10)),
                   ),
+                  child: Text(ratingStr, style: const TextStyle(
+                    color: gold, fontSize: 10, fontWeight: FontWeight.w800,
+                  )),
                 ),
               ),
-            ),
+            // Info bottom
             Positioned(
-              left: 12,
-              right: 12,
-              bottom: 12,
+              left: 12, right: 12, bottom: 12,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Row(
                     children: [
-                      Text(
-                        data.name,
-                        style: const TextStyle(
-                          color: text,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                          height: 1.2,
-                        ),
-                      ),
+                      Text(data.name, style: const TextStyle(
+                        color: text, fontSize: 15, fontWeight: FontWeight.w700, height: 1.2,
+                      )),
                       const SizedBox(width: 4),
                       Container(
-                        width: 13,
-                        height: 13,
-                        decoration: const BoxDecoration(
-                          color: Color(0xFF58DAD0),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Center(
-                          child: Text(
-                            '✓',
-                            style: TextStyle(
-                              color: Colors.black,
-                              fontSize: 7,
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                        ),
+                        width: 13, height: 13,
+                        decoration: const BoxDecoration(color: Color(0xFF58DAD0), shape: BoxShape.circle),
+                        child: const Center(child: Text('✓', style: TextStyle(
+                          color: Colors.black, fontSize: 7, fontWeight: FontWeight.w900,
+                        ))),
                       ),
                     ],
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    '${data.age} · ${data.city}',
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(.70),
-                      fontSize: 11,
-                    ),
+                    [if (data.age > 0) '${data.age}', if (data.city.isNotEmpty) data.city].join(' · '),
+                    style: TextStyle(color: Colors.white.withOpacity(.70), fontSize: 11),
                   ),
                   const SizedBox(height: 6),
                   Container(
-                    padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
                       color: Colors.white.withOpacity(.15),
                       borderRadius: BorderRadius.circular(6),
                     ),
-                    child: Text(
-                      data.vibe,
-                      style: const TextStyle(
-                        color: text,
-                        fontSize: 9,
-                        fontWeight: FontWeight.w800,
-                      ),
+                    child: Text(data.vibe, style: const TextStyle(
+                      color: text, fontSize: 9, fontWeight: FontWeight.w800,
+                    ),
                     ),
                   ),
                 ],
@@ -891,21 +1030,25 @@ class _TravelerCardWidget extends StatelessWidget {
 }
 
 class _TravelerData {
+  final String id;
   final String name;
   final int age;
   final String city;
   final String vibe;
-  final int score;
-  final String scoreColor;
+  final double rating;
+  final String? avatarUrl;
+  final List<String> vibes;
   final int variant;
 
   const _TravelerData({
+    required this.id,
     required this.name,
     required this.age,
     required this.city,
     required this.vibe,
-    required this.score,
-    required this.scoreColor,
+    required this.rating,
+    this.avatarUrl,
+    this.vibes = const [],
     required this.variant,
   });
 }

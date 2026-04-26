@@ -30,17 +30,16 @@ class HeroMatchPager extends ConsumerWidget {
       data: (trips) {
         if (trips.isEmpty) return _EmptyHero(height: height);
 
-        // Convert TripModel → HomeMatch shape for the existing card widget
         final matches = trips.map((t) => HomeMatch.fromTrip(
-          tripId:       t.id,
-          creatorName:  t.creator?.name ?? 'Traveler',
-          creatorAge:   t.creator?.age ?? 0,
-          destination:  t.destination,
-          dates:        t.dates,
-          avatarUrl:    t.creator?.avatarUrl,
-          vibe:         t.vibe,
-          rating:       t.creator?.rating ?? 0,
-          trustScore:   t.creator?.trustScore ?? 0,
+          tripId:      t.id,
+          creatorName: t.creator?.name ?? 'Traveler',
+          creatorAge:  t.creator?.age ?? 0,
+          destination: t.destination,
+          dates:       t.dates,
+          avatarUrl:   t.creator?.avatarUrl,
+          vibe:        t.vibe,
+          rating:      t.creator?.rating ?? 0,
+          buddyCount:  t.creator?.buddyCount ?? 0,
         )).toList();
 
         return PageView.builder(
@@ -60,7 +59,6 @@ class HeroMatchPager extends ConsumerWidget {
   }
 }
 
-// ── Loading shimmer ──────────────────────────────────────────────────────────
 class _ShimmerHero extends StatelessWidget {
   final double height;
   const _ShimmerHero({required this.height});
@@ -71,15 +69,12 @@ class _ShimmerHero extends StatelessWidget {
       height: height,
       color: const Color(0xFF0D1819),
       child: const Center(
-        child: CircularProgressIndicator(
-          color: Color(0xFF1EC9B8), strokeWidth: 2,
-        ),
+        child: CircularProgressIndicator(color: Color(0xFF1EC9B8), strokeWidth: 2),
       ),
     );
   }
 }
 
-// ── Empty state ───────────────────────────────────────────────────────────────
 class _EmptyHero extends StatelessWidget {
   final double height;
   const _EmptyHero({required this.height});

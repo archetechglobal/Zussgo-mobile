@@ -14,14 +14,14 @@ import '../widgets/suggest_place_sheet.dart';
 import '../../trips/screens/active_trip_screen.dart';
 
 class ChatScreen extends ConsumerStatefulWidget {
-  final String peerId;      // ← added
+  final String peerId;
   final String peerName;
   final String tripLabel;
 
   const ChatScreen({
     super.key,
-    this.peerId = 'rahul',  // ← added
-    this.peerName = 'Rahul',
+    this.peerId    = '',
+    this.peerName  = 'Rahul',
     this.tripLabel = 'Goa Beach Crew',
   });
 
@@ -30,10 +30,9 @@ class ChatScreen extends ConsumerStatefulWidget {
 }
 
 class _ChatScreenState extends ConsumerState<ChatScreen> {
-  final _controller = TextEditingController();
+  final _controller      = TextEditingController();
   final _scrollController = ScrollController();
   bool _showItinerary = false;
-  bool _tripStarted   = false; // becomes true once trip is live
 
   static const _bg    = Color(0xFF070E0F);
   static const _teal  = Color(0xFF1EC9B8);
@@ -106,11 +105,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         opaque: true,
         transitionDuration: const Duration(milliseconds: 420),
         pageBuilder: (_, __, ___) => ActiveTripScreen(
-          tripName: widget.tripLabel,
-          partnerName: widget.peerName,
-          partnerImageUrl:
-          'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?q=80&w=200&auto=format&fit=crop',
-          startTime: _formattedNow(),
+          tripName:        widget.tripLabel,
+          partnerName:     widget.peerName,
+          partnerImageUrl: '',
+          startTime:       _formattedNow(),
         ),
         transitionsBuilder: (_, animation, __, child) {
           final curved = CurvedAnimation(
@@ -132,8 +130,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   String _formattedNow() {
-    final now = DateTime.now();
-    final hour = now.hour > 12 ? now.hour - 12 : now.hour == 0 ? 12 : now.hour;
+    final now  = DateTime.now();
+    final hour = now.hour > 12
+        ? now.hour - 12
+        : now.hour == 0 ? 12 : now.hour;
     final min  = now.minute.toString().padLeft(2, '0');
     final ampm = now.hour >= 12 ? 'PM' : 'AM';
     return 'Today, $hour:$min $ampm';
@@ -175,9 +175,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             SizedBox(height: topInset),
 
             _ChatAppBar(
-              peerName: widget.peerName,
-              tripLabel: widget.tripLabel,
-              onBack: () => context.go('/chat'),   // ← goes back to list
+              peerName:       widget.peerName,
+              tripLabel:      widget.tripLabel,
+              onBack:         () => context.go('/chat'),
               onItineraryTap: () =>
                   setState(() => _showItinerary = !_showItinerary),
               itineraryCount: itinerary.length,
@@ -187,18 +187,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               duration: const Duration(milliseconds: 260),
               curve: Curves.easeOutCubic,
               child: _showItinerary
-                  ? ItineraryTray(
-                items: itinerary,
-                onExpand: () {},
-              )
+                  ? ItineraryTray(items: itinerary, onExpand: () {})
                   : const SizedBox.shrink(),
             ),
 
-            // ── Start Trip banner — pinned above messages ─────────────────
             _StartTripBanner(
-              peerName: widget.peerName,
+              peerName:  widget.peerName,
               tripLabel: widget.tripLabel,
-              onStart: _startTrip,
+              onStart:   _startTrip,
             ),
 
             Expanded(
@@ -225,19 +221,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               child: aiSpark != null
                   ? AiSparkChip(
                 suggestion: aiSpark,
-                onPreview: () => _openSuggestSheet(prefilled: aiSpark),
-                onDismiss: () =>
+                onPreview:  () => _openSuggestSheet(prefilled: aiSpark),
+                onDismiss:  () =>
                 ref.read(aiSparkProvider.notifier).state = null,
               )
                   : const SizedBox.shrink(),
             ),
 
             _InputBar(
-              controller: _controller,
-              onChanged: _onTextChanged,
-              onSend: _sendText,
-              onPlustap: () => _openSuggestSheet(),
-              bottomInset: bottomInset,
+              controller:   _controller,
+              onChanged:    _onTextChanged,
+              onSend:       _sendText,
+              onPlustap:    () => _openSuggestSheet(),
+              bottomInset:  bottomInset,
             ),
           ],
         ),
@@ -285,7 +281,8 @@ class _ChatAppBar extends StatelessWidget {
               ),
               child: const Icon(
                 Icons.arrow_back_ios_new_rounded,
-                color: Color(0xFF58DAD0), size: 15,
+                color: Color(0xFF58DAD0),
+                size: 15,
               ),
             ),
           ),
@@ -299,12 +296,15 @@ class _ChatAppBar extends StatelessWidget {
               ),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: const Center(
-              child: Text('R',
-                  style: TextStyle(
-                      color: Color(0xFF041818),
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800)),
+            child: Center(
+              child: Text(
+                peerName.isNotEmpty ? peerName[0].toUpperCase() : '?',
+                style: const TextStyle(
+                  color: Color(0xFF041818),
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
             ),
           ),
           const SizedBox(width: 10),
@@ -396,7 +396,7 @@ class _InputBar extends StatelessWidget {
     required this.bottomInset,
   });
 
-  static const _teal  = Color(0xFF1EC9B8);
+  static const _teal = Color(0xFF1EC9B8);
   static const _teal2 = Color(0xFF58DAD0);
   static const _faint = Color(0xFF6A8882);
 
@@ -422,7 +422,11 @@ class _InputBar extends StatelessWidget {
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: Colors.white.withOpacity(.08)),
               ),
-              child: const Icon(Icons.add_rounded, color: Color(0xFF6A8882), size: 20),
+              child: const Icon(
+                Icons.add_rounded,
+                color: Color(0xFF6A8882),
+                size: 20,
+              ),
             ),
           ),
           const SizedBox(width: 10),
@@ -439,7 +443,10 @@ class _InputBar extends StatelessWidget {
                 controller: controller,
                 onChanged: onChanged,
                 maxLines: null,
-                style: const TextStyle(color: Color(0xFFEDF7F4), fontSize: 14),
+                style: const TextStyle(
+                  color: Color(0xFFEDF7F4),
+                  fontSize: 14,
+                ),
                 decoration: const InputDecoration(
                   hintText: 'Message...',
                   hintStyle: TextStyle(color: Color(0xFF6A8882), fontSize: 14),
@@ -483,9 +490,8 @@ class _InputBar extends StatelessWidget {
     );
   }
 }
+
 // ─── Start Trip Banner ────────────────────────────────────────────────────────
-// Pinned between the app bar and the messages list.
-// Appears when a trip date is approaching — one tap launches ActiveTripScreen.
 
 class _StartTripBanner extends StatefulWidget {
   final String peerName;
@@ -509,14 +515,14 @@ class _StartTripBannerState extends State<_StartTripBanner>
 
   static const _teal  = Color(0xFF1EC9B8);
   static const _teal2 = Color(0xFF58DAD0);
-  static const _text  = Color(0xFFEDF7F4);
   static const _faint = Color(0xFF6A8882);
 
   @override
   void initState() {
     super.initState();
     _pulse = AnimationController(
-      vsync: this, duration: const Duration(seconds: 2),
+      vsync: this,
+      duration: const Duration(seconds: 2),
     )..repeat(reverse: true);
     _glow = Tween(begin: 0.20, end: 0.45).animate(
       CurvedAnimation(parent: _pulse, curve: Curves.easeInOut),
@@ -539,15 +545,10 @@ class _StartTripBannerState extends State<_StartTripBanner>
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [
-              _teal.withOpacity(.12),
-              Colors.transparent,
-            ],
+            colors: [_teal.withOpacity(.12), Colors.transparent],
           ),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: _teal.withOpacity(_glow.value),
-          ),
+          border: Border.all(color: _teal.withOpacity(_glow.value)),
           boxShadow: [
             BoxShadow(
               color: _teal.withOpacity(_glow.value * 0.5),
@@ -560,7 +561,7 @@ class _StartTripBannerState extends State<_StartTripBanner>
           padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
           child: Row(
             children: [
-              // Pulsing live dot
+              // Pulsing dot
               SizedBox(
                 width: 14, height: 14,
                 child: Stack(
@@ -576,14 +577,14 @@ class _StartTripBannerState extends State<_StartTripBanner>
                     Container(
                       width: 7, height: 7,
                       decoration: const BoxDecoration(
-                        color: _teal2, shape: BoxShape.circle,
+                        color: _teal2,
+                        shape: BoxShape.circle,
                       ),
                     ),
                   ],
                 ),
               ),
               const SizedBox(width: 10),
-              // Text
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -591,8 +592,10 @@ class _StartTripBannerState extends State<_StartTripBanner>
                     Text(
                       widget.tripLabel,
                       style: const TextStyle(
-                        color: _teal2, fontSize: 12,
-                        fontWeight: FontWeight.w800, letterSpacing: .02,
+                        color: _teal2,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: .02,
                       ),
                     ),
                     const SizedBox(height: 2),
@@ -604,7 +607,6 @@ class _StartTripBannerState extends State<_StartTripBanner>
                 ),
               ),
               const SizedBox(width: 8),
-              // Start button
               GestureDetector(
                 onTap: widget.onStart,
                 child: Container(
@@ -617,7 +619,8 @@ class _StartTripBannerState extends State<_StartTripBanner>
                     boxShadow: [
                       BoxShadow(
                         color: _teal.withOpacity(.30),
-                        blurRadius: 12, offset: const Offset(0, 4),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
                       ),
                     ],
                   ),
@@ -625,7 +628,8 @@ class _StartTripBannerState extends State<_StartTripBanner>
                     'Start Trip',
                     style: TextStyle(
                       color: Color(0xFF041818),
-                      fontSize: 12, fontWeight: FontWeight.w800,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
                     ),
                   ),
                 ),

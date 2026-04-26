@@ -1,35 +1,43 @@
+// lib/features/chat/models/message_model.dart
+// DB schema: messages(id, connection_id, sender_id, content, type, metadata, created_at)
+// The old model used receiver_id which does NOT exist in the DB.
+
 class MessageModel {
   final String id;
+  final String connectionId;
   final String senderId;
-  final String receiverId;
   final String content;
+  final String type;
+  final Map<String, dynamic> metadata;
   final DateTime createdAt;
-  final bool isRead;
 
   const MessageModel({
     required this.id,
+    required this.connectionId,
     required this.senderId,
-    required this.receiverId,
     required this.content,
+    this.type = 'text',
+    this.metadata = const {},
     required this.createdAt,
-    this.isRead = false,
   });
 
   factory MessageModel.fromJson(Map<String, dynamic> json) {
     return MessageModel(
-      id:         json['id'] as String,
-      senderId:   json['sender_id'] as String,
-      receiverId: json['receiver_id'] as String,
-      content:    json['content'] as String,
-      createdAt:  DateTime.parse(json['created_at'] as String),
-      isRead:     json['is_read'] as bool? ?? false,
+      id:           json['id'] as String,
+      connectionId: json['connection_id'] as String,
+      senderId:     json['sender_id'] as String,
+      content:      json['content'] as String,
+      type:         json['type'] as String? ?? 'text',
+      metadata:     (json['metadata'] as Map<String, dynamic>?) ?? {},
+      createdAt:    DateTime.parse(json['created_at'] as String),
     );
   }
 
   Map<String, dynamic> toJson() => {
-    'sender_id':   senderId,
-    'receiver_id': receiverId,
-    'content':     content,
-    'is_read':     isRead,
+    'connection_id': connectionId,
+    'sender_id':     senderId,
+    'content':       content,
+    'type':          type,
+    'metadata':      metadata,
   };
 }

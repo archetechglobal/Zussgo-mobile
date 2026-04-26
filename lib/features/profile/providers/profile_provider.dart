@@ -1,3 +1,5 @@
+// lib/features/profile/providers/profile_provider.dart
+
 import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -25,6 +27,7 @@ class ProfileNotifier extends StateNotifier<AsyncValue<ProfileModel?>> {
     }
   }
 
+  /// Called from ProfileSetupScreen after onboarding steps complete.
   Future<void> saveSetup({
     required String name,
     required int age,
@@ -51,6 +54,7 @@ class ProfileNotifier extends StateNotifier<AsyncValue<ProfileModel?>> {
     state = AsyncValue.data(profile);
   }
 
+  /// Called from EditProfileScreen to upload a new avatar.
   Future<void> uploadAvatar(File file) async {
     try {
       final url = await _repo.uploadAvatar(userId: _userId, file: file);
@@ -68,16 +72,15 @@ class ProfileNotifier extends StateNotifier<AsyncValue<ProfileModel?>> {
   Future<void> refresh() => _load();
 }
 
-final myProfileProvider = StateNotifierProvider<ProfileNotifier, AsyncValue<ProfileModel?>>((ref) {
+/// The single source-of-truth provider for the logged-in user's profile.
+final myProfileProvider =
+StateNotifierProvider<ProfileNotifier, AsyncValue<ProfileModel?>>((ref) {
   final userId = Supabase.instance.client.auth.currentUser?.id ?? '';
-  return ProfileNotifier(
-    ref.watch(profileRepositoryProvider),
-    userId,
-  );
+  return ProfileNotifier(ref.watch(profileRepositoryProvider), userId);
 });
 
-// Provider to get any user's profile by ID
-final userProfileProvider = FutureProvider.family<ProfileModel?, String>((ref, userId) async {
-  final repo = ref.watch(profileRepositoryProvider);
-  return repo.getProfile(userId);
+/// Provider to get any user's profile by ID (for profile sheets, etc.)
+final userProfileProvider =
+FutureProvider.family<ProfileModel?, String>((ref, userId) async {
+  return ref.watch(profileRepositoryProvider).getProfile(userId);
 });

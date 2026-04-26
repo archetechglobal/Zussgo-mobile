@@ -25,9 +25,11 @@ class HomeHeader extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final unread  = ref.watch(unreadCountProvider);
-    final profile = ref.watch(myProfileProvider);
+    final unread       = ref.watch(unreadCountProvider);
+    final profileAsync = ref.watch(myProfileProvider);
 
+    // Unwrap the AsyncValue — use null-safe fallbacks while loading/error
+    final profile   = profileAsync.asData?.value;
     final firstName = (profile?.name ?? 'Traveler').split(' ').first;
     final initial   = firstName.isNotEmpty ? firstName[0].toUpperCase() : 'Z';
     final avatarUrl = profile?.avatarUrl;
@@ -67,13 +69,16 @@ class HomeHeader extends ConsumerWidget {
                 child: Stack(
                   clipBehavior: Clip.none,
                   children: [
-                    // Avatar — shows photo if available, gradient+initial fallback
+                    // Avatar — photo if available, gradient+initial fallback
                     Container(
-                      width: 42, height: 42,
+                      width: 42,
+                      height: 42,
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(14),
                         gradient: avatarUrl == null
-                            ? const LinearGradient(colors: [_teal2, _teal, _gold])
+                            ? const LinearGradient(
+                          colors: [_teal2, _teal, _gold],
+                        )
                             : null,
                       ),
                       child: avatarUrl != null
@@ -81,22 +86,29 @@ class HomeHeader extends ConsumerWidget {
                         borderRadius: BorderRadius.circular(14),
                         child: Image.network(
                           avatarUrl,
-                          width: 42, height: 42,
+                          width: 42,
+                          height: 42,
                           fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => _InitialAvatar(initial: initial),
+                          errorBuilder: (_, __, ___) =>
+                              _InitialAvatar(initial: initial),
                         ),
                       )
                           : _InitialAvatar(initial: initial),
                     ),
                     if (unread > 0)
                       Positioned(
-                        top: -4, right: -4,
+                        top: -4,
+                        right: -4,
                         child: Container(
-                          width: 17, height: 17,
+                          width: 17,
+                          height: 17,
                           decoration: BoxDecoration(
                             color: _gold,
                             shape: BoxShape.circle,
-                            border: Border.all(color: const Color(0xFF0B1516), width: 2),
+                            border: Border.all(
+                              color: const Color(0xFF0B1516),
+                              width: 2,
+                            ),
                           ),
                           child: Center(
                             child: Text(
@@ -116,7 +128,7 @@ class HomeHeader extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: 12),
-          // Search bar — UNCHANGED from original
+          // Search bar
           Container(
             height: 46,
             padding: const EdgeInsets.symmetric(horizontal: 14),
@@ -127,16 +139,25 @@ class HomeHeader extends ConsumerWidget {
             ),
             child: Row(
               children: [
-                Icon(Icons.search_rounded, color: _faint.withOpacity(.95), size: 18),
+                Icon(
+                  Icons.search_rounded,
+                  color: _faint.withOpacity(.95),
+                  size: 18,
+                ),
                 const SizedBox(width: 10),
                 const Expanded(
                   child: Text(
                     'Where are you headed?',
-                    style: TextStyle(color: _faint, fontSize: 13, fontWeight: FontWeight.w500),
+                    style: TextStyle(
+                      color: _faint,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  padding:
+                  const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   decoration: BoxDecoration(
                     color: _teal.withOpacity(.14),
                     borderRadius: BorderRadius.circular(999),
@@ -144,7 +165,11 @@ class HomeHeader extends ConsumerWidget {
                   ),
                   child: const Text(
                     '✦ AI Match',
-                    style: TextStyle(color: _teal2, fontSize: 10, fontWeight: FontWeight.w800),
+                    style: TextStyle(
+                      color: _teal2,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                 ),
               ],
