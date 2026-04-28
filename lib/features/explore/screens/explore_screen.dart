@@ -6,20 +6,23 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/providers/nav_provider.dart';
 import '../../home/widgets/home_bottom_nav.dart';
+import '../../profile/models/profile_model.dart';
 import '../../profile/widgets/user_profile_sheet.dart';
+import '../../trips/models/trip_model.dart';
 import '../../trips/screens/create_trip_sheet.dart';
+import '../providers/explore_provider.dart';
 
 // ─── Colours ──────────────────────────────────────────────────────────────────
 
-const _kBg     = Color(0xFF070E0F);
-const _kTeal   = Color(0xFF1EC9B8);
-const _kTeal2  = Color(0xFF58DAD0);
-const _kGold   = Color(0xFFF7B84E);
-const _kText   = Color(0xFFEDF7F4);
-const _kMuted  = Color(0xFFA8C4BF);
-const _kFaint  = Color(0xFF6A8882);
+const _kBg    = Color(0xFF070E0F);
+const _kTeal  = Color(0xFF1EC9B8);
+const _kTeal2 = Color(0xFF58DAD0);
+const _kGold  = Color(0xFFF7B84E);
+const _kText  = Color(0xFFEDF7F4);
+const _kMuted = Color(0xFFA8C4BF);
+const _kFaint = Color(0xFF6A8882);
 
-// ─── Models ───────────────────────────────────────────────────────────────────
+// ─── Vibe model (static UI data) ─────────────────────────────────────────────
 
 class _VibeItem {
   final String emoji;
@@ -29,100 +32,58 @@ class _VibeItem {
   const _VibeItem(this.emoji, this.label, this.color, this.filter);
 }
 
+const _vibes = [
+  _VibeItem('🌊', 'Beach &\nSocial',     Color(0xFF1EC9B8), 'beach'),
+  _VibeItem('🏔️', 'Mountains\n& Trek',   Color(0xFF9FD9BE), 'mountains'),
+  _VibeItem('🎪', 'Culture &\nFestivals', Color(0xFFF7B84E), 'culture'),
+  _VibeItem('✨', 'Wellness\n& Retreat',  Color(0xFFFFB3C1), 'wellness'),
+];
+
+// ─── Destination model (UI/meta only — no hardcoded matches or trips) ─────────
+
 class _Dest {
   final String name;
   final String badge;
   final Color badgeColor;
-  final int count;
   final String vibe;
   final String desc;
   final List<String> filters;
   final Color heroColor;
-  final List<_Match> matches;
-  final List<_Trip> trips;
   const _Dest({
-    required this.name, required this.badge, required this.badgeColor,
-    required this.count, required this.vibe, required this.desc,
-    required this.filters, required this.heroColor,
-    required this.matches, required this.trips,
+    required this.name,
+    required this.badge,
+    required this.badgeColor,
+    required this.vibe,
+    required this.desc,
+    required this.filters,
+    required this.heroColor,
   });
 }
-
-class _Match {
-  final String name;
-  final int age;
-  final int pct;
-  final Color color;
-  const _Match(this.name, this.age, this.pct, this.color);
-}
-
-class _Trip {
-  final String title;
-  final String dates;
-  final String desc;
-  final int total;
-  final int filled;
-  const _Trip(this.title, this.dates, this.desc, this.total, this.filled);
-}
-
-// ─── Data ─────────────────────────────────────────────────────────────────────
-
-const _vibes = [
-  _VibeItem('🌊', 'Beach &\nSocial',    Color(0xFF1EC9B8), 'beach'),
-  _VibeItem('🏔️', 'Mountains\n& Trek',  Color(0xFF9FD9BE), 'mountains'),
-  _VibeItem('🎪', 'Culture &\nFestivals',Color(0xFFF7B84E), 'culture'),
-  _VibeItem('✨', 'Wellness\n& Retreat', Color(0xFFFFB3C1), 'wellness'),
-];
 
 final _dests = <_Dest>[
   _Dest(
     name: 'Goa', badge: '🔥 #1 Most Active', badgeColor: _kTeal2,
-    count: 78, vibe: '🌊 Beach & Social',
+    vibe: '🌊 Beach & Social',
     desc: 'The ultimate escape. Perfect for weekend parties, beach cafes, and meeting new people.',
     filters: ['beach'], heroColor: const Color(0xFF1C3E40),
-    matches: [
-      _Match('Meera', 24, 97, Color(0xFFF7B84E)),
-      _Match('Priya', 23, 88, Color(0xFFFFB3C1)),
-      _Match('Dev',   26, 84, Color(0xFF1EC9B8)),
-    ],
-    trips: [_Trip('South Goa Chill Weekend', 'May 12–15',
-        'Looking for 2 more to split a villa in Palolem. Very laid back vibe.', 4, 2)],
   ),
   _Dest(
     name: 'Pushkar', badge: '🎪 Upcoming Festival', badgeColor: _kGold,
-    count: 42, vibe: '🎪 Culture & Festival',
+    vibe: '🎪 Culture & Festival',
     desc: 'Sacred ghats, desert vibes, and the famous Camel Fair. Culture overload in the best way.',
     filters: ['culture'], heroColor: const Color(0xFF36261A),
-    matches: [
-      _Match('Anika', 26, 92, Color(0xFFB57BFF)),
-      _Match('Sara',  24, 85, Color(0xFF1EC9B8)),
-    ],
-    trips: [_Trip('Pushkar Festival Group', 'May 18–21',
-        'Group of 3 heading for the festival. Need 1 more. Heritage haveli stay.', 4, 3)],
   ),
   _Dest(
     name: 'Spiti Valley', badge: '🏔 Adventure Pick', badgeColor: _kTeal2,
-    count: 34, vibe: '🏔 Mountains & Trek',
+    vibe: '🏔 Mountains & Trek',
     desc: 'Raw Himalayas at 14,000ft. Monastery hops, stargazing, and silence that resets you.',
     filters: ['mountains'], heroColor: const Color(0xFF1A2E3A),
-    matches: [
-      _Match('Arjun', 28, 94, Color(0xFFF7B84E)),
-      _Match('Rohan', 27, 88, Color(0xFF1EC9B8)),
-    ],
-    trips: [_Trip('Spiti 8-Day Circuit', 'May 10–18',
-        'Kaza base, Key monastery, Chandratal lake. Self-drive. Looking for 1–2.', 3, 2)],
   ),
   _Dest(
     name: 'Kerala', badge: '🌿 Trending Now', badgeColor: _kTeal2,
-    count: 56, vibe: '✨ Wellness & Retreat',
+    vibe: '✨ Wellness & Retreat',
     desc: 'Backwaters, Ayurveda, and coffee estates. The slow travel capital of India.',
     filters: ['wellness', 'beach'], heroColor: const Color(0xFF1A2E20),
-    matches: [
-      _Match('Priya', 25, 91, Color(0xFF1EC9B8)),
-      _Match('Dev',   25, 87, Color(0xFFF7B84E)),
-    ],
-    trips: [_Trip('Kerala Backwaters 5D', 'May 20–25',
-        'Alleppey houseboat + Munnar. Chill group, open to suggestions.', 4, 2)],
   ),
 ];
 
@@ -165,24 +126,24 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
       backgroundColor: _kBg,
       body: _detail != null
           ? _DetailView(
-        dest: _detail!,
-        top: top, bottom: bottom,
-        onBack: () => setState(() => _detail = null),
-      )
+              dest: _detail!,
+              top: top, bottom: bottom,
+              onBack: () => setState(() => _detail = null),
+            )
           : _FeedView(
-        top: top, navH: navH, bottom: bottom,
-        filter: _filter,
-        dests: _filtered,
-        onVibeSelect: (f) =>
-            setState(() => _filter = _filter == f ? null : f),
-        onDestTap: (d) => setState(() => _detail = d),
-        nav: const HomeBottomNav(),
-      ),
+              top: top, navH: navH, bottom: bottom,
+              filter: _filter,
+              dests: _filtered,
+              onVibeSelect: (f) =>
+                  setState(() => _filter = _filter == f ? null : f),
+              onDestTap: (d) => setState(() => _detail = d),
+              nav: const HomeBottomNav(),
+            ),
     );
   }
 }
 
-// ─── Feed ─────────────────────────────────────────────────────────────────────
+// ─── Feed view ────────────────────────────────────────────────────────────────
 
 class _FeedView extends StatelessWidget {
   final double top, navH, bottom;
@@ -202,11 +163,9 @@ class _FeedView extends StatelessWidget {
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        // Scrollable feed
         ListView(
           padding: EdgeInsets.only(top: top + 72, bottom: navH + 16),
           children: [
-            // Vibe section label
             const Padding(
               padding: EdgeInsets.fromLTRB(16, 8, 16, 12),
               child: Text('Pick your vibe', style: TextStyle(
@@ -214,8 +173,6 @@ class _FeedView extends StatelessWidget {
                 letterSpacing: -.2,
               )),
             ),
-
-            // Vibe horizontal scroll
             SizedBox(
               height: 110,
               child: ListView.separated(
@@ -230,8 +187,6 @@ class _FeedView extends StatelessWidget {
                 ),
               ),
             ),
-
-            // Trending label
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
               child: Row(
@@ -241,28 +196,22 @@ class _FeedView extends StatelessWidget {
                     color: _kText, fontSize: 18, fontWeight: FontWeight.w700,
                     letterSpacing: -.2,
                   )),
-                  Text('See all', style: const TextStyle(
+                  const Text('See all', style: TextStyle(
                     color: _kTeal2, fontSize: 12, fontWeight: FontWeight.w700,
                   )),
                 ],
               ),
             ),
-
-            // Destination cards
             ...dests.map((d) => Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
               child: _HeroCard(dest: d, onTap: () => onDestTap(d)),
             )),
           ],
         ),
-
-        // Sticky header (search bar)
         Positioned(
           top: 0, left: 0, right: 0,
           child: _SearchHeader(top: top),
         ),
-
-        // Bottom nav
         Positioned(
           left: 12, right: 12,
           bottom: 12 + bottom,
@@ -360,7 +309,6 @@ class _VibeCard extends StatelessWidget {
         ),
         child: Stack(
           children: [
-            // Gradient overlay
             Positioned.fill(
               child: DecoratedBox(
                 decoration: BoxDecoration(
@@ -386,15 +334,18 @@ class _VibeCard extends StatelessWidget {
 }
 
 // ─── Hero destination card ────────────────────────────────────────────────────
+// Uses peopleGoingToProvider to show live avatar stack + traveler count.
 
-class _HeroCard extends StatelessWidget {
+class _HeroCard extends ConsumerWidget {
   final _Dest dest;
   final VoidCallback onTap;
   const _HeroCard({required this.dest, required this.onTap});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final peopleAsync = ref.watch(peopleGoingToProvider(dest.name));
     final d = dest;
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -412,7 +363,6 @@ class _HeroCard extends StatelessWidget {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              // Hero bg
               Container(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
@@ -421,7 +371,6 @@ class _HeroCard extends StatelessWidget {
                   ),
                 ),
               ),
-              // Bottom dark fade
               Positioned.fill(
                 child: DecoratedBox(
                   decoration: BoxDecoration(
@@ -433,7 +382,6 @@ class _HeroCard extends StatelessWidget {
                   ),
                 ),
               ),
-              // Badge
               Positioned(
                 top: 14, left: 14,
                 child: Container(
@@ -448,29 +396,14 @@ class _HeroCard extends StatelessWidget {
                   )),
                 ),
               ),
-              // Bottom info
               Positioned(
                 left: 16, right: 16, bottom: 16,
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(d.name, style: const TextStyle(
-                            color: _kText, fontSize: 26,
-                            fontWeight: FontWeight.w700, letterSpacing: -.3,
-                          )),
-                          const SizedBox(height: 4),
-                          Text('${d.count} solo travelers going',
-                              style: const TextStyle(color: _kMuted, fontSize: 12)),
-                        ],
-                      ),
-                    ),
-                    _AvatarStack(matches: d.matches, extra: d.count - d.matches.length),
-                  ],
+                child: peopleAsync.when(
+                  loading: () => _CardBottomSkeleton(name: d.name),
+                  error: (_, __) => _CardBottom(
+                    name: d.name, people: const [], count: 0),
+                  data: (people) => _CardBottom(
+                    name: d.name, people: people, count: people.length),
                 ),
               ),
             ],
@@ -481,62 +414,152 @@ class _HeroCard extends StatelessWidget {
   }
 }
 
-// ─── Avatar stack ─────────────────────────────────────────────────────────────
-
-class _AvatarStack extends StatelessWidget {
-  final List<_Match> matches;
-  final int extra;
-  const _AvatarStack({required this.matches, required this.extra});
+class _CardBottom extends StatelessWidget {
+  final String name;
+  final List<ProfileModel> people;
+  final int count;
+  const _CardBottom({
+    required this.name, required this.people, required this.count});
 
   @override
   Widget build(BuildContext context) {
-    final count = matches.length;
+    final preview = people.take(3).toList();
+    final extra   = count - preview.length;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(name, style: const TextStyle(
+                color: _kText, fontSize: 26,
+                fontWeight: FontWeight.w700, letterSpacing: -.3,
+              )),
+              const SizedBox(height: 4),
+              Text(
+                count == 0
+                    ? 'Be the first to head here'
+                    : '$count solo traveler${count == 1 ? '' : 's'} going',
+                style: const TextStyle(color: _kMuted, fontSize: 12),
+              ),
+            ],
+          ),
+        ),
+        if (preview.isNotEmpty)
+          _LiveAvatarStack(people: preview, extra: extra > 0 ? extra : 0),
+      ],
+    );
+  }
+}
+
+class _CardBottomSkeleton extends StatelessWidget {
+  final String name;
+  const _CardBottomSkeleton({required this.name});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(name, style: const TextStyle(
+                color: _kText, fontSize: 26,
+                fontWeight: FontWeight.w700, letterSpacing: -.3,
+              )),
+              const SizedBox(height: 4),
+              Container(
+                height: 10, width: 120,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(.08),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ─── Live avatar stack ────────────────────────────────────────────────────────
+
+class _LiveAvatarStack extends StatelessWidget {
+  final List<ProfileModel> people;
+  final int extra;
+  const _LiveAvatarStack({required this.people, required this.extra});
+
+  Color _colorFor(String? name) {
+    const palette = [
+      Color(0xFFF7B84E), Color(0xFFFFB3C1), Color(0xFF1EC9B8),
+      Color(0xFFB57BFF), Color(0xFF9FD9BE),
+    ];
+    if (name == null || name.isEmpty) return palette[0];
+    return palette[name.codeUnitAt(0) % palette.length];
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final count = people.length;
     return SizedBox(
       height: 28,
       width: count * 20.0 + 32,
       child: Stack(
         children: [
-          ...matches.asMap().entries.map((e) => Positioned(
-            left: e.key * 20.0,
-            child: Container(
-              width: 28, height: 28,
-              decoration: BoxDecoration(
-                color: e.value.color.withOpacity(.85),
-                shape: BoxShape.circle,
-                border: Border.all(color: const Color(0xFF0B1516), width: 2),
+          ...people.asMap().entries.map((e) {
+            final p = e.value;
+            final initial = (p.name?.isNotEmpty == true)
+                ? p.name![0].toUpperCase()
+                : '?';
+            return Positioned(
+              left: e.key * 20.0,
+              child: Container(
+                width: 28, height: 28,
+                decoration: BoxDecoration(
+                  color: _colorFor(p.name).withOpacity(.85),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: const Color(0xFF0B1516), width: 2),
+                ),
+                child: Center(
+                  child: Text(initial, style: const TextStyle(
+                    color: Colors.white, fontSize: 9, fontWeight: FontWeight.w800,
+                  )),
+                ),
               ),
-              child: Center(
-                child: Text(e.value.name[0], style: const TextStyle(
-                  color: Colors.white, fontSize: 9, fontWeight: FontWeight.w800,
-                )),
+            );
+          }),
+          if (extra > 0)
+            Positioned(
+              left: count * 20.0,
+              child: Container(
+                width: 28, height: 28,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(.10),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: const Color(0xFF0B1516), width: 2),
+                ),
+                child: Center(
+                  child: Text('+$extra', style: const TextStyle(
+                    color: Colors.white, fontSize: 8, fontWeight: FontWeight.w800,
+                  )),
+                ),
               ),
             ),
-          )),
-          Positioned(
-            left: count * 20.0,
-            child: Container(
-              width: 28, height: 28,
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(.10),
-                shape: BoxShape.circle,
-                border: Border.all(color: const Color(0xFF0B1516), width: 2),
-              ),
-              child: Center(
-                child: Text('+$extra', style: const TextStyle(
-                  color: Colors.white, fontSize: 8, fontWeight: FontWeight.w800,
-                )),
-              ),
-            ),
-          ),
         ],
       ),
     );
   }
 }
 
-// ─── Destination detail ───────────────────────────────────────────────────────
+// ─── Detail view (live data) ──────────────────────────────────────────────────
 
-class _DetailView extends StatelessWidget {
+class _DetailView extends ConsumerWidget {
   final _Dest dest;
   final double top, bottom;
   final VoidCallback onBack;
@@ -546,8 +569,11 @@ class _DetailView extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final d = dest;
+    final peopleAsync = ref.watch(peopleGoingToProvider(d.name));
+    final tripsAsync  = ref.watch(openTripsForProvider(d.name));
+
     return Stack(
       children: [
         SingleChildScrollView(
@@ -555,6 +581,7 @@ class _DetailView extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+
               // ── Cover ──────────────────────────────────────────────────
               SizedBox(
                 height: 300,
@@ -580,7 +607,6 @@ class _DetailView extends StatelessWidget {
                         ),
                       ),
                     ),
-                    // Back + share
                     Positioned(
                       top: top + 10, left: 16, right: 16,
                       child: Row(
@@ -591,7 +617,6 @@ class _DetailView extends StatelessWidget {
                         ],
                       ),
                     ),
-                    // Info
                     Positioned(
                       left: 16, right: 16, bottom: 0,
                       child: Column(
@@ -625,7 +650,7 @@ class _DetailView extends StatelessWidget {
                 ),
               ),
 
-              // ── Live stats ──────────────────────────────────────────────
+              // ── Live stats bar ─────────────────────────────────────────
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
                 child: Container(
@@ -642,10 +667,28 @@ class _DetailView extends StatelessWidget {
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('${d.count} travelers active here',
+                          peopleAsync.when(
+                            loading: () => Container(
+                              height: 14, width: 160,
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(.08),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                            ),
+                            error: (_, __) => const Text(
+                              'Travelers active here',
+                              style: TextStyle(color: _kText, fontSize: 15,
+                                  fontWeight: FontWeight.w700),
+                            ),
+                            data: (people) => Text(
+                              people.isEmpty
+                                  ? 'Be the first to head here'
+                                  : '${people.length} traveler${people.length == 1 ? '' : 's'} active here',
                               style: const TextStyle(
                                 color: _kText, fontSize: 15, fontWeight: FontWeight.w700,
-                              )),
+                              ),
+                            ),
+                          ),
                           const SizedBox(height: 2),
                           const Text('High match rate for your vibe',
                               style: TextStyle(color: _kFaint, fontSize: 12)),
@@ -656,30 +699,57 @@ class _DetailView extends StatelessWidget {
                 ),
               ),
 
-              // ── Top matches ─────────────────────────────────────────────
-              _SectionHeader('Your top matches going here', 'See all'),
-              SizedBox(
-                height: 120,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  itemCount: d.matches.length,
-                  separatorBuilder: (_, __) => const SizedBox(width: 12),
-                  itemBuilder: (_, i) => GestureDetector(
-                    onTap: () => UserProfileSheet.show(
-                        context, name: d.matches[i].name),
-                    child: _MatchCard(m: d.matches[i]),
-                  ),
-                ),
+              // ── People heading out ─────────────────────────────────────
+              _SectionHeader('People heading out here', 'See all'),
+              peopleAsync.when(
+                loading: () => _HorizontalSkeletonRow(),
+                error: (_, __) => _EmptyStateInline(
+                    icon: Icons.people_outline_rounded,
+                    message: 'Could not load travelers'),
+                data: (people) => people.isEmpty
+                    ? _EmptyStateInline(
+                        icon: Icons.people_outline_rounded,
+                        message: 'No travelers heading here yet')
+                    : SizedBox(
+                        height: 120,
+                        child: ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          itemCount: people.length,
+                          separatorBuilder: (_, __) => const SizedBox(width: 12),
+                          itemBuilder: (_, i) => GestureDetector(
+                            onTap: () => UserProfileSheet.show(
+                                context, name: people[i].name ?? 'Traveler'),
+                            child: _LiveMatchCard(profile: people[i]),
+                          ),
+                        ),
+                      ),
               ),
 
-              // ── Open trips ──────────────────────────────────────────────
+              // ── Open trips to join ─────────────────────────────────────
               _SectionHeader('Open trips to join', null),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Column(
-                  children: d.trips.map((t) => _TripCard(trip: t, dest: d.name)).toList(),
+              tripsAsync.when(
+                loading: () => Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Column(
+                    children: List.generate(2, (_) => const _TripSkeleton()),
+                  ),
                 ),
+                error: (_, __) => _EmptyStateInline(
+                    icon: Icons.luggage_rounded,
+                    message: 'Could not load trips'),
+                data: (trips) => trips.isEmpty
+                    ? _EmptyStateInline(
+                        icon: Icons.luggage_rounded,
+                        message: 'No open trips yet — start one!')
+                    : Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Column(
+                          children: trips
+                              .map((t) => _LiveTripCard(trip: t))
+                              .toList(),
+                        ),
+                      ),
               ),
             ],
           ),
@@ -715,25 +785,273 @@ class _DetailView extends StatelessWidget {
   }
 }
 
-// ─── Glass button ─────────────────────────────────────────────────────────────
+// ─── Live match card ──────────────────────────────────────────────────────────
 
-class _GlassBtn extends StatelessWidget {
-  final IconData icon;
-  final VoidCallback onTap;
-  const _GlassBtn(this.icon, this.onTap);
+class _LiveMatchCard extends StatelessWidget {
+  final ProfileModel profile;
+  const _LiveMatchCard({required this.profile});
+
+  Color get _color {
+    const palette = [
+      Color(0xFFF7B84E), Color(0xFFFFB3C1), Color(0xFF1EC9B8),
+      Color(0xFFB57BFF), Color(0xFF9FD9BE),
+    ];
+    final name = profile.name ?? '';
+    return name.isEmpty ? palette[0] : palette[name.codeUnitAt(0) % palette.length];
+  }
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 40, height: 40,
-        decoration: BoxDecoration(
-          color: Colors.black.withOpacity(.40),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Colors.white.withOpacity(.10)),
+    final initial = (profile.name?.isNotEmpty == true)
+        ? profile.name![0].toUpperCase()
+        : '?';
+    return Container(
+      width: 100,
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(.02),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withOpacity(.05)),
+      ),
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+      child: Column(
+        children: [
+          Stack(
+            clipBehavior: Clip.none,
+            alignment: Alignment.bottomCenter,
+            children: [
+              Container(
+                width: 48, height: 48,
+                decoration: BoxDecoration(
+                  color: _color.withOpacity(.80),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Center(
+                  child: Text(initial, style: const TextStyle(
+                    color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800,
+                  )),
+                ),
+              ),
+              // Vibe badge if available
+              if (profile.vibes.isNotEmpty)
+                Positioned(
+                  bottom: -6,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0B1516),
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(color: _kGold.withOpacity(.20)),
+                    ),
+                    child: Text(
+                      profile.vibes.first.length > 8
+                          ? '${profile.vibes.first.substring(0, 7)}…'
+                          : profile.vibes.first,
+                      style: const TextStyle(
+                        color: _kGold, fontSize: 8, fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Text(
+            profile.name ?? 'Traveler',
+            style: const TextStyle(
+              color: _kText, fontSize: 12, fontWeight: FontWeight.w700,
+            ),
+            maxLines: 1, overflow: TextOverflow.ellipsis,
+          ),
+          if (profile.age != null)
+            Text('${profile.age}',
+                style: const TextStyle(color: _kFaint, fontSize: 10)),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Live trip card ───────────────────────────────────────────────────────────
+
+class _LiveTripCard extends StatelessWidget {
+  final TripModel trip;
+  const _LiveTripCard({required this.trip});
+
+  @override
+  Widget build(BuildContext context) {
+    // Derive a human-readable title from destination + vibe/intent
+    final vibeLabel = trip.vibe ?? trip.intent ?? '';
+    final title = vibeLabel.isNotEmpty
+        ? '${trip.destination} · $vibeLabel'
+        : trip.destination;
+
+    // Slot dots: use budget/intent hint for group size or default 4
+    const totalSlots = 4;
+    // We don't have a slots field yet; show trip as 1 filled (creator), rest open
+    const filledSlots = 1;
+
+    final creatorName = trip.creator?.name ?? 'Traveler';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(.02),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withOpacity(.05)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, style: const TextStyle(
+                      color: _kText, fontSize: 15, fontWeight: FontWeight.w700,
+                    ), maxLines: 2, overflow: TextOverflow.ellipsis),
+                    const SizedBox(height: 4),
+                    Text(trip.dates, style: const TextStyle(
+                      color: _kTeal2, fontSize: 12, fontWeight: FontWeight.w600,
+                    )),
+                  ],
+                ),
+              ),
+              // Slot dots
+              Row(
+                children: List.generate(totalSlots, (i) {
+                  final filled = i < filledSlots;
+                  return Container(
+                    width: 20, height: 20,
+                    margin: const EdgeInsets.only(left: 4),
+                    decoration: BoxDecoration(
+                      color: filled
+                          ? _kTeal.withOpacity(.15)
+                          : Colors.white.withOpacity(.05),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: filled
+                            ? _kTeal2
+                            : Colors.white.withOpacity(.10),
+                      ),
+                    ),
+                    child: Center(
+                      child: Text(filled ? '✓' : '+', style: TextStyle(
+                        color: filled ? _kTeal2 : _kFaint, fontSize: 10,
+                      )),
+                    ),
+                  );
+                }),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          // Creator byline
+          Row(
+            children: [
+              const Icon(Icons.person_outline_rounded, color: _kFaint, size: 12),
+              const SizedBox(width: 4),
+              Text('By $creatorName', style: const TextStyle(
+                color: _kFaint, fontSize: 11,
+              )),
+            ],
+          ),
+          if (trip.intent?.isNotEmpty == true) ...[
+            const SizedBox(height: 8),
+            Text(trip.intent!, style: const TextStyle(
+              color: _kMuted, fontSize: 12, height: 1.4,
+            ), maxLines: 3, overflow: TextOverflow.ellipsis),
+          ],
+          const SizedBox(height: 14),
+          Container(
+            width: double.infinity, height: 42,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(.05),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.white.withOpacity(.10)),
+            ),
+            child: const Center(
+              child: Text('Request to join trip', style: TextStyle(
+                color: _kText, fontSize: 13, fontWeight: FontWeight.w700,
+              )),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Skeleton helpers ─────────────────────────────────────────────────────────
+
+class _HorizontalSkeletonRow extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 120,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: 4,
+        separatorBuilder: (_, __) => const SizedBox(width: 12),
+        itemBuilder: (_, __) => Container(
+          width: 100,
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(.03),
+            borderRadius: BorderRadius.circular(16),
+          ),
         ),
-        child: Icon(icon, color: Colors.white, size: 18),
+      ),
+    );
+  }
+}
+
+class _TripSkeleton extends StatelessWidget {
+  const _TripSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      height: 110,
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(.03),
+        borderRadius: BorderRadius.circular(20),
+      ),
+    );
+  }
+}
+
+// ─── Empty state inline ───────────────────────────────────────────────────────
+
+class _EmptyStateInline extends StatelessWidget {
+  final IconData icon;
+  final String message;
+  const _EmptyStateInline({required this.icon, required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 20),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(.02),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white.withOpacity(.05)),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: _kFaint, size: 28),
+            const SizedBox(height: 8),
+            Text(message, style: const TextStyle(
+              color: _kFaint, fontSize: 13,
+            )),
+          ],
+        ),
       ),
     );
   }
@@ -766,147 +1084,25 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
-// ─── Match card ───────────────────────────────────────────────────────────────
+// ─── Glass button ─────────────────────────────────────────────────────────────
 
-class _MatchCard extends StatelessWidget {
-  final _Match m;
-  const _MatchCard({required this.m});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 100,
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(.02),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(.05)),
-      ),
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-      child: Column(
-        children: [
-          Stack(
-            clipBehavior: Clip.none,
-            alignment: Alignment.bottomCenter,
-            children: [
-              Container(
-                width: 48, height: 48,
-                decoration: BoxDecoration(
-                  color: m.color.withOpacity(.80),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Center(
-                  child: Text(m.name[0], style: const TextStyle(
-                    color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800,
-                  )),
-                ),
-              ),
-              Positioned(
-                bottom: -6,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF0B1516),
-                    borderRadius: BorderRadius.circular(999),
-                    border: Border.all(color: _kGold.withOpacity(.20)),
-                  ),
-                  child: Text('${m.pct}%', style: const TextStyle(
-                    color: _kGold, fontSize: 9, fontWeight: FontWeight.w900,
-                  )),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Text(m.name, style: const TextStyle(
-            color: _kText, fontSize: 12, fontWeight: FontWeight.w700,
-          )),
-          Text('${m.age}', style: const TextStyle(color: _kFaint, fontSize: 10)),
-        ],
-      ),
-    );
-  }
-}
-
-// ─── Trip card ────────────────────────────────────────────────────────────────
-
-class _TripCard extends StatelessWidget {
-  final _Trip trip;
-  final String dest;
-  const _TripCard({required this.trip, required this.dest});
+class _GlassBtn extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+  const _GlassBtn(this.icon, this.onTap);
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(.02),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withOpacity(.05)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(trip.title, style: const TextStyle(
-                      color: _kText, fontSize: 15, fontWeight: FontWeight.w700,
-                    )),
-                    const SizedBox(height: 4),
-                    Text(trip.dates, style: const TextStyle(
-                      color: _kTeal2, fontSize: 12, fontWeight: FontWeight.w600,
-                    )),
-                  ],
-                ),
-              ),
-              Row(
-                children: List.generate(trip.total, (i) {
-                  final filled = i < trip.filled;
-                  return Container(
-                    width: 20, height: 20,
-                    margin: const EdgeInsets.only(left: 4),
-                    decoration: BoxDecoration(
-                      color: filled ? _kTeal.withOpacity(.15) : Colors.white.withOpacity(.05),
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: filled ? _kTeal2 : Colors.white.withOpacity(.10),
-                      ),
-                    ),
-                    child: Center(
-                      child: Text(filled ? '✓' : '+',
-                          style: TextStyle(
-                            color: filled ? _kTeal2 : _kFaint, fontSize: 10,
-                          )),
-                    ),
-                  );
-                }),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(trip.desc, style: const TextStyle(
-            color: _kMuted, fontSize: 12, height: 1.4,
-          )),
-          const SizedBox(height: 14),
-          Container(
-            width: double.infinity, height: 42,
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(.05),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.white.withOpacity(.10)),
-            ),
-            child: const Center(
-              child: Text('Request to join trip', style: TextStyle(
-                color: _kText, fontSize: 13, fontWeight: FontWeight.w700,
-              )),
-            ),
-          ),
-        ],
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 40, height: 40,
+        decoration: BoxDecoration(
+          color: Colors.black.withOpacity(.40),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.white.withOpacity(.10)),
+        ),
+        child: Icon(icon, color: Colors.white, size: 18),
       ),
     );
   }
@@ -922,47 +1118,38 @@ class _PulseDot extends StatefulWidget {
 class _PulseDotState extends State<_PulseDot>
     with SingleTickerProviderStateMixin {
   late final AnimationController _ctrl;
-  late final Animation<double> _scale, _fade;
 
   @override
   void initState() {
     super.initState();
     _ctrl = AnimationController(
-      vsync: this, duration: const Duration(milliseconds: 1500),
-    )..repeat();
-    _scale = Tween(begin: 1.0, end: 2.2)
-        .animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
-    _fade  = Tween(begin: 0.6, end: 0.0).animate(_ctrl);
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..repeat(reverse: true);
   }
 
   @override
-  void dispose() { _ctrl.dispose(); super.dispose(); }
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 20, height: 20,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          AnimatedBuilder(
-            animation: _ctrl,
-            builder: (_, __) => Transform.scale(
-              scale: _scale.value,
-              child: Container(
-                width: 10, height: 10,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: _kTeal2.withOpacity(_fade.value),
-                ),
-              ),
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (_, __) => Container(
+        width: 10, height: 10,
+        decoration: BoxDecoration(
+          color: _kTeal.withOpacity(.4 + .6 * _ctrl.value),
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: _kTeal.withOpacity(.3 * _ctrl.value),
+              blurRadius: 8, spreadRadius: 2,
             ),
-          ),
-          Container(
-            width: 12, height: 12,
-            decoration: const BoxDecoration(color: _kTeal2, shape: BoxShape.circle),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
