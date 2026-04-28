@@ -148,20 +148,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     ),
                   ),
 
-                  // Tray 2 — Companion requests (live badge count)
-                  if (pendingCount > 0)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: HomeInfoTray(
-                        title: 'Companion requests',
-                        subtitle: '$pendingCount ${pendingCount == 1 ? 'person wants' : 'people want'} to join',
-                        badgeCount: pendingCount,
-                        onTap: () {
-                          ref.read(bottomNavIndexProvider.notifier).setIndex(2);
-                          context.go('/match', extra: 'requests');
-                        },
-                      ),
+                  // Tray 2 — Companion requests (always shown; badge only when > 0)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: HomeInfoTray(
+                      title: 'Companion requests',
+                      subtitle: pendingCount > 0
+                          ? '$pendingCount ${pendingCount == 1 ? 'person wants' : 'people want'} to join'
+                          : 'No pending requests',
+                      badgeCount: pendingCount > 0 ? pendingCount : null,
+                      onTap: () {
+                        ref.read(bottomNavIndexProvider.notifier).setIndex(2);
+                        context.go('/match', extra: 'requests');
+                      },
                     ),
+                  ),
 
                   const SizedBox(height: 8),
                 ],
