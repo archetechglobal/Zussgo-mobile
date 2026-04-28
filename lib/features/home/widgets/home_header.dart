@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../notifications/providers/notifications_provider.dart';
 import '../../profile/providers/profile_provider.dart';
+import '../../profile/widgets/user_profile_sheet.dart';
 
 class HomeHeader extends ConsumerWidget {
   final double topInset;
@@ -28,7 +29,6 @@ class HomeHeader extends ConsumerWidget {
     final unread       = ref.watch(unreadCountProvider);
     final profileAsync = ref.watch(myProfileProvider);
 
-    // Unwrap the AsyncValue — use null-safe fallbacks while loading/error
     final profile   = profileAsync.asData?.value;
     final firstName = (profile?.name ?? 'Traveler').split(' ').first;
     final initial   = firstName.isNotEmpty ? firstName[0].toUpperCase() : 'Z';
@@ -40,6 +40,7 @@ class HomeHeader extends ConsumerWidget {
         children: [
           Row(
             children: [
+              // Greeting & name
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -64,36 +65,30 @@ class HomeHeader extends ConsumerWidget {
                 ],
               ),
               const Spacer(),
+
+              // ──────────────────────────────────────────────────
+              // Notification bell icon (with unread badge)
+              // ──────────────────────────────────────────────────
               GestureDetector(
                 onTap: () => context.push('/notifications'),
                 child: Stack(
                   clipBehavior: Clip.none,
                   children: [
-                    // Avatar — photo if available, gradient+initial fallback
                     Container(
                       width: 42,
                       height: 42,
                       decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.06),
                         borderRadius: BorderRadius.circular(14),
-                        gradient: avatarUrl == null
-                            ? const LinearGradient(
-                          colors: [_teal2, _teal, _gold],
-                        )
-                            : null,
-                      ),
-                      child: avatarUrl != null
-                          ? ClipRRect(
-                        borderRadius: BorderRadius.circular(14),
-                        child: Image.network(
-                          avatarUrl,
-                          width: 42,
-                          height: 42,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) =>
-                              _InitialAvatar(initial: initial),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.08),
                         ),
-                      )
-                          : _InitialAvatar(initial: initial),
+                      ),
+                      child: const Icon(
+                        Icons.notifications_outlined,
+                        color: _text,
+                        size: 22,
+                      ),
                     ),
                     if (unread > 0)
                       Positioned(
@@ -123,6 +118,40 @@ class HomeHeader extends ConsumerWidget {
                         ),
                       ),
                   ],
+                ),
+              ),
+
+              const SizedBox(width: 10),
+
+              // ──────────────────────────────────────────────────
+              // Avatar (opens profile sheet)
+              // ──────────────────────────────────────────────────
+              GestureDetector(
+                onTap: () => UserProfileSheet.show(context, name: firstName),
+                child: Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(14),
+                    gradient: avatarUrl == null
+                        ? const LinearGradient(
+                      colors: [_teal2, _teal, _gold],
+                    )
+                        : null,
+                  ),
+                  child: avatarUrl != null
+                      ? ClipRRect(
+                    borderRadius: BorderRadius.circular(14),
+                    child: Image.network(
+                      avatarUrl,
+                      width: 42,
+                      height: 42,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) =>
+                          _InitialAvatar(initial: initial),
+                    ),
+                  )
+                      : _InitialAvatar(initial: initial),
                 ),
               ),
             ],
@@ -164,7 +193,7 @@ class HomeHeader extends ConsumerWidget {
                     border: Border.all(color: _teal.withOpacity(.18)),
                   ),
                   child: const Text(
-                    '✦ AI Match',
+                    '✶ AI Match',
                     style: TextStyle(
                       color: _teal2,
                       fontSize: 10,
