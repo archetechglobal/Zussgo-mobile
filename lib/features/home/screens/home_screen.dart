@@ -52,17 +52,24 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final bottomNavHeight = 88.0 + bottomInset;
 
     // Live data for trays
-    final myTripsAsync      = ref.watch(myTripsProvider);
-    final pendingAsync      = ref.watch(tripPendingRequestsProvider);
-    final activeTripsAsync  = ref.watch(activeTripsProvider);
+    final myTripsAsync     = ref.watch(myTripsProvider);
+    final pendingAsync     = ref.watch(tripPendingRequestsProvider);
+    final activeTripsAsync = ref.watch(activeTripsProvider);
 
-    final activeCount  = activeTripsAsync.asData?.value.length ?? 0;
-    final myTripTitle  = myTripsAsync.asData?.value.isNotEmpty == true
-        ? '${myTripsAsync.asData!.value.first.destination} trip · Live'
-        : 'Your trips';
-    final myTripSub    = myTripsAsync.asData?.value.isNotEmpty == true
-        ? '${myTripsAsync.asData!.value.first.dates}'
-        : 'No active trips yet';
+    // ── Active travelers count (used in heading) ────────────────────────────
+    // activeTripsAsync = all active trips on the platform (other users)
+    final activeCount = activeTripsAsync.asData?.value.length ?? 0;
+
+    // ── Tray 1: My trip ─────────────────────────────────────────────────────
+    final hasMyTrip = myTripsAsync.asData?.value.isNotEmpty == true;
+    final myTripTitle = hasMyTrip
+        ? '${myTripsAsync.asData!.value.first.destination} · Your Trip'
+        : 'Plan your first trip';
+    final myTripSub = hasMyTrip
+        ? myTripsAsync.asData!.value.first.dates
+        : 'Find companions for any destination in India';
+
+    // ── Tray 2: Companion requests ──────────────────────────────────────────
     final pendingCount = pendingAsync.asData?.value.length ?? 0;
 
     return Scaffold(
@@ -112,7 +119,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             child: HomeHeader(topInset: topInset),
           ),
 
-          // ── Scrollable body below hero ────────────────────────────────────
+          // ── Scrollable body below hero ──────────────────────────────────────
           Positioned(
             top: heroHeight, left: 0, right: 0,
             bottom: bottomNavHeight,
@@ -127,7 +134,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   ),
                   const SizedBox(height: 20),
 
+                  // ── "X people heading out" row ──────────────────────────────
                   _TravelersSeeAllRow(
+                    count: activeCount,
                     onTap: () {
                       ref.read(bottomNavIndexProvider.notifier).setIndex(2);
                       context.go('/match', extra: 'discover');
@@ -135,7 +144,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   ),
                   const SizedBox(height: 16),
 
-                  // Tray 1 — My active trip
+                  // ── Tray 1 — My active trip ─────────────────────────────────
                   Padding(
                     padding: const EdgeInsets.only(bottom: 12),
                     child: HomeInfoTray(
@@ -148,14 +157,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     ),
                   ),
 
-                  // Tray 2 — Companion requests (always shown; badge only when > 0)
+                  // ── Tray 2 — Companion requests ─────────────────────────────
                   Padding(
                     padding: const EdgeInsets.only(bottom: 12),
                     child: HomeInfoTray(
                       title: 'Companion requests',
                       subtitle: pendingCount > 0
-                          ? '$pendingCount ${pendingCount == 1 ? 'person wants' : 'people want'} to join'
-                          : 'No pending requests',
+                          ? '$pendingCount ${pendingCount == 1 ? 'person wants' : 'people want'} to join your trip'
+                          : 'No pending requests right now',
                       badgeCount: pendingCount > 0 ? pendingCount : null,
                       onTap: () {
                         ref.read(bottomNavIndexProvider.notifier).setIndex(2);
@@ -170,7 +179,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
           ),
 
-          // ── Bottom nav ────────────────────────────────────────────────────
+          // ── Bottom nav ──────────────────────────────────────────────────────
           Positioned(
             left: 12, right: 12,
             bottom: 12 + bottomInset,
@@ -182,27 +191,45 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 }
 
+// ─── Travelers heading out row ─────────────────────────────────────────────────
+// Shows a live count of active travelers on the platform.
+// Falls back to a generic label while the provider is loading (count == 0).
+
 class _TravelersSeeAllRow extends StatelessWidget {
   final VoidCallback onTap;
-  const _TravelersSeeAllRow({required this.onTap});
+  final int count;
+
+  const _TravelersSeeAllRow({
+    required this.onTap,
+    this.count = 0,
+  });
 
   @override
   Widget build(BuildContext context) {
+    // While loading (count == 0) show a neutral label so it never looks broken.
+    final label = count > 0
+        ? '$count ${count == 1 ? 'person' : 'people'} heading out soon'
+        : 'Travelers heading out soon';
+
     return GestureDetector(
       onTap: onTap,
-      child: const Row(
+      child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(
-            'More travelers going soon',
-            style: TextStyle(
-              color: Color(0xFFEAF7F3), fontSize: 15, fontWeight: FontWeight.w700,
+            label,
+            style: const TextStyle(
+              color: Color(0xFFEAF7F3),
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
             ),
           ),
-          Text(
+          const Text(
             'See all →',
             style: TextStyle(
-              color: Color(0xFF58DAD0), fontSize: 13, fontWeight: FontWeight.w800,
+              color: Color(0xFF58DAD0),
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
             ),
           ),
         ],
