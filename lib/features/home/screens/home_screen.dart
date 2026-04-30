@@ -65,12 +65,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         : 'Plan your first trip';
     final myTripSub   = hasMyTrip
         ? myTripsAsync.asData!.value.first.dates
-        : 'Find companions for any destination in India';
+        : 'Tap to find travel companions for any destination';
     final pendingCount = pendingAsync.asData?.value.length ?? 0;
 
     // ── Heading label ─────────────────────────────────────────────────────────
     // When searching: "12 people heading to Goa"
-    // When idle:      "X people heading out soon" (all platform)
+    // When idle:      "X people heading out soon" (live platform count)
     final String travelersLabel;
     if (hasQuery) {
       final dest = _capitalize(searchQuery);
@@ -80,7 +80,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     } else {
       travelersLabel = travelerCount > 0
           ? '$travelerCount ${travelerCount == 1 ? 'person' : 'people'} heading out soon'
-          : 'Travelers heading out soon';
+          : 'Be the first to plan a trip';
     }
 
     // "See all" tap: pass destination query to match screen so it pre-filters
