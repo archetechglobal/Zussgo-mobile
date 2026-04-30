@@ -10,6 +10,7 @@ import '../../profile/models/profile_model.dart';
 import '../../profile/widgets/user_profile_sheet.dart';
 import '../../trips/models/trip_model.dart';
 import '../../trips/screens/create_trip_sheet.dart';
+import '../data/explore_data.dart';
 import '../providers/explore_provider.dart';
 
 // ─── Colours ──────────────────────────────────────────────────────────────────
@@ -22,69 +23,21 @@ const _kText  = Color(0xFFEDF7F4);
 const _kMuted = Color(0xFFA8C4BF);
 const _kFaint = Color(0xFF6A8882);
 
-// ─── Vibe model (static UI data) ─────────────────────────────────────────────
+// ─── Vibe filter model (UI-only, no hardcoded destinations) ──────────────────
 
 class _VibeItem {
   final String emoji;
   final String label;
   final Color color;
-  final String filter;
-  const _VibeItem(this.emoji, this.label, this.color, this.filter);
+  final List<String> matchCategories; // matches against ExploreDestination.categories
+  const _VibeItem(this.emoji, this.label, this.color, this.matchCategories);
 }
 
 const _vibes = [
-  _VibeItem('🌊', 'Beach &\nSocial',     Color(0xFF1EC9B8), 'beach'),
-  _VibeItem('🏔️', 'Mountains\n& Trek',   Color(0xFF9FD9BE), 'mountains'),
-  _VibeItem('🎪', 'Culture &\nFestivals', Color(0xFFF7B84E), 'culture'),
-  _VibeItem('✨', 'Wellness\n& Retreat',  Color(0xFFFFB3C1), 'wellness'),
-];
-
-// ─── Destination model (UI/meta only — no hardcoded matches or trips) ─────────
-
-class _Dest {
-  final String name;
-  final String badge;
-  final Color badgeColor;
-  final String vibe;
-  final String desc;
-  final List<String> filters;
-  final Color heroColor;
-  const _Dest({
-    required this.name,
-    required this.badge,
-    required this.badgeColor,
-    required this.vibe,
-    required this.desc,
-    required this.filters,
-    required this.heroColor,
-  });
-}
-
-final _dests = <_Dest>[
-  _Dest(
-    name: 'Goa', badge: '🔥 #1 Most Active', badgeColor: _kTeal2,
-    vibe: '🌊 Beach & Social',
-    desc: 'The ultimate escape. Perfect for weekend parties, beach cafes, and meeting new people.',
-    filters: ['beach'], heroColor: const Color(0xFF1C3E40),
-  ),
-  _Dest(
-    name: 'Pushkar', badge: '🎪 Upcoming Festival', badgeColor: _kGold,
-    vibe: '🎪 Culture & Festival',
-    desc: 'Sacred ghats, desert vibes, and the famous Camel Fair. Culture overload in the best way.',
-    filters: ['culture'], heroColor: const Color(0xFF36261A),
-  ),
-  _Dest(
-    name: 'Spiti Valley', badge: '🏔 Adventure Pick', badgeColor: _kTeal2,
-    vibe: '🏔 Mountains & Trek',
-    desc: 'Raw Himalayas at 14,000ft. Monastery hops, stargazing, and silence that resets you.',
-    filters: ['mountains'], heroColor: const Color(0xFF1A2E3A),
-  ),
-  _Dest(
-    name: 'Kerala', badge: '🌿 Trending Now', badgeColor: _kTeal2,
-    vibe: '✨ Wellness & Retreat',
-    desc: 'Backwaters, Ayurveda, and coffee estates. The slow travel capital of India.',
-    filters: ['wellness', 'beach'], heroColor: const Color(0xFF1A2E20),
-  ),
+  _VibeItem('🌊', 'Beach &\nSocial',     Color(0xFF1EC9B8), ['beaches', 'beach']),
+  _VibeItem('🏔️', 'Mountains\n& Trek',   Color(0xFF9FD9BE), ['mountains', 'adventure', 'roadtrip']),
+  _VibeItem('🎪', 'Culture &\nFestivals', Color(0xFFF7B84E), ['culture', 'heritage', 'spiritual']),
+  _VibeItem('✨', 'Wellness\n& Retreat',  Color(0xFFFFB3C1), ['wellness', 'yoga']),
 ];
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
@@ -97,8 +50,8 @@ class ExploreScreen extends ConsumerStatefulWidget {
 }
 
 class _ExploreScreenState extends ConsumerState<ExploreScreen> {
-  String? _filter;
-  _Dest?  _detail;
+  _VibeItem?           _activeVibe;
+  ExploreDestination?  _detail;
 
   @override
   void initState() {
@@ -111,10 +64,6 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
       ref.read(bottomNavIndexProvider.notifier).setIndex(1);
     });
   }
-
-  List<_Dest> get _filtered => _filter == null
-      ? _dests
-      : _dests.where((d) => d.filters.contains(_filter)).toList();
 
   @override
   Widget build(BuildContext context) {
@@ -132,10 +81,9 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
             )
           : _FeedView(
               top: top, navH: navH, bottom: bottom,
-              filter: _filter,
-              dests: _filtered,
-              onVibeSelect: (f) =>
-                  setState(() => _filter = _filter == f ? null : f),
+              activeVibe: _activeVibe,
+              onVibeSelect: (v) =>
+                  setState(() => _activeVibe = _activeVibe == v ? null : v),
               onDestTap: (d) => setState(() => _detail = d),
               nav: const HomeBottomNav(),
             ),
@@ -143,70 +91,42 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
   }
 }
 
-// ─── Feed view ────────────────────────────────────────────────────────────────
+// ─── Feed view (reads Supabase destinations) ──────────────────────────────────
 
-class _FeedView extends StatelessWidget {
+class _FeedView extends ConsumerWidget {
   final double top, navH, bottom;
-  final String? filter;
-  final List<_Dest> dests;
-  final ValueChanged<String> onVibeSelect;
-  final ValueChanged<_Dest> onDestTap;
+  final _VibeItem? activeVibe;
+  final ValueChanged<_VibeItem> onVibeSelect;
+  final ValueChanged<ExploreDestination> onDestTap;
   final Widget nav;
 
   const _FeedView({
     required this.top, required this.navH, required this.bottom,
-    required this.filter, required this.dests,
+    required this.activeVibe,
     required this.onVibeSelect, required this.onDestTap, required this.nav,
   });
 
+  List<ExploreDestination> _applyFilter(
+    List<ExploreDestination> all, _VibeItem? vibe,
+  ) {
+    final nonOrigin = all.where((d) => !d.isOriginCity).toList();
+    if (vibe == null) return nonOrigin;
+    return nonOrigin
+        .where((d) => d.categories.any((c) =>
+            vibe.matchCategories.any((m) => c.toLowerCase().contains(m))))
+        .toList();
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final destsAsync = ref.watch(destinationsProvider);
+
     return Stack(
       children: [
-        ListView(
-          padding: EdgeInsets.only(top: top + 72, bottom: navH + 16),
-          children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(16, 8, 16, 12),
-              child: Text('Pick your vibe', style: TextStyle(
-                color: _kText, fontSize: 18, fontWeight: FontWeight.w700,
-                letterSpacing: -.2,
-              )),
-            ),
-            SizedBox(
-              height: 110,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                itemCount: _vibes.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 12),
-                itemBuilder: (_, i) => _VibeCard(
-                  vibe: _vibes[i],
-                  active: filter == _vibes[i].filter,
-                  onTap: () => onVibeSelect(_vibes[i].filter),
-                ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('Trending this weekend', style: TextStyle(
-                    color: _kText, fontSize: 18, fontWeight: FontWeight.w700,
-                    letterSpacing: -.2,
-                  )),
-                  const Text('See all', style: TextStyle(
-                    color: _kTeal2, fontSize: 12, fontWeight: FontWeight.w700,
-                  )),
-                ],
-              ),
-            ),
-            ...dests.map((d) => Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              child: _HeroCard(dest: d, onTap: () => onDestTap(d)),
-            )),
-          ],
+        destsAsync.when(
+          loading: () => _buildList(context, null, isLoading: true),
+          error: (e, _) => _buildList(context, [], isError: true),
+          data: (all) => _buildList(context, _applyFilter(all, activeVibe)),
         ),
         Positioned(
           top: 0, left: 0, right: 0,
@@ -220,6 +140,83 @@ class _FeedView extends StatelessWidget {
       ],
     );
   }
+
+  Widget _buildList(
+    BuildContext context,
+    List<ExploreDestination>? dests, {
+    bool isLoading = false,
+    bool isError = false,
+  }) {
+    return ListView(
+      padding: EdgeInsets.only(top: top + 72, bottom: navH + 16),
+      children: [
+        const Padding(
+          padding: EdgeInsets.fromLTRB(16, 8, 16, 12),
+          child: Text('Pick your vibe', style: TextStyle(
+            color: _kText, fontSize: 18, fontWeight: FontWeight.w700,
+            letterSpacing: -.2,
+          )),
+        ),
+        SizedBox(
+          height: 110,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            itemCount: _vibes.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 12),
+            itemBuilder: (_, i) => _VibeCard(
+              vibe: _vibes[i],
+              active: activeVibe == _vibes[i],
+              onTap: () => onVibeSelect(_vibes[i]),
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('Trending this weekend', style: TextStyle(
+                color: _kText, fontSize: 18, fontWeight: FontWeight.w700,
+                letterSpacing: -.2,
+              )),
+              const Text('See all', style: TextStyle(
+                color: _kTeal2, fontSize: 12, fontWeight: FontWeight.w700,
+              )),
+            ],
+          ),
+        ),
+        if (isLoading)
+          ..._buildSkeletonCards()
+        else if (isError || (dests?.isEmpty ?? true))
+          _EmptyStateInline(
+            icon: Icons.explore_rounded,
+            message: isError
+                ? 'Could not load destinations'
+                : 'No destinations match this vibe',
+          )
+        else
+          ...dests!.map((d) => Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: _HeroCard(dest: d, onTap: () => onDestTap(d)),
+          )),
+      ],
+    );
+  }
+
+  List<Widget> _buildSkeletonCards() => List.generate(
+        3,
+        (_) => Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          child: Container(
+            height: 240,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(.04),
+              borderRadius: BorderRadius.circular(28),
+            ),
+          ),
+        ),
+      );
 }
 
 // ─── Search header ────────────────────────────────────────────────────────────
@@ -333,11 +330,10 @@ class _VibeCard extends StatelessWidget {
   }
 }
 
-// ─── Hero destination card ────────────────────────────────────────────────────
-// Uses peopleGoingToProvider to show live avatar stack + traveler count.
+// ─── Hero destination card (Supabase-backed) ──────────────────────────────────
 
 class _HeroCard extends ConsumerWidget {
-  final _Dest dest;
+  final ExploreDestination dest;
   final VoidCallback onTap;
   const _HeroCard({required this.dest, required this.onTap});
 
@@ -345,6 +341,14 @@ class _HeroCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final peopleAsync = ref.watch(peopleGoingToProvider(dest.name));
     final d = dest;
+
+    // Derive a dark hero gradient from nodeColor
+    final heroColor = Color.fromARGB(
+      255,
+      (d.nodeColor.red * 0.18).round(),
+      (d.nodeColor.green * 0.25).round(),
+      (d.nodeColor.blue * 0.28).round(),
+    );
 
     return GestureDetector(
       onTap: onTap,
@@ -363,14 +367,30 @@ class _HeroCard extends ConsumerWidget {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft, end: Alignment.bottomRight,
-                    colors: [d.heroColor, const Color(0xFF0B1516)],
+              // Background — use network image if available, else gradient
+              if (d.imageUrl.isNotEmpty)
+                Image.network(
+                  d.imageUrl,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft, end: Alignment.bottomRight,
+                        colors: [heroColor, const Color(0xFF0B1516)],
+                      ),
+                    ),
+                  ),
+                )
+              else
+                Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft, end: Alignment.bottomRight,
+                      colors: [heroColor, const Color(0xFF0B1516)],
+                    ),
                   ),
                 ),
-              ),
+              // Dark overlay for text legibility
               Positioned.fill(
                 child: DecoratedBox(
                   decoration: BoxDecoration(
@@ -382,28 +402,32 @@ class _HeroCard extends ConsumerWidget {
                   ),
                 ),
               ),
-              Positioned(
-                top: 14, left: 14,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(.50),
-                    borderRadius: BorderRadius.circular(999),
-                    border: Border.all(color: Colors.white.withOpacity(.10)),
+              // Badge top-left
+              if (d.badge.isNotEmpty)
+                Positioned(
+                  top: 14, left: 14,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(.50),
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(color: Colors.white.withOpacity(.10)),
+                    ),
+                    child: Text(d.badge, style: TextStyle(
+                      color: d.nodeColor, fontSize: 11, fontWeight: FontWeight.w800,
+                    )),
                   ),
-                  child: Text(d.badge, style: TextStyle(
-                    color: d.badgeColor, fontSize: 11, fontWeight: FontWeight.w800,
-                  )),
                 ),
-              ),
+              // Bottom info
               Positioned(
                 left: 16, right: 16, bottom: 16,
                 child: peopleAsync.when(
                   loading: () => _CardBottomSkeleton(name: d.name),
                   error: (_, __) => _CardBottom(
-                    name: d.name, people: const [], count: 0),
+                    name: d.name, region: d.region, people: const [], count: 0),
                   data: (people) => _CardBottom(
-                    name: d.name, people: people, count: people.length),
+                    name: d.name, region: d.region,
+                    people: people, count: people.length),
                 ),
               ),
             ],
@@ -416,10 +440,12 @@ class _HeroCard extends ConsumerWidget {
 
 class _CardBottom extends StatelessWidget {
   final String name;
+  final String region;
   final List<ProfileModel> people;
   final int count;
   const _CardBottom({
-    required this.name, required this.people, required this.count});
+    required this.name, required this.region,
+    required this.people, required this.count});
 
   @override
   Widget build(BuildContext context) {
@@ -436,6 +462,10 @@ class _CardBottom extends StatelessWidget {
               Text(name, style: const TextStyle(
                 color: _kText, fontSize: 26,
                 fontWeight: FontWeight.w700, letterSpacing: -.3,
+              )),
+              const SizedBox(height: 2),
+              Text(region, style: const TextStyle(
+                color: _kFaint, fontSize: 11,
               )),
               const SizedBox(height: 4),
               Text(
@@ -557,10 +587,11 @@ class _LiveAvatarStack extends StatelessWidget {
   }
 }
 
-// ─── Detail view (live data) ──────────────────────────────────────────────────
+// ─── Detail view ──────────────────────────────────────────────────────────────
+// Accepts ExploreDestination (Supabase model) — all rich fields present.
 
 class _DetailView extends ConsumerWidget {
-  final _Dest dest;
+  final ExploreDestination dest;
   final double top, bottom;
   final VoidCallback onBack;
   const _DetailView({
@@ -574,6 +605,14 @@ class _DetailView extends ConsumerWidget {
     final peopleAsync = ref.watch(peopleGoingToProvider(d.name));
     final tripsAsync  = ref.watch(openTripsForProvider(d.name));
 
+    // Derive gradient from nodeColor
+    final heroColor = Color.fromARGB(
+      255,
+      (d.nodeColor.red * 0.18).round(),
+      (d.nodeColor.green * 0.25).round(),
+      (d.nodeColor.blue * 0.28).round(),
+    );
+
     return Stack(
       children: [
         SingleChildScrollView(
@@ -584,29 +623,51 @@ class _DetailView extends ConsumerWidget {
 
               // ── Cover ──────────────────────────────────────────────────
               SizedBox(
-                height: 300,
+                height: 360,
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft, end: Alignment.bottomRight,
-                          colors: [d.heroColor, const Color(0xFF0B1516)],
+                    // Background image or gradient
+                    if (d.imageUrl.isNotEmpty)
+                      Image.network(
+                        d.imageUrl,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [heroColor, const Color(0xFF0B1516)],
+                            ),
+                          ),
+                        ),
+                      )
+                    else
+                      Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft, end: Alignment.bottomRight,
+                            colors: [heroColor, const Color(0xFF0B1516)],
+                          ),
                         ),
                       ),
-                    ),
+                    // Dark overlay
                     Positioned.fill(
                       child: DecoratedBox(
                         decoration: BoxDecoration(
                           gradient: LinearGradient(
-                            begin: Alignment.topCenter, end: Alignment.bottomCenter,
-                            colors: [Colors.transparent, const Color(0xFF0B1516)],
-                            stops: const [0.40, 1.0],
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.black.withOpacity(.15),
+                              const Color(0xFF0B1516),
+                            ],
+                            stops: const [0.30, 1.0],
                           ),
                         ),
                       ),
                     ),
+                    // Back + share buttons
                     Positioned(
                       top: top + 10, left: 16, right: 16,
                       child: Row(
@@ -617,32 +678,136 @@ class _DetailView extends ConsumerWidget {
                         ],
                       ),
                     ),
+                    // Cover bottom content
                     Positioned(
                       left: 16, right: 16, bottom: 0,
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: _kTeal.withOpacity(.15),
-                              borderRadius: BorderRadius.circular(6),
-                              border: Border.all(color: _kTeal.withOpacity(.22)),
+                          // Vibe badge
+                          if (d.topVibe.isNotEmpty)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: _kTeal.withOpacity(.15),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(
+                                    color: _kTeal.withOpacity(.22)),
+                              ),
+                              child: Text(d.topVibe,
+                                  style: const TextStyle(
+                                    color: _kTeal2,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w800,
+                                  )),
                             ),
-                            child: Text(d.vibe, style: const TextStyle(
-                              color: _kTeal2, fontSize: 10, fontWeight: FontWeight.w800,
-                            )),
-                          ),
                           const SizedBox(height: 10),
-                          Text(d.name, style: const TextStyle(
-                            color: _kText, fontSize: 36,
-                            fontWeight: FontWeight.w700, letterSpacing: -.4,
-                          )),
-                          const SizedBox(height: 8),
-                          Text(d.desc, style: const TextStyle(
-                            color: _kMuted, fontSize: 13, height: 1.5,
-                          )),
-                          const SizedBox(height: 16),
+                          // Place name
+                          Text(d.name,
+                              style: const TextStyle(
+                                color: _kText,
+                                fontSize: 36,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: -.4,
+                              )),
+                          // State / region
+                          if (d.region.isNotEmpty) ...[
+                            const SizedBox(height: 3),
+                            Text(d.region,
+                                style: const TextStyle(
+                                  color: _kFaint,
+                                  fontSize: 12,
+                                )),
+                          ],
+                          // Description
+                          if (d.description.isNotEmpty) ...[
+                            const SizedBox(height: 10),
+                            Text(d.description,
+                                style: const TextStyle(
+                                  color: _kMuted,
+                                  fontSize: 13,
+                                  height: 1.55,
+                                )),
+                          ],
+                          // Info chips row: best time + cost hint
+                          if (d.bestTime.isNotEmpty || d.costHint.isNotEmpty) ...[
+                            const SizedBox(height: 12),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 6,
+                              children: [
+                                if (d.bestTime.isNotEmpty)
+                                  _InfoChip(
+                                    icon: Icons.calendar_month_rounded,
+                                    label: d.bestTime,
+                                    color: _kGold,
+                                  ),
+                                if (d.costHint.isNotEmpty)
+                                  _InfoChip(
+                                    icon: Icons.currency_rupee_rounded,
+                                    label: d.costHint,
+                                    color: _kTeal2,
+                                  ),
+                              ],
+                            ),
+                          ],
+                          // Highlights horizontal scroll
+                          if (d.highlights.isNotEmpty) ...[
+                            const SizedBox(height: 10),
+                            SizedBox(
+                              height: 32,
+                              child: ListView.separated(
+                                scrollDirection: Axis.horizontal,
+                                itemCount: d.highlights.length,
+                                separatorBuilder: (_, __) =>
+                                    const SizedBox(width: 8),
+                                itemBuilder: (_, i) => Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 10, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(.06),
+                                    borderRadius: BorderRadius.circular(999),
+                                    border: Border.all(
+                                        color:
+                                            Colors.white.withOpacity(.10)),
+                                  ),
+                                  child: Text(d.highlights[i],
+                                      style: const TextStyle(
+                                        color: _kText,
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w600,
+                                      )),
+                                ),
+                              ),
+                            ),
+                          ],
+                          // Mood tags
+                          if (d.moodTags.isNotEmpty) ...[
+                            const SizedBox(height: 8),
+                            Wrap(
+                              spacing: 6,
+                              runSpacing: 4,
+                              children: d.moodTags
+                                  .map((tag) => Container(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 8, vertical: 4),
+                                        decoration: BoxDecoration(
+                                          color:
+                                              Colors.white.withOpacity(.04),
+                                          borderRadius:
+                                              BorderRadius.circular(6),
+                                        ),
+                                        child: Text(tag,
+                                            style: const TextStyle(
+                                              color: _kMuted,
+                                              fontSize: 10,
+                                            )),
+                                      ))
+                                  .toList(),
+                            ),
+                          ],
+                          const SizedBox(height: 20),
                         ],
                       ),
                     ),
@@ -685,7 +850,8 @@ class _DetailView extends ConsumerWidget {
                                   ? 'Be the first to head here'
                                   : '${people.length} traveler${people.length == 1 ? '' : 's'} active here',
                               style: const TextStyle(
-                                color: _kText, fontSize: 15, fontWeight: FontWeight.w700,
+                                color: _kText, fontSize: 15,
+                                fontWeight: FontWeight.w700,
                               ),
                             ),
                           ),
@@ -716,10 +882,12 @@ class _DetailView extends ConsumerWidget {
                           scrollDirection: Axis.horizontal,
                           padding: const EdgeInsets.symmetric(horizontal: 16),
                           itemCount: people.length,
-                          separatorBuilder: (_, __) => const SizedBox(width: 12),
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(width: 12),
                           itemBuilder: (_, i) => GestureDetector(
                             onTap: () => UserProfileSheet.show(
-                                context, name: people[i].name ?? 'Traveler'),
+                                context,
+                                name: people[i].name ?? 'Traveler'),
                             child: _LiveMatchCard(profile: people[i]),
                           ),
                         ),
@@ -785,6 +953,37 @@ class _DetailView extends ConsumerWidget {
   }
 }
 
+// ─── Info chip ────────────────────────────────────────────────────────────────
+
+class _InfoChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  const _InfoChip({required this.icon, required this.label, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withOpacity(.08),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withOpacity(.18)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: color, size: 11),
+          const SizedBox(width: 5),
+          Text(label, style: TextStyle(
+            color: color, fontSize: 11, fontWeight: FontWeight.w700,
+          )),
+        ],
+      ),
+    );
+  }
+}
+
 // ─── Live match card ──────────────────────────────────────────────────────────
 
 class _LiveMatchCard extends StatelessWidget {
@@ -831,7 +1030,6 @@ class _LiveMatchCard extends StatelessWidget {
                   )),
                 ),
               ),
-              // Vibe badge if available
               if (profile.vibes.isNotEmpty)
                 Positioned(
                   bottom: -6,
@@ -879,15 +1077,12 @@ class _LiveTripCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Derive a human-readable title from destination + vibe/intent
     final vibeLabel = trip.vibe ?? trip.intent ?? '';
     final title = vibeLabel.isNotEmpty
         ? '${trip.destination} · $vibeLabel'
         : trip.destination;
 
-    // Slot dots: use budget/intent hint for group size or default 4
-    const totalSlots = 4;
-    // We don't have a slots field yet; show trip as 1 filled (creator), rest open
+    const totalSlots  = 4;
     const filledSlots = 1;
 
     final creatorName = trip.creator?.name ?? 'Traveler';
@@ -920,7 +1115,6 @@ class _LiveTripCard extends StatelessWidget {
                   ],
                 ),
               ),
-              // Slot dots
               Row(
                 children: List.generate(totalSlots, (i) {
                   final filled = i < filledSlots;
@@ -949,7 +1143,6 @@ class _LiveTripCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 8),
-          // Creator byline
           Row(
             children: [
               const Icon(Icons.person_outline_rounded, color: _kFaint, size: 12),
