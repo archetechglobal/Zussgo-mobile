@@ -6,9 +6,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/providers/nav_provider.dart';
 import '../../profile/widgets/user_profile_sheet.dart';
-import '../../connections/providers/connections_provider.dart';
 import '../../trips/providers/trips_provider.dart';
-import '../data/home_mock_data.dart';
 import '../providers/home_provider.dart';
 import '../widgets/hero_match_dots.dart';
 import '../widgets/hero_match_pager.dart';
@@ -43,7 +41,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    const bg = Color(0xFF081314);
+    const bg              = Color(0xFF081314);
     final currentIndex    = ref.watch(homePageIndexProvider);
     final screenHeight    = MediaQuery.of(context).size.height;
     final topInset        = MediaQuery.of(context).padding.top;
@@ -51,26 +49,49 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final heroHeight      = screenHeight * 0.63;
     final bottomNavHeight = 88.0 + bottomInset;
 
-    // Live data for trays
-    final myTripsAsync     = ref.watch(myTripsProvider);
-    final pendingAsync     = ref.watch(tripPendingRequestsProvider);
-    final activeTripsAsync = ref.watch(activeTripsProvider);
+    // ── Search state ──────────────────────────────────────────────────────────
+    final searchQuery   = ref.watch(homeSearchQueryProvider);
+    final hasQuery      = searchQuery.isNotEmpty;
+    final countAsync    = ref.watch(homeSearchCountProvider(searchQuery));
+    final travelerCount = countAsync.asData?.value ?? 0;
 
-    // ── Active travelers count (used in heading) ────────────────────────────
-    // activeTripsAsync = all active trips on the platform (other users)
-    final activeCount = activeTripsAsync.asData?.value.length ?? 0;
+    // ── Tray data ─────────────────────────────────────────────────────────────
+    final myTripsAsync  = ref.watch(myTripsProvider);
+    final pendingAsync  = ref.watch(tripPendingRequestsProvider);
 
-    // ── Tray 1: My trip ─────────────────────────────────────────────────────
-    final hasMyTrip = myTripsAsync.asData?.value.isNotEmpty == true;
+    final hasMyTrip   = myTripsAsync.asData?.value.isNotEmpty == true;
     final myTripTitle = hasMyTrip
         ? '${myTripsAsync.asData!.value.first.destination} · Your Trip'
         : 'Plan your first trip';
-    final myTripSub = hasMyTrip
+    final myTripSub   = hasMyTrip
         ? myTripsAsync.asData!.value.first.dates
         : 'Find companions for any destination in India';
-
-    // ── Tray 2: Companion requests ──────────────────────────────────────────
     final pendingCount = pendingAsync.asData?.value.length ?? 0;
+
+    // ── Heading label ─────────────────────────────────────────────────────────
+    // When searching: "12 people heading to Goa"
+    // When idle:      "X people heading out soon" (all platform)
+    final String travelersLabel;
+    if (hasQuery) {
+      final dest = _capitalize(searchQuery);
+      travelersLabel = travelerCount > 0
+          ? '$travelerCount ${travelerCount == 1 ? 'person' : 'people'} heading to $dest'
+          : 'No one heading to ${_capitalize(searchQuery)} yet';
+    } else {
+      travelersLabel = travelerCount > 0
+          ? '$travelerCount ${travelerCount == 1 ? 'person' : 'people'} heading out soon'
+          : 'Travelers heading out soon';
+    }
+
+    // "See all" tap: pass destination query to match screen so it pre-filters
+    void onSeeAll() {
+      ref.read(bottomNavIndexProvider.notifier).setIndex(2);
+      if (hasQuery) {
+        context.go('/match', extra: {'tab': 'discover', 'destination': searchQuery});
+      } else {
+        context.go('/match', extra: 'discover');
+      }
+    }
 
     return Scaffold(
       backgroundColor: bg,
@@ -79,7 +100,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         children: [
           Positioned.fill(child: Container(color: bg)),
 
-          // ── Hero pager (live data) ──────────────────────────────────────────
+          // ── Hero pager ─────────────────────────────────────────────────────
           Positioned(
             top: 0, left: 0, right: 0, height: heroHeight,
             child: HeroMatchPager(
@@ -113,13 +134,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
           ),
 
-          // Header
+          // Header (contains live search bar)
           Positioned(
             top: 0, left: 0, right: 0,
             child: HomeHeader(topInset: topInset),
           ),
 
-          // ── Scrollable body below hero ──────────────────────────────────────
+          // ── Scrollable tray area ────────────────────────────────────────────
           Positioned(
             top: heroHeight, left: 0, right: 0,
             bottom: bottomNavHeight,
@@ -130,21 +151,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 children: [
                   HeroMatchDots(
                     currentIndex: currentIndex,
-                    count: activeCount > 0 ? activeCount : 1,
+                    count: (travelerCount > 0 ? travelerCount : 1),
                   ),
                   const SizedBox(height: 20),
 
-                  // ── "X people heading out" row ──────────────────────────────
-                  _TravelersSeeAllRow(
-                    count: activeCount,
-                    onTap: () {
-                      ref.read(bottomNavIndexProvider.notifier).setIndex(2);
-                      context.go('/match', extra: 'discover');
-                    },
+                  // ── Travelers row ─────────────────────────────────────────────
+                  _TravelersRow(
+                    label: travelersLabel,
+                    showSeeAll: travelerCount > 0 || !hasQuery,
+                    onTap: onSeeAll,
                   ),
                   const SizedBox(height: 16),
 
-                  // ── Tray 1 — My active trip ─────────────────────────────────
+                  // ── Tray 1 — My active trip ───────────────────────────────────
                   Padding(
                     padding: const EdgeInsets.only(bottom: 12),
                     child: HomeInfoTray(
@@ -157,7 +176,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     ),
                   ),
 
-                  // ── Tray 2 — Companion requests ─────────────────────────────
+                  // ── Tray 2 — Companion requests ───────────────────────────────
                   Padding(
                     padding: const EdgeInsets.only(bottom: 12),
                     child: HomeInfoTray(
@@ -172,7 +191,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       },
                     ),
                   ),
-
                   const SizedBox(height: 8),
                 ],
               ),
@@ -191,47 +209,50 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 }
 
-// ─── Travelers heading out row ─────────────────────────────────────────────────
-// Shows a live count of active travelers on the platform.
-// Falls back to a generic label while the provider is loading (count == 0).
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+String _capitalize(String s) {
+  if (s.isEmpty) return s;
+  return s[0].toUpperCase() + s.substring(1);
+}
 
-class _TravelersSeeAllRow extends StatelessWidget {
+// ─── Travelers heading row ────────────────────────────────────────────────────
+class _TravelersRow extends StatelessWidget {
+  final String label;
+  final bool showSeeAll;
   final VoidCallback onTap;
-  final int count;
 
-  const _TravelersSeeAllRow({
+  const _TravelersRow({
+    required this.label,
+    required this.showSeeAll,
     required this.onTap,
-    this.count = 0,
   });
 
   @override
   Widget build(BuildContext context) {
-    // While loading (count == 0) show a neutral label so it never looks broken.
-    final label = count > 0
-        ? '$count ${count == 1 ? 'person' : 'people'} heading out soon'
-        : 'Travelers heading out soon';
-
     return GestureDetector(
-      onTap: onTap,
+      onTap: showSeeAll ? onTap : null,
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            label,
-            style: const TextStyle(
-              color: Color(0xFFEAF7F3),
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
+          Expanded(
+            child: Text(
+              label,
+              style: const TextStyle(
+                color: Color(0xFFEAF7F3),
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
-          const Text(
-            'See all →',
-            style: TextStyle(
-              color: Color(0xFF58DAD0),
-              fontSize: 13,
-              fontWeight: FontWeight.w800,
+          if (showSeeAll)
+            const Text(
+              'See all →',
+              style: TextStyle(
+                color: Color(0xFF58DAD0),
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+              ),
             ),
-          ),
         ],
       ),
     );
