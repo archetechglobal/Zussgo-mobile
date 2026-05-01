@@ -158,10 +158,15 @@ class _CreateTripFlowState extends ConsumerState<_CreateTripFlow> {
   int _step = 0;
 
   String _destination = '';
-  String _dates       = '';
+  String _dates       = '';   // human-readable label shown in the UI
   String _vibe        = '';
   String _budget      = '';
   String _intent      = '';
+
+  // Structured date objects preserved after calendar selection
+  // so we can write ISO start_date / end_date to Supabase.
+  DateTime? _startDate;
+  DateTime? _endDate;
 
   int get _missing => [_vibe, _budget, _intent].where((v) => v.isEmpty).length;
   bool get _canPreview => _destination.isNotEmpty && _dates.isNotEmpty;
@@ -218,6 +223,8 @@ class _CreateTripFlowState extends ConsumerState<_CreateTripFlow> {
               await ref.read(createTripProvider.notifier).create(
                 destination: _destination,
                 dates:       _dates,
+                startDate:   _startDate,
+                endDate:     _endDate,
                 vibe:        _vibe.isNotEmpty ? _vibe : null,
                 budget:      _budget.isNotEmpty ? _budget : null,
                 intent:      _intent.isNotEmpty ? _intent : null,
@@ -244,16 +251,21 @@ class _CreateTripFlowState extends ConsumerState<_CreateTripFlow> {
     );
   }
 
+  // ── DATE PICKER — always opens the calendar grid ──────────────────────────
   Future<void> _pickDateRange() async {
     final now = DateTime.now();
     final picked = await showDateRangePicker(
       context: context,
       firstDate: now,
       lastDate: now.add(const Duration(days: 365 * 2)),
-      initialDateRange: DateTimeRange(
-        start: now,
-        end: now.add(const Duration(days: 4)),
-      ),
+      initialDateRange: _startDate != null && _endDate != null
+          ? DateTimeRange(start: _startDate!, end: _endDate!)
+          : DateTimeRange(
+              start: now,
+              end: now.add(const Duration(days: 4)),
+            ),
+      // Force the calendar grid — never show the text-input entry mode
+      initialEntryMode: DatePickerEntryMode.calendarOnly,
       builder: (context, child) {
         return Theme(
           data: ThemeData.dark().copyWith(
@@ -276,10 +288,11 @@ class _CreateTripFlowState extends ConsumerState<_CreateTripFlow> {
     );
 
     if (picked != null) {
-      final start = picked.start;
-      final end   = picked.end;
-      final fmt   = _formatDateRange(start, end);
-      setState(() => _dates = fmt);
+      setState(() {
+        _startDate = picked.start;
+        _endDate   = picked.end;
+        _dates     = _formatDateRange(picked.start, picked.end);
+      });
     }
   }
 

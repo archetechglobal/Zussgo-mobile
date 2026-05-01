@@ -26,7 +26,7 @@ final joinedTripsProvider = FutureProvider<List<TripModel>>((ref) async {
 /// Named tripPendingRequestsProvider to avoid clashing with
 /// connections_provider's pendingRequestsProvider.
 final tripPendingRequestsProvider =
-FutureProvider<List<Map<String, dynamic>>>((ref) async {
+    FutureProvider<List<Map<String, dynamic>>>((ref) async {
   return ref.watch(tripsRepositoryProvider).fetchPendingRequests();
 });
 
@@ -38,6 +38,8 @@ class CreateTripNotifier extends StateNotifier<AsyncValue<TripModel?>> {
   Future<TripModel?> create({
     required String destination,
     required String dates,
+    DateTime? startDate,    // ISO date for DB index — from calendar picker
+    DateTime? endDate,
     String? vibe,
     String? budget,
     String? intent,
@@ -46,10 +48,12 @@ class CreateTripNotifier extends StateNotifier<AsyncValue<TripModel?>> {
     try {
       final trip = await _repo.createTrip(
         destination: destination,
-        dates: dates,
-        vibe: vibe,
-        budget: budget,
-        intent: intent,
+        dates:       dates,
+        startDate:   startDate,
+        endDate:     endDate,
+        vibe:        vibe,
+        budget:      budget,
+        intent:      intent,
       );
       state = AsyncValue.data(trip);
       return trip;
@@ -61,6 +65,6 @@ class CreateTripNotifier extends StateNotifier<AsyncValue<TripModel?>> {
 }
 
 final createTripProvider =
-StateNotifierProvider<CreateTripNotifier, AsyncValue<TripModel?>>((ref) {
+    StateNotifierProvider<CreateTripNotifier, AsyncValue<TripModel?>>((ref) {
   return CreateTripNotifier(ref.watch(tripsRepositoryProvider));
 });
