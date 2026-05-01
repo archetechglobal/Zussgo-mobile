@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'dart:math' as math;
 import '../providers/trips_provider.dart';
 import '../../profile/providers/profile_provider.dart';
 
@@ -41,16 +42,14 @@ class _CreateTripFlow extends ConsumerStatefulWidget {
 }
 
 class _CreateTripFlowState extends ConsumerState<_CreateTripFlow> {
-  int _step = 0; // 0 = builder, 1 = preview
+  int _step = 0;
 
-  // Trip data
   String _destination = '';
   String _dates       = '';
   String _vibe        = '';
   String _budget      = '';
   String _intent      = '';
 
-  // How many fields are still empty
   int get _missing => [_vibe, _budget, _intent].where((v) => v.isEmpty).length;
   bool get _canPreview => _destination.isNotEmpty && _dates.isNotEmpty;
 
@@ -59,12 +58,11 @@ class _CreateTripFlowState extends ConsumerState<_CreateTripFlow> {
     final sh = MediaQuery.of(context).size.height;
     final bi = MediaQuery.of(context).padding.bottom;
 
-    // Live profile data
     final profileAsync = ref.watch(myProfileProvider);
     final profile = profileAsync.value;
-    final userName   = profile?.name ?? '';
+    final userName    = profile?.name ?? '';
     final userInitial = userName.isNotEmpty ? userName[0].toUpperCase() : '?';
-    final userCity   = profile?.baseCity ?? '';
+    final userCity    = profile?.baseCity ?? '';
 
     return ClipRRect(
       borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
@@ -155,7 +153,7 @@ class _CreateTripFlowState extends ConsumerState<_CreateTripFlow> {
             Icon(Icons.sensors_rounded, color: _kTeal2, size: 20),
             SizedBox(width: 10),
             Text(
-              'Live on radar — 42 travelers notified!',
+              'Live on radar — travelers notified!',
               style: TextStyle(color: _kText, fontSize: 13, fontWeight: FontWeight.w700),
             ),
           ],
@@ -165,7 +163,7 @@ class _CreateTripFlowState extends ConsumerState<_CreateTripFlow> {
   }
 }
 
-// ─── Step 1: Widget Builder ───────────────────────────────────────────────────
+// ─── Step 1: Builder ──────────────────────────────────────────────────────────
 
 class _StepBuilder extends StatelessWidget {
   final String destination, dates, vibe, budget, intent;
@@ -191,7 +189,6 @@ class _StepBuilder extends StatelessWidget {
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        // Teal radial glow top
         Positioned(
           top: -60, left: 0, right: 0,
           child: Container(
@@ -208,7 +205,6 @@ class _StepBuilder extends StatelessWidget {
 
         Column(
           children: [
-            // ── Header ──────────────────────────────────────────────────
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
               child: Row(
@@ -236,7 +232,6 @@ class _StepBuilder extends StatelessWidget {
               ),
             ),
 
-            // Progress bar — 50%
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
               child: ClipRRect(
@@ -253,7 +248,6 @@ class _StepBuilder extends StatelessWidget {
               ),
             ),
 
-            // ── Trip widget card ─────────────────────────────────────────
             Expanded(
               child: SingleChildScrollView(
                 padding: EdgeInsets.fromLTRB(16, 0, 16, 120 + bottomInset),
@@ -272,7 +266,6 @@ class _StepBuilder extends StatelessWidget {
           ],
         ),
 
-        // ── Fixed bottom CTA ─────────────────────────────────────────────
         Positioned(
           left: 0, right: 0, bottom: 0,
           child: Container(
@@ -321,7 +314,7 @@ class _StepBuilder extends StatelessWidget {
   }
 }
 
-// ─── Trip widget card (the live preview card being built) ─────────────────────
+// ─── Trip widget card ─────────────────────────────────────────────────────────
 
 class _TripWidgetCard extends StatelessWidget {
   final String destination, dates, vibe, budget, intent;
@@ -359,7 +352,6 @@ class _TripWidgetCard extends StatelessWidget {
       ),
       child: Stack(
         children: [
-          // Teal glow at top
           Positioned(
             top: 0, left: 0, right: 0,
             child: Container(
@@ -379,7 +371,6 @@ class _TripWidgetCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Avatar + name row
                 Row(
                   children: [
                     Container(
@@ -408,7 +399,7 @@ class _TripWidgetCard extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(height: 2),
-                        Text('Building your broadcast...', style: TextStyle(
+                        const Text('Building your broadcast...', style: TextStyle(
                           color: _kFaint, fontSize: 12,
                         )),
                       ],
@@ -417,7 +408,6 @@ class _TripWidgetCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 24),
 
-                // Row 1: Destination + Dates
                 Row(
                   children: [
                     Expanded(
@@ -443,7 +433,6 @@ class _TripWidgetCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
 
-                // Row 2: Vibe + Budget
                 Row(
                   children: [
                     Expanded(
@@ -469,7 +458,6 @@ class _TripWidgetCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
 
-                // Intent message slot
                 _IntentSlot(value: intent, onTap: onIntentTap),
               ],
             ),
@@ -480,7 +468,7 @@ class _TripWidgetCard extends StatelessWidget {
   }
 }
 
-// ─── Individual slot ──────────────────────────────────────────────────────────
+// ─── Slot ─────────────────────────────────────────────────────────────────────
 
 class _Slot extends StatelessWidget {
   final String label;
@@ -537,7 +525,7 @@ class _Slot extends StatelessWidget {
   }
 }
 
-// ─── Intent slot (large) ─────────────────────────────────────────────────────
+// ─── Intent slot ──────────────────────────────────────────────────────────────
 
 class _IntentSlot extends StatelessWidget {
   final String value;
@@ -627,14 +615,12 @@ class _StepPreview extends StatefulWidget {
 }
 
 class _StepPreviewState extends State<_StepPreview> {
-
   @override
   Widget build(BuildContext context) {
     return Stack(
       children: [
         Column(
           children: [
-            // ── Header ──────────────────────────────────────────────────
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
               child: Row(
@@ -664,7 +650,6 @@ class _StepPreviewState extends State<_StepPreview> {
               ),
             ),
 
-            // Progress bar — 100% gold
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
               child: ClipRRect(
@@ -687,7 +672,6 @@ class _StepPreviewState extends State<_StepPreview> {
                 padding: EdgeInsets.fromLTRB(16, 24, 16, 140 + widget.bottomInset),
                 child: Column(
                   children: [
-                    // Title
                     const Text('Ready to broadcast 📡', style: TextStyle(
                       color: _kText, fontSize: 26, fontWeight: FontWeight.w800,
                       letterSpacing: -.4,
@@ -700,7 +684,6 @@ class _StepPreviewState extends State<_StepPreview> {
                     ),
                     const SizedBox(height: 24),
 
-                    // Preview card (scaled)
                     _PreviewCard(
                       destination: widget.destination,
                       dates: widget.dates,
@@ -714,7 +697,6 @@ class _StepPreviewState extends State<_StepPreview> {
 
                     const SizedBox(height: 36),
 
-                    // Radar animation
                     _RadarWidget(destination: widget.destination),
 
                     const SizedBox(height: 16),
@@ -725,7 +707,6 @@ class _StepPreviewState extends State<_StepPreview> {
           ],
         ),
 
-        // ── Gold broadcast button ────────────────────────────────────────
         Positioned(
           left: 0, right: 0, bottom: 0,
           child: Container(
@@ -775,7 +756,7 @@ class _StepPreviewState extends State<_StepPreview> {
   }
 }
 
-// ─── Preview card (90% width, compact) ───────────────────────────────────────
+// ─── Preview card ─────────────────────────────────────────────────────────────
 
 class _PreviewCard extends StatelessWidget {
   final String destination, dates, vibe, budget, intent;
@@ -790,7 +771,7 @@ class _PreviewCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hasIntent = intent.isNotEmpty;
-    final hasVibe = vibe.isNotEmpty;
+    final hasVibe   = vibe.isNotEmpty;
     final hasBudget = budget.isNotEmpty;
 
     return FractionallySizedBox(
@@ -817,11 +798,9 @@ class _PreviewCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Head row
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Avatar with YOU badge
                 Stack(
                   clipBehavior: Clip.none,
                   children: [
@@ -860,7 +839,6 @@ class _PreviewCard extends StatelessWidget {
                 ),
                 const SizedBox(width: 12),
 
-                // Name + route
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -896,7 +874,6 @@ class _PreviewCard extends StatelessWidget {
                   ),
                 ),
 
-                // Dates
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
@@ -932,7 +909,7 @@ class _PreviewCard extends StatelessWidget {
                     Wrap(
                       spacing: 6, runSpacing: 6,
                       children: [
-                        if (hasVibe) _Tag(label: vibe, type: 'teal'),
+                        if (hasVibe)   _Tag(label: vibe,   type: 'teal'),
                         if (hasBudget) _Tag(label: budget, type: 'gray'),
                       ],
                     ),
@@ -942,7 +919,6 @@ class _PreviewCard extends StatelessWidget {
             ],
 
             const SizedBox(height: 14),
-            // Preview mode footer
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: const [
@@ -960,9 +936,11 @@ class _PreviewCard extends StatelessWidget {
   }
 }
 
+// ─── Tag chip ─────────────────────────────────────────────────────────────────
+
 class _Tag extends StatelessWidget {
   final String label;
-  final String type; // 'teal' | 'gray' | 'gold'
+  final String type;
   const _Tag({required this.label, required this.type});
 
   @override
@@ -990,6 +968,307 @@ class _Tag extends StatelessWidget {
   }
 }
 
-// ─── Radar animation widget ───────────────────────────────────────────────────
+// ─── Picker sheet ─────────────────────────────────────────────────────────────
 
-// _RadarWidget
+class _PickerSheet extends StatelessWidget {
+  final String label;
+  final List<String> options;
+  final ValueChanged<String> onPick;
+
+  const _PickerSheet({
+    required this.label,
+    required this.options,
+    required this.onPick,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Color(0xFF0D1819),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Handle
+          Container(
+            width: 36, height: 4,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(.15),
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          Text(label, style: const TextStyle(
+            color: _kText, fontSize: 16, fontWeight: FontWeight.w700,
+          )),
+          const SizedBox(height: 16),
+
+          ...options.map((opt) => GestureDetector(
+            onTap: () {
+              onPick(opt);
+              Navigator.of(context).pop();
+            },
+            child: Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(.04),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Colors.white.withOpacity(.07)),
+              ),
+              child: Text(opt, style: const TextStyle(
+                color: _kText, fontSize: 14, fontWeight: FontWeight.w600,
+              )),
+            ),
+          )),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Intent sheet ─────────────────────────────────────────────────────────────
+
+class _IntentSheet extends StatefulWidget {
+  final String initial;
+  final ValueChanged<String> onSave;
+
+  const _IntentSheet({required this.initial, required this.onSave});
+
+  @override
+  State<_IntentSheet> createState() => _IntentSheetState();
+}
+
+class _IntentSheetState extends State<_IntentSheet> {
+  late final TextEditingController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = TextEditingController(text: widget.initial);
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bi = MediaQuery.of(context).viewInsets.bottom;
+
+    return Container(
+      decoration: const BoxDecoration(
+        color: Color(0xFF0D1819),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      padding: EdgeInsets.fromLTRB(20, 12, 20, 24 + bi),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 36, height: 4,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(.15),
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          const Text('Your Intent', style: TextStyle(
+            color: _kText, fontSize: 16, fontWeight: FontWeight.w700,
+          )),
+          const SizedBox(height: 6),
+          const Text('Tell potential companions why you\'re going', style: TextStyle(
+            color: _kMuted, fontSize: 12,
+          )),
+          const SizedBox(height: 16),
+
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(.04),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: _kTeal.withOpacity(.25)),
+            ),
+            child: TextField(
+              controller: _ctrl,
+              autofocus: true,
+              maxLines: 4,
+              maxLength: 200,
+              style: const TextStyle(color: _kText, fontSize: 14, height: 1.5),
+              decoration: InputDecoration(
+                hintText: 'e.g. Looking for a chill travel buddy to explore beaches and try local food...',
+                hintStyle: TextStyle(color: _kFaint, fontSize: 13),
+                border: InputBorder.none,
+                contentPadding: const EdgeInsets.all(14),
+                counterStyle: TextStyle(color: _kFaint, fontSize: 11),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          GestureDetector(
+            onTap: () {
+              widget.onSave(_ctrl.text.trim());
+              Navigator.of(context).pop();
+            },
+            child: Container(
+              width: double.infinity,
+              height: 52,
+              decoration: BoxDecoration(
+                color: _kTeal.withOpacity(.15),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: _kTeal.withOpacity(.30)),
+              ),
+              child: const Center(
+                child: Text('Save Intent', style: TextStyle(
+                  color: _kTeal2, fontSize: 15, fontWeight: FontWeight.w800,
+                )),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Radar widget ─────────────────────────────────────────────────────────────
+
+class _RadarWidget extends StatefulWidget {
+  final String destination;
+  const _RadarWidget({required this.destination});
+
+  @override
+  State<_RadarWidget> createState() => _RadarWidgetState();
+}
+
+class _RadarWidgetState extends State<_RadarWidget>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 3),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Container(
+          width: 200, height: 200,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: _kTeal.withOpacity(.04),
+            border: Border.all(color: _kTeal.withOpacity(.12)),
+          ),
+          child: AnimatedBuilder(
+            animation: _ctrl,
+            builder: (_, __) {
+              return CustomPaint(
+                painter: _RadarPainter(_ctrl.value),
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 16),
+        Text(
+          'Scanning for travelers near ${widget.destination}...',
+          textAlign: TextAlign.center,
+          style: const TextStyle(color: _kMuted, fontSize: 12),
+        ),
+        const SizedBox(height: 6),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(width: 6, height: 6,
+              decoration: const BoxDecoration(color: _kTeal2, shape: BoxShape.circle)),
+            const SizedBox(width: 6),
+            const Text('Live', style: TextStyle(
+              color: _kTeal2, fontSize: 11, fontWeight: FontWeight.w700,
+            )),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _RadarPainter extends CustomPainter {
+  final double progress;
+  _RadarPainter(this.progress);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.width / 2;
+
+    // Rings
+    final ringPaint = Paint()
+      ..color = _kTeal.withOpacity(.15)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1;
+    for (int i = 1; i <= 3; i++) {
+      canvas.drawCircle(center, radius * i / 3, ringPaint);
+    }
+
+    // Sweep
+    final sweepAngle = progress * 2 * math.pi;
+    final sweepPaint = Paint()
+      ..shader = SweepGradient(
+        startAngle: sweepAngle - 1.2,
+        endAngle: sweepAngle,
+        colors: [Colors.transparent, _kTeal.withOpacity(.40)],
+        tileMode: TileMode.clamp,
+      ).createShader(Rect.fromCircle(center: center, radius: radius))
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(center, radius, sweepPaint);
+
+    // Sweep line
+    final linePaint = Paint()
+      ..color = _kTeal2.withOpacity(.8)
+      ..strokeWidth = 1.5;
+    canvas.drawLine(
+      center,
+      Offset(
+        center.dx + radius * math.cos(sweepAngle),
+        center.dy + radius * math.sin(sweepAngle),
+      ),
+      linePaint,
+    );
+
+    // Blip dots
+    final blipPaint = Paint()..color = _kTeal2;
+    final blips = [
+      Offset(center.dx + radius * 0.4, center.dy - radius * 0.3),
+      Offset(center.dx - radius * 0.55, center.dy + radius * 0.2),
+      Offset(center.dx + radius * 0.2, center.dy + radius * 0.55),
+    ];
+    for (final b in blips) {
+      canvas.drawCircle(b, 3, blipPaint);
+    }
+
+    // Center dot
+    canvas.drawCircle(center, 4, Paint()..color = _kTeal2);
+  }
+
+  @override
+  bool shouldRepaint(_RadarPainter old) => old.progress != progress;
+}
