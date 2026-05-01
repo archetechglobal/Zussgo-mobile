@@ -54,13 +54,15 @@ class _ChatsListScreenState extends ConsumerState<ChatsListScreen> {
     _presenceChannel = Supabase.instance.client
         .channel('online-users')
         .onPresenceSync((_) {
-          final state = _presenceChannel.presenceState();
+          // presenceState() returns Map<String, List<Presence>>
+          // Each Presence has a .payload map with our tracked keys
+          final presenceMap = _presenceChannel.presenceState();
           if (!mounted) return;
           setState(() {
             _onlineIds.clear();
-            for (final presences in state.values) {
-              for (final p in presences) {
-                final uid = (p as Map<String, dynamic>)['user_id'] as String?;
+            for (final presenceList in presenceMap.values) {
+              for (final presence in presenceList) {
+                final uid = presence.payload['user_id'] as String?;
                 if (uid != null && uid != me) _onlineIds.add(uid);
               }
             }
@@ -80,7 +82,7 @@ class _ChatsListScreenState extends ConsumerState<ChatsListScreen> {
     super.dispose();
   }
 
-  // ── helpers ──────────────────────────────────────────────────────────────
+  // ── helpers ───────────────────────────────────────────────────────────────
 
   String _peerId(Map<String, dynamic> c) {
     final me = Supabase.instance.client.auth.currentUser?.id ?? '';
@@ -99,9 +101,6 @@ class _ChatsListScreenState extends ConsumerState<ChatsListScreen> {
     return (_peerProfile(c)?['name'] as String? ?? 'Unknown').trim();
   }
 
-  String _initial(String name) =>
-      name.isNotEmpty ? name[0].toUpperCase() : '?';
-
   Color _avatarColor(String peerId) {
     final palette = [
       const Color(0xFF58DAD0),
@@ -118,7 +117,7 @@ class _ChatsListScreenState extends ConsumerState<ChatsListScreen> {
     final raw = c['updated_at'] as String?;
     if (raw == null) return '';
     try {
-      final dt = DateTime.parse(raw).toLocal();
+      final dt  = DateTime.parse(raw).toLocal();
       final now = DateTime.now();
       if (dt.day == now.day && dt.month == now.month && dt.year == now.year) {
         final h = dt.hour > 12
@@ -145,7 +144,7 @@ class _ChatsListScreenState extends ConsumerState<ChatsListScreen> {
         children: [
           CustomScrollView(
             slivers: [
-              // ── Header ───────────────────────────────────────────────────
+              // ── Header ────────────────────────────────────────────────────
               SliverToBoxAdapter(
                 child: Padding(
                   padding: EdgeInsets.fromLTRB(20, topInset + 16, 20, 0),
@@ -182,7 +181,7 @@ class _ChatsListScreenState extends ConsumerState<ChatsListScreen> {
                 ),
               ),
 
-              // ── Search bar ───────────────────────────────────────────────
+              // ── Search bar ────────────────────────────────────────────────
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
@@ -227,7 +226,7 @@ class _ChatsListScreenState extends ConsumerState<ChatsListScreen> {
                 ),
               ),
 
-              // ── Body ─────────────────────────────────────────────────────
+              // ── Body ──────────────────────────────────────────────────────
               previewsAsync.when(
                 loading: () => const SliverFillRemaining(
                   child: Center(
@@ -246,7 +245,6 @@ class _ChatsListScreenState extends ConsumerState<ChatsListScreen> {
                   ),
                 ),
                 data: (raw) {
-                  // Filter by search query
                   final chats = _query.isEmpty
                       ? raw
                       : raw.where((c) {
@@ -254,14 +252,13 @@ class _ChatsListScreenState extends ConsumerState<ChatsListScreen> {
                           return name.contains(_query);
                         }).toList();
 
-                  // Active-now strip (people currently online)
                   final activeChats = chats
                       .where((c) => _onlineIds.contains(_peerId(c)))
                       .toList();
 
                   return SliverList(
                     delegate: SliverChildListDelegate([
-                      // Active now
+                      // Active now strip
                       if (activeChats.isNotEmpty) ...[
                         const Padding(
                           padding: EdgeInsets.fromLTRB(20, 16, 20, 10),
@@ -285,7 +282,7 @@ class _ChatsListScreenState extends ConsumerState<ChatsListScreen> {
                             separatorBuilder: (_, __) =>
                                 const SizedBox(width: 16),
                             itemBuilder: (context, i) {
-                              final c = activeChats[i];
+                              final c    = activeChats[i];
                               final pid  = _peerId(c);
                               final name = _peerName(c);
                               final col  = _avatarColor(pid);
@@ -302,7 +299,9 @@ class _ChatsListScreenState extends ConsumerState<ChatsListScreen> {
                                     Stack(
                                       children: [
                                         _AvatarCircle(
-                                          initial: _initial(name),
+                                          initial: name.isNotEmpty
+                                              ? name[0].toUpperCase()
+                                              : '?',
                                           color: col,
                                           size: 52,
                                         ),
@@ -314,7 +313,8 @@ class _ChatsListScreenState extends ConsumerState<ChatsListScreen> {
                                               color: const Color(0xFF2ECC71),
                                               shape: BoxShape.circle,
                                               border: Border.all(
-                                                color: const Color(0xFF081314),
+                                                color:
+                                                    const Color(0xFF081314),
                                                 width: 2,
                                               ),
                                             ),
@@ -356,11 +356,11 @@ class _ChatsListScreenState extends ConsumerState<ChatsListScreen> {
 
                       // Chat rows
                       ...chats.map((c) {
-                        final pid     = _peerId(c);
-                        final name    = _peerName(c);
-                        final col     = _avatarColor(pid);
+                        final pid      = _peerId(c);
+                        final name     = _peerName(c);
+                        final col      = _avatarColor(pid);
                         final isOnline = _onlineIds.contains(pid);
-                        final ts      = _timestamp(c);
+                        final ts       = _timestamp(c);
 
                         return _ChatRow(
                           connectionId: c['id'] as String,
@@ -412,7 +412,7 @@ class _ChatsListScreenState extends ConsumerState<ChatsListScreen> {
             ],
           ),
 
-          // ── Bottom nav ───────────────────────────────────────────────────
+          // ── Bottom nav ────────────────────────────────────────────────────
           Positioned(
             left: 12, right: 12,
             bottom: 12 + bottomInset,
@@ -424,7 +424,7 @@ class _ChatsListScreenState extends ConsumerState<ChatsListScreen> {
   }
 }
 
-// ── Chat row (live last message via stream) ───────────────────────────────────
+// ── Chat row ──────────────────────────────────────────────────────────────────
 
 class _ChatRow extends ConsumerWidget {
   final String connectionId;
@@ -458,8 +458,8 @@ class _ChatRow extends ConsumerWidget {
     final me = Supabase.instance.client.auth.currentUser?.id ?? '';
 
     final lastMsg = messagesAsync.whenOrNull(
-          data: (msgs) => msgs.isNotEmpty ? msgs.last : null,
-        );
+      data: (msgs) => msgs.isNotEmpty ? msgs.last : null,
+    );
 
     final unread = messagesAsync.whenOrNull(
           data: (msgs) => msgs
@@ -468,7 +468,7 @@ class _ChatRow extends ConsumerWidget {
         ) ?? 0;
 
     final hasUnread = unread > 0;
-    final initial = peerName.isNotEmpty ? peerName[0].toUpperCase() : '?';
+    final initial   = peerName.isNotEmpty ? peerName[0].toUpperCase() : '?';
 
     return GestureDetector(
       onTap: onTap,
@@ -484,7 +484,6 @@ class _ChatRow extends ConsumerWidget {
         ),
         child: Row(
           children: [
-            // Avatar + online dot
             Stack(
               children: [
                 _AvatarCircle(initial: initial, color: color, size: 50),
@@ -497,14 +496,13 @@ class _ChatRow extends ConsumerWidget {
                         color: const Color(0xFF2ECC71),
                         shape: BoxShape.circle,
                         border: Border.all(
-                          color: const Color(0xFF081314), width: 2),
+                            color: const Color(0xFF081314), width: 2),
                       ),
                     ),
                   ),
               ],
             ),
             const SizedBox(width: 12),
-
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -517,8 +515,9 @@ class _ChatRow extends ConsumerWidget {
                           style: TextStyle(
                             color: _text,
                             fontSize: 15,
-                            fontWeight:
-                                hasUnread ? FontWeight.w700 : FontWeight.w500,
+                            fontWeight: hasUnread
+                                ? FontWeight.w700
+                                : FontWeight.w500,
                           ),
                         ),
                       ),
@@ -557,7 +556,10 @@ class _ChatRow extends ConsumerWidget {
                           width: 20, height: 20,
                           decoration: const BoxDecoration(
                             gradient: LinearGradient(
-                              colors: [Color(0xFF58DAD0), Color(0xFF1EC9B8)],
+                              colors: [
+                                Color(0xFF58DAD0),
+                                Color(0xFF1EC9B8),
+                              ],
                             ),
                             shape: BoxShape.circle,
                           ),

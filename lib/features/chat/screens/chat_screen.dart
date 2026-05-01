@@ -7,7 +7,6 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/chat_message.dart';
-import '../models/message_model.dart';
 import '../providers/chat_provider.dart';
 import '../widgets/ai_spark_chip.dart';
 import '../widgets/itinerary_tray.dart';
@@ -43,13 +42,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   static const _muted = Color(0xFFA8C4BF);
   static const _faint = Color(0xFF6A8882);
 
-  // ── Build a ChatMessage (local UI model) from a live MessageModel ─────────
-  ChatMessage _toLocal(MessageModel m, String myId) {
+  // Build a local UI ChatMessage from a live MessageModel
+  ChatMessage _toLocal(dynamic m, String myId) {
     return ChatMessage(
-      id:        m.id,
-      text:      m.content,
-      isMe:      m.senderId == myId,
-      timestamp: m.createdAt,
+      id:        m.id as String,
+      text:      m.content as String,
+      isMe:      (m.senderId as String) == myId,
+      timestamp: m.createdAt as DateTime,
     );
   }
 
@@ -78,19 +77,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     }
   }
 
+  // chatNotifierProvider is a StateNotifierProvider — read the notifier directly
   void _sendText(String connectionId) {
     final text = _controller.text.trim();
     if (text.isEmpty) return;
-    ref.read(chatNotifierProvider(connectionId)).send(text);
+    ref.read(chatNotifierProvider(connectionId).notifier).send(text);
     _controller.clear();
     ref.read(aiSparkProvider.notifier).state = null;
     _scrollToBottom();
   }
 
   void _sendPlanCard(String connectionId, PlanCardData card) {
-    // Plan cards are sent as a text message with JSON payload in content
-    // For now send as readable text; extend type field later
-    ref.read(chatNotifierProvider(connectionId)).send(
+    ref.read(chatNotifierProvider(connectionId).notifier).send(
       '📍 ${card.placeName} • ${card.category} • ${card.date} ${card.time}',
     );
     ref.read(aiSparkProvider.notifier).state = null;
@@ -171,7 +169,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final aiSpark   = ref.watch(aiSparkProvider);
     final itinerary = ref.watch(itineraryProvider);
 
-    // ── Resolve connection id first ──────────────────────────────────────────
+    // Resolve connection id first
     final connAsync = ref.watch(connectionIdProvider(widget.peerId));
 
     return Scaffold(
@@ -200,12 +198,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     ref.refresh(connectionIdProvider(widget.peerId)),
                 child: Container(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 20, vertical: 10),
+                      horizontal: 20, vertical: 10),
                   decoration: BoxDecoration(
                     color: _teal.withOpacity(.15),
                     borderRadius: BorderRadius.circular(12),
-                    border:
-                        Border.all(color: _teal.withOpacity(.3)),
+                    border: Border.all(
+                        color: _teal.withOpacity(.3)),
                   ),
                   child: const Text(
                     'Retry',
@@ -221,7 +219,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           ),
         ),
         data: (connectionId) {
-          // No accepted connection yet
           if (connectionId == null) {
             return _NoConnectionView(
               peerName: widget.peerName,
@@ -229,7 +226,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             );
           }
 
-          // ── Live message stream ────────────────────────────────────────
           final msgsAsync =
               ref.watch(messagesStreamProvider(connectionId));
 
@@ -268,7 +264,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   onStart:   _startTrip,
                 ),
 
-                // ── Message list ─────────────────────────────────────────
+                // Message list
                 Expanded(
                   child: msgsAsync.when(
                     loading: () => const Center(
@@ -279,31 +275,28 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     error: (e, _) => Center(
                       child: Text(
                         'Could not load messages',
-                        style:
-                            TextStyle(color: _faint, fontSize: 13),
+                        style: TextStyle(
+                            color: _faint, fontSize: 13),
                       ),
                     ),
                     data: (liveMessages) {
-                      // Auto-scroll when new message arrives
                       WidgetsBinding.instance
-                          .addPostFrameCallback((_) => _scrollToBottom());
+                          .addPostFrameCallback(
+                              (_) => _scrollToBottom());
 
                       if (liveMessages.isEmpty) {
                         return Center(
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Text(
-                                '👋',
-                                style: TextStyle(fontSize: 40),
-                              ),
+                              const Text('👋',
+                                  style:
+                                      TextStyle(fontSize: 40)),
                               const SizedBox(height: 12),
                               Text(
                                 'Say hi to ${widget.peerName}!',
                                 style: TextStyle(
-                                  color: _faint,
-                                  fontSize: 14,
-                                ),
+                                    color: _faint, fontSize: 14),
                               ),
                             ],
                           ),
@@ -319,19 +312,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                         padding: const EdgeInsets.fromLTRB(
                             16, 8, 16, 12),
                         itemCount: uiMessages.length,
-                        itemBuilder: (_, i) {
-                          final msg = uiMessages[i];
-                          return MessageBubble(
-                            message: msg,
-                            onAddToItinerary: null,
-                          );
-                        },
+                        itemBuilder: (_, i) => MessageBubble(
+                          message: uiMessages[i],
+                          onAddToItinerary: null,
+                        ),
                       );
                     },
                   ),
                 ),
 
-                // ── AI spark chip ────────────────────────────────────────
+                // AI spark chip
                 AnimatedSize(
                   duration: const Duration(milliseconds: 220),
                   curve: Curves.easeOutCubic,
@@ -348,7 +338,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       : const SizedBox.shrink(),
                 ),
 
-                // ── Input bar ────────────────────────────────────────────
+                // Input bar
                 _InputBar(
                   controller:  _controller,
                   onChanged:   _onTextChanged,
@@ -371,7 +361,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 class _NoConnectionView extends StatelessWidget {
   final String peerName;
   final VoidCallback onBack;
-  const _NoConnectionView({required this.peerName, required this.onBack});
+  const _NoConnectionView(
+      {required this.peerName, required this.onBack});
 
   @override
   Widget build(BuildContext context) {
@@ -400,7 +391,8 @@ class _NoConnectionView extends StatelessWidget {
                   color: const Color(0xFF1EC9B8).withOpacity(.15),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                      color: const Color(0xFF1EC9B8).withOpacity(.3)),
+                      color:
+                          const Color(0xFF1EC9B8).withOpacity(.3)),
                 ),
                 child: const Text(
                   'Back to Chats',
@@ -454,8 +446,8 @@ class _ChatAppBar extends StatelessWidget {
               decoration: BoxDecoration(
                 color: Colors.white.withOpacity(.05),
                 borderRadius: BorderRadius.circular(12),
-                border:
-                    Border.all(color: Colors.white.withOpacity(.08)),
+                border: Border.all(
+                    color: Colors.white.withOpacity(.08)),
               ),
               child: const Icon(
                 Icons.arrow_back_ios_new_rounded,
@@ -501,8 +493,8 @@ class _ChatAppBar extends StatelessWidget {
                 ),
                 Text(
                   tripLabel,
-                  style: const TextStyle(
-                      color: _muted, fontSize: 11),
+                  style:
+                      const TextStyle(color: _muted, fontSize: 11),
                 ),
               ],
             ),
@@ -581,13 +573,11 @@ class _InputBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding:
-          EdgeInsets.fromLTRB(16, 10, 16, 16 + bottomInset),
+      padding: EdgeInsets.fromLTRB(16, 10, 16, 16 + bottomInset),
       decoration: BoxDecoration(
         color: const Color(0xFF0A1516),
         border: Border(
-          top: BorderSide(
-              color: Colors.white.withOpacity(.05)),
+          top: BorderSide(color: Colors.white.withOpacity(.05)),
         ),
       ),
       child: Row(
@@ -614,8 +604,7 @@ class _InputBar extends StatelessWidget {
 
           Expanded(
             child: Container(
-              constraints:
-                  const BoxConstraints(maxHeight: 120),
+              constraints: const BoxConstraints(maxHeight: 120),
               decoration: BoxDecoration(
                 color: Colors.white.withOpacity(.04),
                 borderRadius: BorderRadius.circular(16),
@@ -650,10 +639,7 @@ class _InputBar extends StatelessWidget {
               width: 40, height: 40,
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
-                  colors: [
-                    Color(0xFF58DAD0),
-                    Color(0xFF1EC9B8),
-                  ],
+                  colors: [Color(0xFF58DAD0), Color(0xFF1EC9B8)],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
@@ -733,10 +719,7 @@ class _StartTripBannerState extends State<_StartTripBanner>
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [
-              _teal.withOpacity(.12),
-              Colors.transparent,
-            ],
+            colors: [_teal.withOpacity(.12), Colors.transparent],
           ),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
@@ -762,8 +745,7 @@ class _StartTripBannerState extends State<_StartTripBanner>
                       width: 14, height: 14,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: _teal.withOpacity(
-                            _glow.value * 0.6),
+                        color: _teal.withOpacity(_glow.value * 0.6),
                       ),
                     ),
                     Container(
@@ -793,8 +775,7 @@ class _StartTripBannerState extends State<_StartTripBanner>
                     const SizedBox(height: 2),
                     const Text(
                       'Plans locked in? Start live tracking.',
-                      style: TextStyle(
-                          color: _faint, fontSize: 11),
+                      style: TextStyle(color: _faint, fontSize: 11),
                     ),
                   ],
                 ),
@@ -804,8 +785,7 @@ class _StartTripBannerState extends State<_StartTripBanner>
                 onTap: widget.onStart,
                 child: Container(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 14, vertical: 8,
-                  ),
+                      horizontal: 14, vertical: 8),
                   decoration: BoxDecoration(
                     color: _teal,
                     borderRadius: BorderRadius.circular(12),
