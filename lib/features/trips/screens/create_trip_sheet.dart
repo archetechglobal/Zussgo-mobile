@@ -130,14 +130,19 @@ const _kDestinations = [
 
   // Americas & Others
   _Destination('New York', '🗽', 'Americas'),
+  _Destination('Mexico City', '🌮', 'Americas'),
+  _Destination('Rio de Janeiro', '🎭', 'Americas'),
+  _Destination('Machu Picchu', '🏔', 'Americas'),
   _Destination('Tokyo', '⛩', 'East Asia'),
   _Destination('Kyoto', '🍁', 'East Asia'),
   _Destination('Osaka', '🦌', 'East Asia'),
+  _Destination('Seoul', '🏙', 'East Asia'),
   _Destination('Dubai', '🏙', 'Middle East'),
   _Destination('Istanbul', '🕌', 'Middle East'),
   _Destination('Cairo', '🏺', 'Africa & Middle East'),
   _Destination('Marrakech', '🌿', 'Africa & Middle East'),
   _Destination('Zanzibar', '🏝', 'Africa & Middle East'),
+  _Destination('Cape Town', '🦁', 'Africa & Middle East'),
 ];
 
 // ─── Root flow widget ─────────────────────────────────────────────────────────
@@ -283,7 +288,7 @@ class _CreateTripFlowState extends ConsumerState<_CreateTripFlow> {
   }
 }
 
-// ─── Destination Picker Sheet (NEW) ───────────────────────────────────────────
+// ─── Destination Picker Sheet ─────────────────────────────────────────────────
 
 class _DestinationPickerSheet extends StatefulWidget {
   final ValueChanged<String> onPick;
@@ -293,18 +298,18 @@ class _DestinationPickerSheet extends StatefulWidget {
   State<_DestinationPickerSheet> createState() => _DestinationPickerSheetState();
 }
 
-class _DestinationPickerSheetState extends State<_DestinationPickerSheet> {
+class _DestinationPickerSheetState extends State<_DestinationPickerSheet>
+    with SingleTickerProviderStateMixin {
   final _searchCtrl = TextEditingController();
+  final _scrollCtrl = ScrollController();
   String _query = '';
   String? _selectedRegion;
+  late final AnimationController _fadeCtrl;
+  late final Animation<double> _fadeAnim;
 
-  // All unique regions
   List<String> get _regions {
     final seen = <String>{};
-    return _kDestinations
-        .map((d) => d.region)
-        .where((r) => seen.add(r))
-        .toList();
+    return _kDestinations.map((d) => d.region).where((r) => seen.add(r)).toList();
   }
 
   List<_Destination> get _filtered {
@@ -321,7 +326,6 @@ class _DestinationPickerSheetState extends State<_DestinationPickerSheet> {
     return list;
   }
 
-  // Group by region
   Map<String, List<_Destination>> get _grouped {
     final map = <String, List<_Destination>>{};
     for (final d in _filtered) {
@@ -330,208 +334,321 @@ class _DestinationPickerSheetState extends State<_DestinationPickerSheet> {
     return map;
   }
 
+  // Build flat list items for CustomScrollView sliver
+  List<_ListItem> get _flatItems {
+    final items = <_ListItem>[];
+    for (final entry in _grouped.entries) {
+      items.add(_ListItem.header(entry.key));
+      for (final dest in entry.value) {
+        items.add(_ListItem.dest(dest));
+      }
+    }
+    return items;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _fadeCtrl = AnimationController(
+      vsync: this, duration: const Duration(milliseconds: 200));
+    _fadeAnim = CurvedAnimation(parent: _fadeCtrl, curve: Curves.easeOut);
+    _fadeCtrl.forward();
+  }
+
   @override
   void dispose() {
     _searchCtrl.dispose();
+    _scrollCtrl.dispose();
+    _fadeCtrl.dispose();
     super.dispose();
+  }
+
+  void _onSearch(String v) {
+    setState(() {
+      _query = v.trim();
+      _selectedRegion = null;
+    });
+  }
+
+  void _clearSearch() {
+    _searchCtrl.clear();
+    setState(() => _query = '');
+  }
+
+  void _selectRegion(String? region) {
+    _searchCtrl.clear();
+    setState(() {
+      _selectedRegion = region;
+      _query = '';
+    });
+    if (_scrollCtrl.hasClients) {
+      _scrollCtrl.animateTo(0,
+          duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final sh = MediaQuery.of(context).size.height;
-    final bi = MediaQuery.of(context).padding.bottom;
-    final grouped = _grouped;
+    final mq = MediaQuery.of(context);
+    final bi = mq.padding.bottom;
+    final flatItems = _flatItems;
 
-    return Container(
-      height: sh * 0.88,
-      decoration: const BoxDecoration(
-        color: Color(0xFF0A1516),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
-      child: Column(
-        children: [
-          // ── Handle ────────────────────────────────────────────────────────
-          const SizedBox(height: 12),
-          Center(
-            child: Container(
-              width: 40, height: 4,
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(.15),
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-          ),
-          const SizedBox(height: 20),
-
-          // ── Title ─────────────────────────────────────────────────────────
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 20),
-            child: Row(
-              children: [
-                Text('🌍', style: TextStyle(fontSize: 20)),
-                SizedBox(width: 10),
-                Text(
-                  'Where to?',
-                  style: TextStyle(
-                    color: _kText, fontSize: 20, fontWeight: FontWeight.w800,
-                  ),
+    return FadeTransition(
+      opacity: _fadeAnim,
+      child: Container(
+        // Use a DraggableScrollableSheet-style height that respects safe area
+        height: mq.size.height * 0.90,
+        decoration: const BoxDecoration(
+          color: Color(0xFF0A1516),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        child: Column(
+          children: [
+            // ── Handle ───────────────────────────────────────────────────────
+            const SizedBox(height: 12),
+            Center(
+              child: Container(
+                width: 40, height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(.15),
+                  borderRadius: BorderRadius.circular(2),
                 ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 4),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 20),
-            child: Text(
-              'Search any city, state or country',
-              style: TextStyle(color: _kFaint, fontSize: 12),
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          // ── Search bar ────────────────────────────────────────────────────
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Container(
-              height: 48,
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(.05),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: _kTeal.withOpacity(.25)),
               ),
+            ),
+            const SizedBox(height: 18),
+
+            // ── Header ────────────────────────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Row(
                 children: [
-                  const SizedBox(width: 14),
-                  Icon(Icons.search_rounded, color: _kTeal2, size: 20),
+                  const Text('🌍', style: TextStyle(fontSize: 22)),
                   const SizedBox(width: 10),
-                  Expanded(
-                    child: TextField(
-                      controller: _searchCtrl,
-                      autofocus: false,
-                      style: const TextStyle(color: _kText, fontSize: 15),
-                      onChanged: (v) => setState(() {
-                        _query = v.trim();
-                        _selectedRegion = null; // clear region filter on search
-                      }),
-                      decoration: InputDecoration(
-                        hintText: 'Goa, Manali, Bali...',
-                        hintStyle: TextStyle(color: _kFaint, fontSize: 14),
-                        border: InputBorder.none,
-                        isDense: true,
-                        suffixIcon: _query.isNotEmpty
-                            ? GestureDetector(
-                                onTap: () {
-                                  _searchCtrl.clear();
-                                  setState(() => _query = '');
-                                },
-                                child: const Icon(Icons.close_rounded,
-                                    color: _kFaint, size: 16),
-                              )
-                            : null,
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Where to?',
+                          style: TextStyle(
+                            color: _kText, fontSize: 20, fontWeight: FontWeight.w800,
+                          )),
+                        SizedBox(height: 2),
+                        Text('Search any city, region or country',
+                          style: TextStyle(color: _kFaint, fontSize: 12)),
+                      ],
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: () => Navigator.of(context).pop(),
+                    child: Container(
+                      width: 32, height: 32,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(.06),
+                        borderRadius: BorderRadius.circular(10),
                       ),
+                      child: const Icon(Icons.close_rounded, color: _kMuted, size: 16),
                     ),
                   ),
                 ],
               ),
             ),
-          ),
-          const SizedBox(height: 14),
+            const SizedBox(height: 16),
 
-          // ── Region chips ──────────────────────────────────────────────────
-          SizedBox(
-            height: 36,
-            child: ListView.separated(
+            // ── Search bar ────────────────────────────────────────────────────
+            Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              scrollDirection: Axis.horizontal,
-              itemCount: _regions.length + 1,
-              separatorBuilder: (_, __) => const SizedBox(width: 8),
-              itemBuilder: (_, i) {
-                if (i == 0) {
-                  final selected = _selectedRegion == null && _query.isEmpty;
-                  return _RegionChip(
-                    label: 'All',
-                    selected: selected,
-                    onTap: () => setState(() {
-                      _selectedRegion = null;
-                      _searchCtrl.clear();
-                      _query = '';
-                    }),
-                  );
-                }
-                final region = _regions[i - 1];
-                return _RegionChip(
-                  label: region.split(' · ').last,
-                  selected: _selectedRegion == region,
-                  onTap: () => setState(() {
-                    _selectedRegion = region;
-                    _searchCtrl.clear();
-                    _query = '';
-                  }),
-                );
-              },
-            ),
-          ),
-          const SizedBox(height: 12),
-
-          // ── Divider ───────────────────────────────────────────────────────
-          Divider(
-            height: 1,
-            color: Colors.white.withOpacity(.07),
-            indent: 16,
-            endIndent: 16,
-          ),
-          const SizedBox(height: 4),
-
-          // ── Destination list ──────────────────────────────────────────────
-          Expanded(
-            child: grouped.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text('✈️', style: TextStyle(fontSize: 36)),
-                        const SizedBox(height: 12),
-                        const Text(
-                          'No destinations found',
-                          style: TextStyle(color: _kMuted, fontSize: 14),
-                        ),
-                        const SizedBox(height: 6),
-                        const Text(
-                          'Try a different search',
-                          style: TextStyle(color: _kFaint, fontSize: 12),
-                        ),
-                      ],
-                    ),
-                  )
-                : ListView.builder(
-                    padding: EdgeInsets.fromLTRB(16, 8, 16, 32 + bi),
-                    itemCount: grouped.entries
-                        .fold(0, (sum, e) => sum + 1 + e.value.length),
-                    itemBuilder: (context, rawIndex) {
-                      // Flatten sections
-                      int cursor = 0;
-                      for (final entry in grouped.entries) {
-                        if (rawIndex == cursor) {
-                          // Region header
-                          return _RegionHeader(label: entry.key);
-                        }
-                        cursor++;
-                        final items = entry.value;
-                        if (rawIndex < cursor + items.length) {
-                          final dest = items[rawIndex - cursor];
-                          return _DestRow(
-                            destination: dest,
-                            onTap: () {
-                              widget.onPick(dest.name);
-                              Navigator.of(context).pop();
-                            },
-                          );
-                        }
-                        cursor += items.length;
-                      }
-                      return const SizedBox.shrink();
-                    },
+              child: Container(
+                height: 50,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(.05),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: _query.isNotEmpty
+                        ? _kTeal.withOpacity(.45)
+                        : _kTeal.withOpacity(.20),
                   ),
+                ),
+                child: Row(
+                  children: [
+                    const SizedBox(width: 14),
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 180),
+                      child: _query.isNotEmpty
+                          ? const Icon(Icons.search_rounded, color: _kTeal2, size: 20,
+                              key: ValueKey('active'))
+                          : Icon(Icons.search_rounded,
+                              color: _kFaint, size: 20, key: const ValueKey('idle')),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: TextField(
+                        controller: _searchCtrl,
+                        autofocus: false,
+                        style: const TextStyle(
+                          color: _kText, fontSize: 15, fontWeight: FontWeight.w500),
+                        onChanged: _onSearch,
+                        decoration: InputDecoration(
+                          hintText: 'Goa, Manali, Bali, Paris...',
+                          hintStyle: const TextStyle(color: _kFaint, fontSize: 14),
+                          border: InputBorder.none,
+                          isDense: true,
+                          suffixIcon: _query.isNotEmpty
+                              ? GestureDetector(
+                                  onTap: _clearSearch,
+                                  child: const Padding(
+                                    padding: EdgeInsets.only(right: 12),
+                                    child: Icon(Icons.cancel_rounded,
+                                        color: _kFaint, size: 18),
+                                  ),
+                                )
+                              : null,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // ── Region filter chips ───────────────────────────────────────────
+            SizedBox(
+              height: 34,
+              child: ListView(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                scrollDirection: Axis.horizontal,
+                children: [
+                  _RegionChip(
+                    label: '✦ All',
+                    selected: _selectedRegion == null && _query.isEmpty,
+                    onTap: () => _selectRegion(null),
+                  ),
+                  const SizedBox(width: 8),
+                  ..._regions.map((r) {
+                    final short = r.split(' · ').last;
+                    final regionEmoji = _regionEmoji(r);
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: _RegionChip(
+                        label: '$regionEmoji $short',
+                        selected: _selectedRegion == r,
+                        onTap: () => _selectRegion(r),
+                      ),
+                    );
+                  }),
+                ],
+              ),
+            ),
+            const SizedBox(height: 10),
+
+            // ── Divider ───────────────────────────────────────────────────────
+            Divider(height: 1, color: Colors.white.withOpacity(.07),
+                indent: 16, endIndent: 16),
+
+            // ── Result count strip ────────────────────────────────────────────
+            if (_query.isNotEmpty || _selectedRegion != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+                child: Row(
+                  children: [
+                    Text(
+                      '${_filtered.length} destination${_filtered.length == 1 ? '' : 's'}',
+                      style: const TextStyle(
+                          color: _kTeal2, fontSize: 11, fontWeight: FontWeight.w700),
+                    ),
+                    if (_query.isNotEmpty) ...[
+                      const Text('  for  ',
+                          style: TextStyle(color: _kFaint, fontSize: 11)),
+                      Text('"$_query"',
+                          style: const TextStyle(
+                              color: _kMuted, fontSize: 11, fontStyle: FontStyle.italic)),
+                    ],
+                  ],
+                ),
+              ),
+
+            // ── List ──────────────────────────────────────────────────────────
+            Expanded(
+              child: flatItems.isEmpty
+                  ? _EmptyState(query: _query)
+                  : ListView.builder(
+                      controller: _scrollCtrl,
+                      padding: EdgeInsets.fromLTRB(16, 8, 16, 24 + bi),
+                      itemCount: flatItems.length,
+                      itemBuilder: (ctx, i) {
+                        final item = flatItems[i];
+                        if (item.isHeader) {
+                          return _RegionHeader(label: item.label!);
+                        }
+                        return _DestRow(
+                          destination: item.dest!,
+                          query: _query,
+                          onTap: () {
+                            widget.onPick(item.dest!.name);
+                            Navigator.of(context).pop();
+                          },
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _regionEmoji(String region) {
+    if (region.contains('Mountains')) return '🏔';
+    if (region.contains('Beaches')) return '🏖';
+    if (region.contains('South')) return '🌴';
+    if (region.contains('Rajasthan')) return '🏜';
+    if (region.contains('East')) return '🌸';
+    if (region.contains('South-East')) return '🌺';
+    if (region.contains('Central') || region.contains('Nepal')) return '🐉';
+    if (region.contains('Europe')) return '🗺';
+    if (region.contains('Americas')) return '🗽';
+    if (region.contains('East Asia')) return '⛩';
+    if (region.contains('Middle')) return '🕌';
+    if (region.contains('Africa')) return '🦁';
+    return '📍';
+  }
+}
+
+// ─── List item model ──────────────────────────────────────────────────────────
+
+class _ListItem {
+  final bool isHeader;
+  final String? label;
+  final _Destination? dest;
+  const _ListItem._({required this.isHeader, this.label, this.dest});
+  factory _ListItem.header(String label) =>
+      _ListItem._(isHeader: true, label: label);
+  factory _ListItem.dest(_Destination d) =>
+      _ListItem._(isHeader: false, dest: d);
+}
+
+// ─── Empty state ──────────────────────────────────────────────────────────────
+
+class _EmptyState extends StatelessWidget {
+  final String query;
+  const _EmptyState({required this.query});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text('✈️', style: TextStyle(fontSize: 40)),
+          const SizedBox(height: 14),
+          Text(
+            query.isEmpty ? 'No destinations' : 'No results for "$query"',
+            style: const TextStyle(color: _kMuted, fontSize: 15, fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Try a different name or browse all',
+            style: TextStyle(color: _kFaint, fontSize: 12),
           ),
         ],
       ),
@@ -552,14 +669,19 @@ class _RegionChip extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          color: selected ? _kTeal.withOpacity(.18) : Colors.white.withOpacity(.05),
+          color: selected ? _kTeal.withOpacity(.18) : Colors.white.withOpacity(.04),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: selected ? _kTeal.withOpacity(.5) : Colors.white.withOpacity(.08),
+            color: selected ? _kTeal.withOpacity(.55) : Colors.white.withOpacity(.08),
+            width: selected ? 1.2 : 1,
           ),
+          boxShadow: selected
+              ? [BoxShadow(color: _kTeal.withOpacity(.15), blurRadius: 8)]
+              : null,
         ),
         child: Text(
           label,
@@ -583,15 +705,27 @@ class _RegionHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(4, 16, 0, 8),
-      child: Text(
-        label.toUpperCase(),
-        style: const TextStyle(
-          color: _kFaint,
-          fontSize: 10,
-          fontWeight: FontWeight.w800,
-          letterSpacing: 0.8,
-        ),
+      padding: const EdgeInsets.fromLTRB(4, 20, 0, 8),
+      child: Row(
+        children: [
+          Container(
+            width: 3, height: 12,
+            decoration: BoxDecoration(
+              color: _kTeal2,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            label.toUpperCase(),
+            style: const TextStyle(
+              color: _kTeal2,
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.0,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -602,31 +736,32 @@ class _RegionHeader extends StatelessWidget {
 class _DestRow extends StatelessWidget {
   final _Destination destination;
   final VoidCallback onTap;
-  const _DestRow({required this.destination, required this.onTap});
+  final String query;
+  const _DestRow({required this.destination, required this.onTap, this.query = ''});
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        margin: const EdgeInsets.only(bottom: 6),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
           color: Colors.white.withOpacity(.03),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Colors.white.withOpacity(.06)),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white.withOpacity(.07)),
         ),
         child: Row(
           children: [
             Container(
-              width: 40, height: 40,
+              width: 44, height: 44,
               decoration: BoxDecoration(
                 color: _kTeal.withOpacity(.08),
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(13),
                 border: Border.all(color: _kTeal.withOpacity(.15)),
               ),
               child: Center(
-                child: Text(destination.emoji, style: const TextStyle(fontSize: 18)),
+                child: Text(destination.emoji, style: const TextStyle(fontSize: 20)),
               ),
             ),
             const SizedBox(width: 12),
@@ -634,22 +769,19 @@ class _DestRow extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    destination.name,
-                    style: const TextStyle(
-                      color: _kText,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                    ),
+                  _HighlightText(
+                    text: destination.name,
+                    query: query,
+                    baseStyle: const TextStyle(
+                      color: _kText, fontSize: 15, fontWeight: FontWeight.w700),
+                    highlightStyle: const TextStyle(
+                      color: _kTeal2, fontSize: 15, fontWeight: FontWeight.w700,
+                      backgroundColor: Color(0x221EC9B8)),
                   ),
-                  const SizedBox(height: 2),
+                  const SizedBox(height: 3),
                   Text(
                     destination.region,
-                    style: const TextStyle(
-                      color: _kFaint,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w500,
-                    ),
+                    style: const TextStyle(color: _kFaint, fontSize: 11, fontWeight: FontWeight.w500),
                   ),
                 ],
               ),
@@ -658,6 +790,38 @@ class _DestRow extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+// ─── Highlight text (bold-matches search query) ────────────────────────────────
+
+class _HighlightText extends StatelessWidget {
+  final String text;
+  final String query;
+  final TextStyle baseStyle;
+  final TextStyle highlightStyle;
+  const _HighlightText({
+    required this.text, required this.query,
+    required this.baseStyle, required this.highlightStyle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (query.isEmpty) {
+      return Text(text, style: baseStyle);
+    }
+    final lower = text.toLowerCase();
+    final q = query.toLowerCase();
+    final start = lower.indexOf(q);
+    if (start < 0) return Text(text, style: baseStyle);
+    final end = start + q.length;
+    return RichText(
+      text: TextSpan(children: [
+        if (start > 0) TextSpan(text: text.substring(0, start), style: baseStyle),
+        TextSpan(text: text.substring(start, end), style: highlightStyle),
+        if (end < text.length) TextSpan(text: text.substring(end), style: baseStyle),
+      ]),
     );
   }
 }
@@ -1467,7 +1631,7 @@ class _Tag extends StatelessWidget {
   }
 }
 
-// ─── Generic Picker sheet (Dates, Vibe, Budget) ────────────────────────────────
+// ─── Generic Picker sheet (Dates, Vibe, Budget) ───────────────────────────────
 
 class _PickerSheet extends StatelessWidget {
   final String label;
