@@ -32,6 +32,114 @@ const _kText    = Color(0xFFEDF7F4);
 const _kMuted   = Color(0xFFA8C4BF);
 const _kFaint   = Color(0xFF6A8882);
 
+// ─── Destination data ─────────────────────────────────────────────────────────
+
+class _Destination {
+  final String name;
+  final String emoji;
+  final String region;
+  const _Destination(this.name, this.emoji, this.region);
+}
+
+const _kDestinations = [
+  // India – Mountains
+  _Destination('Manali', '🏔', 'India · Mountains'),
+  _Destination('Kasol', '🌿', 'India · Mountains'),
+  _Destination('Spiti Valley', '🗻', 'India · Mountains'),
+  _Destination('Leh Ladakh', '🏔', 'India · Mountains'),
+  _Destination('Dharamshala', '🌄', 'India · Mountains'),
+  _Destination('Rishikesh', '🌊', 'India · Mountains'),
+  _Destination('Uttarkashi', '⛺', 'India · Mountains'),
+  _Destination('Chopta', '🦌', 'India · Mountains'),
+  _Destination('Auli', '⛷', 'India · Mountains'),
+  _Destination('Munsiyari', '🌨', 'India · Mountains'),
+
+  // India – Beaches
+  _Destination('Goa', '🌊', 'India · Beaches'),
+  _Destination('Varkala', '🏖', 'India · Beaches'),
+  _Destination('Pondicherry', '🌺', 'India · Beaches'),
+  _Destination('Gokarna', '🐚', 'India · Beaches'),
+  _Destination('Andaman Islands', '🏝', 'India · Beaches'),
+  _Destination('Lakshadweep', '🐠', 'India · Beaches'),
+  _Destination('Alibaug', '⛵', 'India · Beaches'),
+  _Destination('Tarkarli', '🤿', 'India · Beaches'),
+
+  // India – South
+  _Destination('Kerala', '🌴', 'India · South'),
+  _Destination('Coorg', '☕', 'India · South'),
+  _Destination('Ooty', '🚂', 'India · South'),
+  _Destination('Munnar', '🍃', 'India · South'),
+  _Destination('Hampi', '🏛', 'India · South'),
+  _Destination('Mysore', '🎭', 'India · South'),
+  _Destination('Wayanad', '🐘', 'India · South'),
+  _Destination('Alleppey', '🛶', 'India · South'),
+
+  // India – Rajasthan
+  _Destination('Jaipur', '🏰', 'India · Rajasthan'),
+  _Destination('Udaipur', '🏯', 'India · Rajasthan'),
+  _Destination('Jodhpur', '💙', 'India · Rajasthan'),
+  _Destination('Jaisalmer', '🏜', 'India · Rajasthan'),
+  _Destination('Pushkar', '🐪', 'India · Rajasthan'),
+  _Destination('Mount Abu', '🌅', 'India · Rajasthan'),
+  _Destination('Bikaner', '🐫', 'India · Rajasthan'),
+
+  // India – East & NE
+  _Destination('Darjeeling', '🍵', 'India · East & NE'),
+  _Destination('Sikkim', '🌸', 'India · East & NE'),
+  _Destination('Meghalaya', '🌧', 'India · East & NE'),
+  _Destination('Assam', '🦏', 'India · East & NE'),
+  _Destination('Arunachal Pradesh', '🌄', 'India · East & NE'),
+  _Destination('Ziro Valley', '🎋', 'India · East & NE'),
+  _Destination('Kaziranga', '🦏', 'India · East & NE'),
+  _Destination('Cherrapunji', '☔', 'India · East & NE'),
+
+  // South-East Asia
+  _Destination('Bali', '🌺', 'South-East Asia'),
+  _Destination('Bangkok', '🛺', 'South-East Asia'),
+  _Destination('Chiang Mai', '🐘', 'South-East Asia'),
+  _Destination('Phuket', '🏝', 'South-East Asia'),
+  _Destination('Krabi', '🌊', 'South-East Asia'),
+  _Destination('Koh Samui', '🥥', 'South-East Asia'),
+  _Destination('Vietnam', '🍜', 'South-East Asia'),
+  _Destination('Hoi An', '🏮', 'South-East Asia'),
+  _Destination('Ha Long Bay', '⛵', 'South-East Asia'),
+  _Destination('Cambodia', '🏛', 'South-East Asia'),
+  _Destination('Singapore', '🦁', 'South-East Asia'),
+  _Destination('Bohol', '🌿', 'South-East Asia'),
+  _Destination('Palawan', '🏝', 'South-East Asia'),
+
+  // Central Asia & Nepal
+  _Destination('Nepal', '🏔', 'Central Asia & Nepal'),
+  _Destination('Kathmandu', '🙏', 'Central Asia & Nepal'),
+  _Destination('Pokhara', '🚣', 'Central Asia & Nepal'),
+  _Destination('Bhutan', '🐉', 'Central Asia & Nepal'),
+  _Destination('Sri Lanka', '🌿', 'Central Asia & Nepal'),
+  _Destination('Maldives', '🐬', 'Central Asia & Nepal'),
+
+  // Europe
+  _Destination('Paris', '🗼', 'Europe'),
+  _Destination('Barcelona', '🏖', 'Europe'),
+  _Destination('Amsterdam', '🌷', 'Europe'),
+  _Destination('Rome', '🍕', 'Europe'),
+  _Destination('Prague', '🍺', 'Europe'),
+  _Destination('Santorini', '🌅', 'Europe'),
+  _Destination('Amalfi Coast', '🍋', 'Europe'),
+  _Destination('Dubrovnik', '🏰', 'Europe'),
+  _Destination('Iceland', '🌋', 'Europe'),
+  _Destination('Swiss Alps', '⛷', 'Europe'),
+
+  // Americas & Others
+  _Destination('New York', '🗽', 'Americas'),
+  _Destination('Tokyo', '⛩', 'East Asia'),
+  _Destination('Kyoto', '🍁', 'East Asia'),
+  _Destination('Osaka', '🦌', 'East Asia'),
+  _Destination('Dubai', '🏙', 'Middle East'),
+  _Destination('Istanbul', '🕌', 'Middle East'),
+  _Destination('Cairo', '🏺', 'Africa & Middle East'),
+  _Destination('Marrakech', '🌿', 'Africa & Middle East'),
+  _Destination('Zanzibar', '🏝', 'Africa & Middle East'),
+];
+
 // ─── Root flow widget ─────────────────────────────────────────────────────────
 
 class _CreateTripFlow extends ConsumerStatefulWidget {
@@ -82,7 +190,7 @@ class _CreateTripFlowState extends ConsumerState<_CreateTripFlow> {
           userName:    userName,
           userInitial: userInitial,
           onClose: () => Navigator.of(context).pop(),
-          onDestinationTap: () => _pickField('Destination', ['Goa', 'Manali', 'Kerala', 'Spiti Valley', 'Bali', 'Coorg', 'Jaipur', 'Kasol'], (v) => setState(() => _destination = v)),
+          onDestinationTap: () => _pickDestination(),
           onDatesTap: () => _pickField('Dates', ['May 10–14', 'May 12–15', 'May 18–22', 'May 20–25', 'Jun 1–7', 'Jun 14–20'], (v) => setState(() => _dates = v)),
           onVibeTap: () => _pickField('Vibe', ['🌊 Beach & Chill', '🏔 Adventure', '🎉 Party', '🏛 Culture', '🧘 Spiritual', '🌿 Nature'], (v) => setState(() => _vibe = v)),
           onBudgetTap: () => _pickField('Budget', ['₹ Budget', '₹₹ Mid-range', '₹₹₹ Comfortable', '💎 Luxury'], (v) => setState(() => _budget = v)),
@@ -120,10 +228,22 @@ class _CreateTripFlowState extends ConsumerState<_CreateTripFlow> {
     );
   }
 
+  void _pickDestination() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _DestinationPickerSheet(
+        onPick: (v) => setState(() => _destination = v),
+      ),
+    );
+  }
+
   void _pickField(String label, List<String> options, ValueChanged<String> onPick) {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
+      isScrollControlled: true,
       builder: (_) => _PickerSheet(label: label, options: options, onPick: onPick),
     );
   }
@@ -156,6 +276,385 @@ class _CreateTripFlowState extends ConsumerState<_CreateTripFlow> {
               'Live on radar — travelers notified!',
               style: TextStyle(color: _kText, fontSize: 13, fontWeight: FontWeight.w700),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Destination Picker Sheet (NEW) ───────────────────────────────────────────
+
+class _DestinationPickerSheet extends StatefulWidget {
+  final ValueChanged<String> onPick;
+  const _DestinationPickerSheet({required this.onPick});
+
+  @override
+  State<_DestinationPickerSheet> createState() => _DestinationPickerSheetState();
+}
+
+class _DestinationPickerSheetState extends State<_DestinationPickerSheet> {
+  final _searchCtrl = TextEditingController();
+  String _query = '';
+  String? _selectedRegion;
+
+  // All unique regions
+  List<String> get _regions {
+    final seen = <String>{};
+    return _kDestinations
+        .map((d) => d.region)
+        .where((r) => seen.add(r))
+        .toList();
+  }
+
+  List<_Destination> get _filtered {
+    var list = _kDestinations.toList();
+    if (_selectedRegion != null) {
+      list = list.where((d) => d.region == _selectedRegion).toList();
+    }
+    if (_query.isNotEmpty) {
+      final q = _query.toLowerCase();
+      list = list.where((d) =>
+          d.name.toLowerCase().contains(q) ||
+          d.region.toLowerCase().contains(q)).toList();
+    }
+    return list;
+  }
+
+  // Group by region
+  Map<String, List<_Destination>> get _grouped {
+    final map = <String, List<_Destination>>{};
+    for (final d in _filtered) {
+      map.putIfAbsent(d.region, () => []).add(d);
+    }
+    return map;
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final sh = MediaQuery.of(context).size.height;
+    final bi = MediaQuery.of(context).padding.bottom;
+    final grouped = _grouped;
+
+    return Container(
+      height: sh * 0.88,
+      decoration: const BoxDecoration(
+        color: Color(0xFF0A1516),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      child: Column(
+        children: [
+          // ── Handle ────────────────────────────────────────────────────────
+          const SizedBox(height: 12),
+          Center(
+            child: Container(
+              width: 40, height: 4,
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(.15),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          // ── Title ─────────────────────────────────────────────────────────
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 20),
+            child: Row(
+              children: [
+                Text('🌍', style: TextStyle(fontSize: 20)),
+                SizedBox(width: 10),
+                Text(
+                  'Where to?',
+                  style: TextStyle(
+                    color: _kText, fontSize: 20, fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 4),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 20),
+            child: Text(
+              'Search any city, state or country',
+              style: TextStyle(color: _kFaint, fontSize: 12),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // ── Search bar ────────────────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Container(
+              height: 48,
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(.05),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: _kTeal.withOpacity(.25)),
+              ),
+              child: Row(
+                children: [
+                  const SizedBox(width: 14),
+                  Icon(Icons.search_rounded, color: _kTeal2, size: 20),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: TextField(
+                      controller: _searchCtrl,
+                      autofocus: false,
+                      style: const TextStyle(color: _kText, fontSize: 15),
+                      onChanged: (v) => setState(() {
+                        _query = v.trim();
+                        _selectedRegion = null; // clear region filter on search
+                      }),
+                      decoration: InputDecoration(
+                        hintText: 'Goa, Manali, Bali...',
+                        hintStyle: TextStyle(color: _kFaint, fontSize: 14),
+                        border: InputBorder.none,
+                        isDense: true,
+                        suffixIcon: _query.isNotEmpty
+                            ? GestureDetector(
+                                onTap: () {
+                                  _searchCtrl.clear();
+                                  setState(() => _query = '');
+                                },
+                                child: const Icon(Icons.close_rounded,
+                                    color: _kFaint, size: 16),
+                              )
+                            : null,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+
+          // ── Region chips ──────────────────────────────────────────────────
+          SizedBox(
+            height: 36,
+            child: ListView.separated(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              scrollDirection: Axis.horizontal,
+              itemCount: _regions.length + 1,
+              separatorBuilder: (_, __) => const SizedBox(width: 8),
+              itemBuilder: (_, i) {
+                if (i == 0) {
+                  final selected = _selectedRegion == null && _query.isEmpty;
+                  return _RegionChip(
+                    label: 'All',
+                    selected: selected,
+                    onTap: () => setState(() {
+                      _selectedRegion = null;
+                      _searchCtrl.clear();
+                      _query = '';
+                    }),
+                  );
+                }
+                final region = _regions[i - 1];
+                return _RegionChip(
+                  label: region.split(' · ').last,
+                  selected: _selectedRegion == region,
+                  onTap: () => setState(() {
+                    _selectedRegion = region;
+                    _searchCtrl.clear();
+                    _query = '';
+                  }),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // ── Divider ───────────────────────────────────────────────────────
+          Divider(
+            height: 1,
+            color: Colors.white.withOpacity(.07),
+            indent: 16,
+            endIndent: 16,
+          ),
+          const SizedBox(height: 4),
+
+          // ── Destination list ──────────────────────────────────────────────
+          Expanded(
+            child: grouped.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text('✈️', style: TextStyle(fontSize: 36)),
+                        const SizedBox(height: 12),
+                        const Text(
+                          'No destinations found',
+                          style: TextStyle(color: _kMuted, fontSize: 14),
+                        ),
+                        const SizedBox(height: 6),
+                        const Text(
+                          'Try a different search',
+                          style: TextStyle(color: _kFaint, fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  )
+                : ListView.builder(
+                    padding: EdgeInsets.fromLTRB(16, 8, 16, 32 + bi),
+                    itemCount: grouped.entries
+                        .fold(0, (sum, e) => sum + 1 + e.value.length),
+                    itemBuilder: (context, rawIndex) {
+                      // Flatten sections
+                      int cursor = 0;
+                      for (final entry in grouped.entries) {
+                        if (rawIndex == cursor) {
+                          // Region header
+                          return _RegionHeader(label: entry.key);
+                        }
+                        cursor++;
+                        final items = entry.value;
+                        if (rawIndex < cursor + items.length) {
+                          final dest = items[rawIndex - cursor];
+                          return _DestRow(
+                            destination: dest,
+                            onTap: () {
+                              widget.onPick(dest.name);
+                              Navigator.of(context).pop();
+                            },
+                          );
+                        }
+                        cursor += items.length;
+                      }
+                      return const SizedBox.shrink();
+                    },
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Region chip ──────────────────────────────────────────────────────────────
+
+class _RegionChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  const _RegionChip({required this.label, required this.selected, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? _kTeal.withOpacity(.18) : Colors.white.withOpacity(.05),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: selected ? _kTeal.withOpacity(.5) : Colors.white.withOpacity(.08),
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: selected ? _kTeal2 : _kMuted,
+            fontSize: 12,
+            fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Region header ────────────────────────────────────────────────────────────
+
+class _RegionHeader extends StatelessWidget {
+  final String label;
+  const _RegionHeader({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 16, 0, 8),
+      child: Text(
+        label.toUpperCase(),
+        style: const TextStyle(
+          color: _kFaint,
+          fontSize: 10,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0.8,
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Destination row ──────────────────────────────────────────────────────────
+
+class _DestRow extends StatelessWidget {
+  final _Destination destination;
+  final VoidCallback onTap;
+  const _DestRow({required this.destination, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(.03),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.white.withOpacity(.06)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 40, height: 40,
+              decoration: BoxDecoration(
+                color: _kTeal.withOpacity(.08),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: _kTeal.withOpacity(.15)),
+              ),
+              child: Center(
+                child: Text(destination.emoji, style: const TextStyle(fontSize: 18)),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    destination.name,
+                    style: const TextStyle(
+                      color: _kText,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    destination.region,
+                    style: const TextStyle(
+                      color: _kFaint,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.arrow_forward_ios_rounded, color: _kFaint, size: 13),
           ],
         ),
       ),
@@ -968,7 +1467,7 @@ class _Tag extends StatelessWidget {
   }
 }
 
-// ─── Picker sheet ─────────────────────────────────────────────────────────────
+// ─── Generic Picker sheet (Dates, Vibe, Budget) ────────────────────────────────
 
 class _PickerSheet extends StatelessWidget {
   final String label;
@@ -983,16 +1482,16 @@ class _PickerSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final bi = MediaQuery.of(context).padding.bottom;
     return Container(
       decoration: const BoxDecoration(
         color: Color(0xFF0D1819),
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+      padding: EdgeInsets.fromLTRB(20, 12, 20, 24 + bi),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Handle
           Container(
             width: 36, height: 4,
             decoration: BoxDecoration(
@@ -1001,12 +1500,10 @@ class _PickerSheet extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 20),
-
           Text(label, style: const TextStyle(
             color: _kText, fontSize: 16, fontWeight: FontWeight.w700,
           )),
           const SizedBox(height: 16),
-
           ...options.map((opt) => GestureDetector(
             onTap: () {
               onPick(opt);
@@ -1220,7 +1717,6 @@ class _RadarPainter extends CustomPainter {
     final center = Offset(size.width / 2, size.height / 2);
     final radius = size.width / 2;
 
-    // Rings
     final ringPaint = Paint()
       ..color = _kTeal.withOpacity(.15)
       ..style = PaintingStyle.stroke
@@ -1229,7 +1725,6 @@ class _RadarPainter extends CustomPainter {
       canvas.drawCircle(center, radius * i / 3, ringPaint);
     }
 
-    // Sweep
     final sweepAngle = progress * 2 * math.pi;
     final sweepPaint = Paint()
       ..shader = SweepGradient(
@@ -1241,7 +1736,6 @@ class _RadarPainter extends CustomPainter {
       ..style = PaintingStyle.fill;
     canvas.drawCircle(center, radius, sweepPaint);
 
-    // Sweep line
     final linePaint = Paint()
       ..color = _kTeal2.withOpacity(.8)
       ..strokeWidth = 1.5;
@@ -1254,7 +1748,6 @@ class _RadarPainter extends CustomPainter {
       linePaint,
     );
 
-    // Blip dots
     final blipPaint = Paint()..color = _kTeal2;
     final blips = [
       Offset(center.dx + radius * 0.4, center.dy - radius * 0.3),
@@ -1265,7 +1758,6 @@ class _RadarPainter extends CustomPainter {
       canvas.drawCircle(b, 3, blipPaint);
     }
 
-    // Center dot
     canvas.drawCircle(center, 4, Paint()..color = _kTeal2);
   }
 
