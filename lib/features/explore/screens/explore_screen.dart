@@ -142,13 +142,16 @@ class _FeedView extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final destsAsync = ref.watch(destinationsProvider);
 
+    // Header height: top padding + 10 top + 46 bar + (search label ~28 if active) + 14 bottom
+    final headerH = top + 10 + 46 + 14 + (searchQuery.trim().isNotEmpty ? 28.0 : 0.0);
+
     return Stack(
       children: [
         destsAsync.when(
-          loading: () => _buildList(context, null, isLoading: true),
-          error: (e, _) => _buildList(context, [], isError: true),
+          loading: () => _buildList(context, null, isLoading: true, headerH: headerH),
+          error: (e, _) => _buildList(context, [], isError: true, headerH: headerH),
           data: (all) => _buildList(
-              context, _applyFilter(all, activeVibe, searchQuery)),
+              context, _applyFilter(all, activeVibe, searchQuery), headerH: headerH),
         ),
         Positioned(
           top: 0, left: 0, right: 0,
@@ -171,11 +174,12 @@ class _FeedView extends ConsumerWidget {
     List<ExploreDestination>? dests, {
     bool isLoading = false,
     bool isError = false,
+    double headerH = 72,
   }) {
     final isSearching = searchQuery.trim().isNotEmpty;
 
     return ListView(
-      padding: EdgeInsets.only(top: top + 72, bottom: navH + 16),
+      padding: EdgeInsets.only(top: headerH + 8, bottom: navH + 16),
       children: [
         // Hide vibe row while searching
         if (!isSearching) ...[
@@ -260,7 +264,7 @@ class _FeedView extends ConsumerWidget {
       );
 }
 
-// ─── Search header (functional TextField) ─────────────────────────────────────
+// ─── Search header — basic full-width bar + place label ───────────────────────
 
 class _SearchHeader extends StatefulWidget {
   final double top;
@@ -279,7 +283,8 @@ class _SearchHeaderState extends State<_SearchHeader> {
   void initState() {
     super.initState();
     _ctrl.addListener(() {
-      setState(() => _hasText = _ctrl.text.isNotEmpty);
+      final hasText = _ctrl.text.isNotEmpty;
+      if (hasText != _hasText) setState(() => _hasText = hasText);
       widget.onSearchChanged(_ctrl.text);
     });
   }
@@ -300,71 +305,102 @@ class _SearchHeaderState extends State<_SearchHeader> {
           bottom: BorderSide(color: Colors.white.withOpacity(.04)),
         ),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Expanded(
-            child: Container(
-              height: 44,
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(.05),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.white.withOpacity(.08)),
+          // ── Search bar ─────────────────────────────────────────────────
+          Container(
+            height: 46,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(.06),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: _hasText
+                    ? _kTeal.withOpacity(.30)
+                    : Colors.white.withOpacity(.10),
               ),
-              child: Row(
-                children: [
-                  const SizedBox(width: 12),
-                  const Icon(Icons.search_rounded, color: _kFaint, size: 17),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: TextField(
-                      controller: _ctrl,
-                      style: const TextStyle(
-                        color: _kText,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                      ),
-                      cursorColor: _kTeal,
-                      cursorWidth: 1.5,
-                      textInputAction: TextInputAction.search,
-                      decoration: const InputDecoration(
-                        hintText: 'Where to next?',
-                        hintStyle: TextStyle(color: _kFaint, fontSize: 13),
-                        border: InputBorder.none,
-                        isDense: true,
-                        contentPadding: EdgeInsets.zero,
-                      ),
+            ),
+            child: Row(
+              children: [
+                const SizedBox(width: 14),
+                Icon(
+                  Icons.search_rounded,
+                  color: _hasText ? _kTeal : _kFaint,
+                  size: 18,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: TextField(
+                    controller: _ctrl,
+                    style: const TextStyle(
+                      color: _kText,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    cursorColor: _kTeal,
+                    cursorWidth: 1.5,
+                    textInputAction: TextInputAction.search,
+                    decoration: const InputDecoration(
+                      hintText: 'Search a place…',
+                      hintStyle: TextStyle(color: _kFaint, fontSize: 14),
+                      border: InputBorder.none,
+                      isDense: true,
+                      contentPadding: EdgeInsets.zero,
                     ),
                   ),
-                  if (_hasText)
-                    GestureDetector(
-                      onTap: () {
-                        _ctrl.clear();
-                        widget.onSearchChanged('');
-                      },
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 10),
-                        child: Icon(
-                          Icons.cancel_rounded,
-                          color: _kFaint.withOpacity(.7),
-                          size: 16,
-                        ),
+                ),
+                if (_hasText)
+                  GestureDetector(
+                    onTap: () {
+                      _ctrl.clear();
+                      widget.onSearchChanged('');
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: Icon(
+                        Icons.cancel_rounded,
+                        color: _kFaint.withOpacity(.8),
+                        size: 17,
                       ),
-                    )
-                  else
-                    const SizedBox(width: 12),
-                ],
-              ),
+                    ),
+                  )
+                else
+                  const SizedBox(width: 14),
+              ],
             ),
           ),
-          const SizedBox(width: 10),
-          Container(
-            width: 44, height: 44,
-            decoration: BoxDecoration(
-              color: _kTeal.withOpacity(.15),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: _kTeal.withOpacity(.22)),
-            ),
-            child: const Icon(Icons.map_outlined, color: _kTeal2, size: 20),
+
+          // ── Searched place label (shown when typing) ───────────────────
+          AnimatedSize(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOut,
+            child: _hasText
+                ? Padding(
+                    padding: const EdgeInsets.only(top: 10),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.location_on_rounded,
+                          color: _kTeal,
+                          size: 13,
+                        ),
+                        const SizedBox(width: 5),
+                        Flexible(
+                          child: Text(
+                            'Showing results for "${_ctrl.text.trim()}"',
+                            style: const TextStyle(
+                              color: _kTeal2,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : const SizedBox.shrink(),
           ),
         ],
       ),
