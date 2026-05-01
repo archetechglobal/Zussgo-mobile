@@ -40,7 +40,7 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
     });
   }
 
-  Future<void> _openEdit(context) async {
+  Future<void> _openEdit(BuildContext context) async {
     await Navigator.of(context).push(
       PageRouteBuilder(
         opaque: true,
@@ -62,8 +62,13 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
         },
       ),
     );
-    // Refresh profile data after returning from edit
     ref.read(myProfileProvider.notifier).refresh();
+  }
+
+  Future<void> _signOut(BuildContext context) async {
+    final navigator = Navigator.of(context, rootNavigator: true);
+    await Supabase.instance.client.auth.signOut();
+    if (mounted) context.go('/login');
   }
 
   void _showSettings(BuildContext context) {
@@ -71,11 +76,26 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _SettingsSheet(
-        onSignOut: () async {
-          Navigator.of(context).pop();
-          await Supabase.instance.client.auth.signOut();
-          if (context.mounted) context.go('/login');
+      builder: (sheetCtx) => _SettingsSheet(
+        onNotifications: () {
+          Navigator.of(sheetCtx).pop();
+          context.go('/notifications');
+        },
+        onPrivacy: () {
+          Navigator.of(sheetCtx).pop();
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Privacy settings coming soon!')),
+          );
+        },
+        onHelp: () {
+          Navigator.of(sheetCtx).pop();
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Help center coming soon!')),
+          );
+        },
+        onSignOut: () {
+          Navigator.of(sheetCtx).pop();
+          _signOut(context);
         },
       ),
     );
@@ -86,7 +106,7 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => Container(
+      builder: (sheetCtx) => Container(
         padding: const EdgeInsets.fromLTRB(24, 20, 24, 40),
         decoration: const BoxDecoration(
           color: Color(0xFF0D1819),
@@ -118,7 +138,7 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
               title: 'Instagram',
               subtitle: 'Connect to show your handle',
               onTap: () {
-                Navigator.pop(context);
+                Navigator.of(sheetCtx).pop();
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('Instagram linking coming soon!')),
                 );
@@ -164,18 +184,17 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
             ),
             const SizedBox(height: 16),
             if (tripCount == 0)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 24),
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 24),
                 child: Center(
                   child: Column(
                     children: [
-                      const Icon(Icons.luggage_rounded,
+                      Icon(Icons.luggage_rounded,
                           color: Color(0xFF6A8882), size: 40),
-                      const SizedBox(height: 12),
-                      const Text(
+                      SizedBox(height: 12),
+                      Text(
                         'No trips yet',
-                        style: TextStyle(
-                            color: Color(0xFF6A8882), fontSize: 14),
+                        style: TextStyle(color: Color(0xFF6A8882), fontSize: 14),
                       ),
                     ],
                   ),
@@ -183,7 +202,7 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
               )
             else
               Text(
-                '$tripCount past trips completed.',
+                '$tripCount past trip${tripCount == 1 ? '' : 's'} completed.',
                 style: const TextStyle(color: _muted, fontSize: 14),
               ),
             const SizedBox(height: 8),
@@ -236,8 +255,7 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
                       SizedBox(height: 12),
                       Text(
                         'No reviews yet',
-                        style: TextStyle(
-                            color: Color(0xFF6A8882), fontSize: 14),
+                        style: TextStyle(color: Color(0xFF6A8882), fontSize: 14),
                       ),
                     ],
                   ),
@@ -246,13 +264,11 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
             else
               Row(
                 children: [
-                  const Icon(Icons.star_rounded,
-                      color: Color(0xFFF7B84E), size: 20),
+                  const Icon(Icons.star_rounded, color: _gold, size: 20),
                   const SizedBox(width: 6),
                   Text(
-                    '$rating avg from $reviewCount reviews',
-                    style:
-                        const TextStyle(color: _muted, fontSize: 14),
+                    '${rating.toStringAsFixed(1)} avg from $reviewCount review${reviewCount == 1 ? '' : 's'}',
+                    style: const TextStyle(color: _muted, fontSize: 14),
                   ),
                 ],
               ),
@@ -263,12 +279,90 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
     );
   }
 
+  void _showBuddies(BuildContext context, int buddyCount) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => Container(
+        padding: const EdgeInsets.fromLTRB(24, 20, 24, 40),
+        decoration: const BoxDecoration(
+          color: Color(0xFF0D1819),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40, height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(.15),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Travel Buddies',
+              style: TextStyle(
+                color: _text, fontSize: 18, fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 16),
+            if (buddyCount == 0)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 24),
+                child: Center(
+                  child: Column(
+                    children: [
+                      Icon(Icons.people_outline_rounded,
+                          color: Color(0xFF6A8882), size: 40),
+                      SizedBox(height: 12),
+                      Text(
+                        'No buddies yet — start exploring!',
+                        style: TextStyle(color: Color(0xFF6A8882), fontSize: 14),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            else
+              Text(
+                '$buddyCount travel buddy${buddyCount == 1 ? '' : ' connections'}.',
+                style: const TextStyle(color: _muted, fontSize: 14),
+              ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Computes trust score from real profile fields (0.0 – 1.0)
+  double _computeTrustScore(profile) {
+    double score = 0.0;
+    if (profile == null) return score;
+    if ((profile.name ?? '').isNotEmpty) score += 0.20;
+    if ((profile.avatarUrl ?? '').isNotEmpty) score += 0.20;
+    if ((profile.bio ?? '').isNotEmpty) score += 0.15;
+    if ((profile.baseCity ?? '').isNotEmpty) score += 0.10;
+    if ((profile.vibes as List).isNotEmpty) score += 0.10;
+    if (profile.tripCount > 0) score += 0.15;
+    if (profile.buddyCount > 0) score += 0.10;
+    return score.clamp(0.0, 1.0);
+  }
+
   @override
   Widget build(BuildContext context) {
-    final topInset       = MediaQuery.of(context).padding.top;
-    final bottomInset    = MediaQuery.of(context).padding.bottom;
+    final topInset        = MediaQuery.of(context).padding.top;
+    final bottomInset     = MediaQuery.of(context).padding.bottom;
     final bottomNavHeight = 88.0 + bottomInset;
-    final profileAsync   = ref.watch(myProfileProvider);
+    final profileAsync    = ref.watch(myProfileProvider);
+
+    // Real auth user for email / phone fallback display
+    final authUser = Supabase.instance.client.auth.currentUser;
 
     return Scaffold(
       backgroundColor: _bg,
@@ -305,7 +399,7 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
                     const Icon(Icons.error_outline,
                         color: Color(0xFF6A8882), size: 40),
                     const SizedBox(height: 12),
-                    Text(
+                    const Text(
                       'Could not load profile',
                       style: TextStyle(color: _faint, fontSize: 14),
                     ),
@@ -329,19 +423,27 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
                 ),
               ),
               data: (profile) {
-                final name        = profile?.name ?? 'Traveler';
+                // ── Derived display values ──────────────────────────────────
+                final name = (profile?.name ?? '').isNotEmpty
+                    ? profile!.name!
+                    : (authUser?.email?.split('@').first ?? 'Traveler');
                 final avatarUrl   = profile?.avatarUrl;
                 final initial     = name.isNotEmpty ? name[0].toUpperCase() : 'T';
                 final tripCount   = profile?.tripCount ?? 0;
-                final reviewCount = 0; // derive from reviews table when available
+                final buddyCount  = profile?.buddyCount ?? 0;
                 final rating      = profile?.rating ?? 0.0;
+                // reviewCount: tripCount is the best proxy until a reviews table exists
+                final reviewCount = (rating > 0 && tripCount > 0) ? tripCount : 0;
+                final trustScore  = _computeTrustScore(profile);
+                final age         = profile?.age;
+                final displayName = age != null ? '$name, $age' : name;
 
                 return SingleChildScrollView(
                   padding: EdgeInsets.only(top: topInset, bottom: 20),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Header row
+                      // ── Header row ────────────────────────────────────────
                       Padding(
                         padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
                         child: Row(
@@ -376,29 +478,68 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
                                 ),
                               ),
                             ),
+                            const SizedBox(width: 10),
+                            GestureDetector(
+                              onTap: () => _showSettings(context),
+                              child: Container(
+                                width: 38, height: 38,
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(.05),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: const Icon(
+                                  Icons.settings_outlined,
+                                  color: _faint, size: 20,
+                                ),
+                              ),
+                            ),
                           ],
                         ),
                       ),
 
-                      // User header
+                      // ── User header ───────────────────────────────────────
                       Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
                         child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // Avatar
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(22),
-                              child: avatarUrl != null && avatarUrl.isNotEmpty
-                                  ? Image.network(
-                                      avatarUrl,
-                                      width: 70, height: 70,
-                                      fit: BoxFit.cover,
-                                      errorBuilder: (_, __, ___) =>
-                                          _AvatarFallback(
-                                              initial: initial, size: 70),
-                                    )
-                                  : _AvatarFallback(
-                                      initial: initial, size: 70),
+                            // Avatar — real photo or fallback initial
+                            GestureDetector(
+                              onTap: () => _openEdit(context),
+                              child: Stack(
+                                children: [
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(22),
+                                    child: avatarUrl != null && avatarUrl.isNotEmpty
+                                        ? Image.network(
+                                            avatarUrl,
+                                            width: 74, height: 74,
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (_, __, ___) =>
+                                                _AvatarFallback(
+                                                    initial: initial, size: 74),
+                                          )
+                                        : _AvatarFallback(
+                                            initial: initial, size: 74),
+                                  ),
+                                  // Camera badge overlay
+                                  Positioned(
+                                    bottom: 0, right: 0,
+                                    child: Container(
+                                      width: 22, height: 22,
+                                      decoration: BoxDecoration(
+                                        color: _teal,
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: const Icon(
+                                        Icons.camera_alt_rounded,
+                                        color: Colors.black,
+                                        size: 12,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                             const SizedBox(width: 16),
                             Expanded(
@@ -406,7 +547,7 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    name,
+                                    displayName,
                                     style: const TextStyle(
                                       color: _text,
                                       fontSize: 20,
@@ -419,15 +560,13 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
                                       children: [
                                         const Icon(
                                           Icons.location_on_rounded,
-                                          color: Color(0xFF6A8882),
-                                          size: 13,
+                                          color: _faint, size: 13,
                                         ),
                                         const SizedBox(width: 3),
                                         Text(
                                           profile!.baseCity!,
                                           style: const TextStyle(
-                                            color: Color(0xFF6A8882),
-                                            fontSize: 13,
+                                            color: _faint, fontSize: 13,
                                           ),
                                         ),
                                       ],
@@ -440,19 +579,44 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
                                           Text(
                                             'Add your location',
                                             style: TextStyle(
-                                              color: Color(0xFF6A8882),
-                                              fontSize: 13,
+                                              color: _faint, fontSize: 13,
                                             ),
                                           ),
-                                          SizedBox(width: 4),
-                                          Icon(
-                                            Icons.chevron_right_rounded,
-                                            color: Color(0xFF6A8882),
-                                            size: 16,
-                                          ),
+                                          SizedBox(width: 2),
+                                          Icon(Icons.chevron_right_rounded,
+                                              color: _faint, size: 15),
                                         ],
                                       ),
                                     ),
+                                  const SizedBox(height: 8),
+                                  // ── Stat pills ────────────────────────────
+                                  Row(
+                                    children: [
+                                      _StatPill(
+                                        label: 'Trips',
+                                        value: '$tripCount',
+                                        onTap: () =>
+                                            _showTravelLog(context, tripCount),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      _StatPill(
+                                        label: 'Buddies',
+                                        value: '$buddyCount',
+                                        onTap: () =>
+                                            _showBuddies(context, buddyCount),
+                                      ),
+                                      if (rating > 0) ...[
+                                        const SizedBox(width: 8),
+                                        _StatPill(
+                                          label: '★',
+                                          value: rating.toStringAsFixed(1),
+                                          onTap: () => _showEndorsements(
+                                              context, rating, reviewCount),
+                                          accent: _gold,
+                                        ),
+                                      ],
+                                    ],
+                                  ),
                                 ],
                               ),
                             ),
@@ -460,21 +624,32 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
                         ),
                       ),
 
-                      // Bio (if present)
+                      // ── Bio ───────────────────────────────────────────────
                       if ((profile?.bio ?? '').isNotEmpty)
                         Padding(
                           padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
                           child: Text(
                             profile!.bio!,
                             style: const TextStyle(
-                              color: _muted,
-                              fontSize: 14,
-                              height: 1.5,
+                              color: _muted, fontSize: 14, height: 1.5,
+                            ),
+                          ),
+                        )
+                      else
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                          child: GestureDetector(
+                            onTap: () => _openEdit(context),
+                            child: const Text(
+                              'Add a bio so travelers know who you are →',
+                              style: TextStyle(
+                                  color: _faint, fontSize: 13,
+                                  fontStyle: FontStyle.italic),
                             ),
                           ),
                         ),
 
-                      // Vibes chips
+                      // ── Vibes chips ───────────────────────────────────────
                       if ((profile?.vibes ?? []).isNotEmpty)
                         Padding(
                           padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
@@ -500,18 +675,27 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
                           ),
                         ),
 
-                      // Trust Score card
-                      _TrustCard(score: 0.50),
+                      // ── Trust Score card ──────────────────────────────────
+                      _TrustCard(
+                        score: trustScore,
+                        onLinkId: () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                                content: Text('Government ID linking coming soon!')),
+                          );
+                        },
+                      ),
 
                       const SizedBox(height: 24),
 
-                      // Primary menu group
+                      // ── Primary menu group ────────────────────────────────
                       _MenuGroup(
                         items: [
                           _MenuItem(
                             emoji: '📍',
                             title: 'Travel Log',
-                            subtitle: '$tripCount Past Trip${tripCount == 1 ? '' : 's'}',
+                            subtitle:
+                                '$tripCount Past Trip${tripCount == 1 ? '' : 's'}',
                             onTap: () => _showTravelLog(context, tripCount),
                           ),
                           _MenuItem(
@@ -519,16 +703,23 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
                             title: 'Endorsements',
                             subtitle: reviewCount == 0
                                 ? 'No reviews yet'
-                                : '$reviewCount Review${reviewCount == 1 ? '' : 's'} ($rating Avg)',
+                                : '$reviewCount Review${reviewCount == 1 ? '' : 's'} (${rating.toStringAsFixed(1)} avg)',
                             onTap: () => _showEndorsements(
                                 context, rating, reviewCount),
+                          ),
+                          _MenuItem(
+                            emoji: '🤝',
+                            title: 'Travel Buddies',
+                            subtitle:
+                                '$buddyCount Connection${buddyCount == 1 ? '' : 's'}',
+                            onTap: () => _showBuddies(context, buddyCount),
                           ),
                         ],
                       ),
 
                       const SizedBox(height: 24),
 
-                      // Secondary menu group
+                      // ── Secondary menu group ──────────────────────────────
                       _MenuGroup(
                         items: [
                           _MenuItem(
@@ -565,6 +756,56 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
   }
 }
 
+// ─── Stat Pill ────────────────────────────────────────────────────────────────
+
+class _StatPill extends StatelessWidget {
+  final String label;
+  final String value;
+  final VoidCallback onTap;
+  final Color? accent;
+
+  const _StatPill({
+    required this.label,
+    required this.value,
+    required this.onTap,
+    this.accent,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = accent ?? const Color(0xFF58DAD0);
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: color.withOpacity(.08),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: color.withOpacity(.18)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              value,
+              style: TextStyle(
+                  color: color,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: const TextStyle(
+                  color: Color(0xFF6A8882), fontSize: 11),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 // ─── Avatar Fallback ──────────────────────────────────────────────────────────
 
 class _AvatarFallback extends StatelessWidget {
@@ -595,10 +836,11 @@ class _AvatarFallback extends StatelessWidget {
 
 class _TrustCard extends StatelessWidget {
   final double score;
-  const _TrustCard({required this.score});
+  final VoidCallback onLinkId;
+  const _TrustCard({required this.score, required this.onLinkId});
 
-  static const _gold  = Color(0xFFF7B84E);
-  static const _text  = Color(0xFFEDF7F4);
+  static const _gold = Color(0xFFF7B84E);
+  static const _text = Color(0xFFEDF7F4);
 
   @override
   Widget build(BuildContext context) {
@@ -620,11 +862,11 @@ class _TrustCard extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
+                const Row(
                   children: [
-                    const Icon(Icons.shield_rounded, color: _gold, size: 14),
-                    const SizedBox(width: 6),
-                    const Text(
+                    Icon(Icons.shield_rounded, color: _gold, size: 14),
+                    SizedBox(width: 6),
+                    Text(
                       'Trust Score',
                       style: TextStyle(
                           color: _gold,
@@ -668,18 +910,21 @@ class _TrustCard extends StatelessWidget {
                   'Link Govt. ID for Priority',
                   style: TextStyle(color: _text, fontSize: 12),
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                      color: _gold,
-                      borderRadius: BorderRadius.circular(8)),
-                  child: const Text(
-                    '+25%',
-                    style: TextStyle(
-                        color: Colors.black,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800),
+                GestureDetector(
+                  onTap: onLinkId,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                        color: _gold,
+                        borderRadius: BorderRadius.circular(8)),
+                    child: const Text(
+                      '+25%',
+                      style: TextStyle(
+                          color: Colors.black,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800),
+                    ),
                   ),
                 ),
               ],
@@ -765,8 +1010,7 @@ class _MenuItem extends StatelessWidget {
               child: Center(
                 child: icon != null
                     ? Icon(icon, color: _faint, size: 18)
-                    : Text(emoji ?? '',
-                        style: const TextStyle(fontSize: 16)),
+                    : Text(emoji ?? '', style: const TextStyle(fontSize: 16)),
               ),
             ),
             const SizedBox(width: 14),
@@ -804,11 +1048,19 @@ class _MenuItem extends StatelessWidget {
 // ─── Settings sheet ───────────────────────────────────────────────────────────
 
 class _SettingsSheet extends StatelessWidget {
+  final VoidCallback onNotifications;
+  final VoidCallback onPrivacy;
+  final VoidCallback onHelp;
   final VoidCallback onSignOut;
-  const _SettingsSheet({required this.onSignOut});
+
+  const _SettingsSheet({
+    required this.onNotifications,
+    required this.onPrivacy,
+    required this.onHelp,
+    required this.onSignOut,
+  });
 
   static const _text  = Color(0xFFEDF7F4);
-  static const _muted = Color(0xFFA8C4BF);
   static const _faint = Color(0xFF6A8882);
 
   @override
@@ -843,35 +1095,20 @@ class _SettingsSheet extends StatelessWidget {
             icon: Icons.notifications_outlined,
             title: 'Notifications',
             subtitle: 'Manage alerts',
-            onTap: () {
-              Navigator.pop(context);
-              context.go('/notifications');
-            },
+            onTap: onNotifications,
           ),
           const SizedBox(height: 8),
           _SheetRow(
             icon: Icons.privacy_tip_outlined,
             title: 'Privacy',
             subtitle: 'Who can see your profile',
-            onTap: () {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                    content: Text('Privacy settings coming soon!')),
-              );
-            },
+            onTap: onPrivacy,
           ),
           const SizedBox(height: 8),
           _SheetRow(
             icon: Icons.help_outline_rounded,
             title: 'Help & Support',
-            onTap: () {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                    content: Text('Help center coming soon!')),
-              );
-            },
+            onTap: onHelp,
           ),
           const SizedBox(height: 16),
           Divider(color: Colors.white.withOpacity(.07)),
