@@ -1,5 +1,6 @@
 // lib/features/trips/providers/trips_provider.dart
 
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../data/trips_repository.dart';
 import '../models/trip_model.dart';
@@ -8,37 +9,53 @@ final tripsRepositoryProvider = Provider((_) => TripsRepository());
 
 /// All active trips from other users.
 /// Used in home hero pager and Match → Discover tab.
+/// keepAlive: survives tab switches. Auto-invalidates after 5 min so data
+/// stays fresh without hammering Supabase on every render.
 final activeTripsProvider = FutureProvider<List<TripModel>>((ref) async {
-  return ref.watch(tripsRepositoryProvider).fetchActiveTrips();
+  final link = ref.keepAlive();
+  Timer(const Duration(minutes: 5), link.close);
+  return ref.read(tripsRepositoryProvider).fetchActiveTrips();
 });
 
 /// Trips I created.
+/// keepAlive: session-scoped — only invalidated when user creates/deletes a trip
+/// (CreateTripNotifier calls ref.invalidate after success).
 final myTripsProvider = FutureProvider<List<TripModel>>((ref) async {
-  return ref.watch(tripsRepositoryProvider).fetchMyTrips();
+  final link = ref.keepAlive();
+  Timer(const Duration(minutes: 10), link.close);
+  return ref.read(tripsRepositoryProvider).fetchMyTrips();
 });
 
 /// Trips I've joined via an accepted connection.
 final joinedTripsProvider = FutureProvider<List<TripModel>>((ref) async {
-  return ref.watch(tripsRepositoryProvider).fetchJoinedTrips();
+  final link = ref.keepAlive();
+  Timer(const Duration(minutes: 5), link.close);
+  return ref.read(tripsRepositoryProvider).fetchJoinedTrips();
 });
 
 /// Pending companion requests on MY trips.
-/// Named tripPendingRequestsProvider to avoid clashing with
-/// connections_provider's pendingRequestsProvider.
+/// Shorter TTL — needs to feel responsive when someone sends a request.
 final tripPendingRequestsProvider =
     FutureProvider<List<Map<String, dynamic>>>((ref) async {
-  return ref.watch(tripsRepositoryProvider).fetchPendingRequests();
+  final link = ref.keepAlive();
+  Timer(const Duration(minutes: 2), link.close);
+  return ref.read(tripsRepositoryProvider).fetchPendingRequests();
 });
 
-/// Create trip notifier
+/// Create trip notifier.
+/// After a successful create: invalidates myTripsProvider + activeTripsProvider
+/// so both feeds reflect the new trip immediately.
 class CreateTripNotifier extends StateNotifier<AsyncValue<TripModel?>> {
   final TripsRepository _repo;
-  CreateTripNotifier(this._repo) : super(const AsyncValue.data(null));
+  final Ref _ref;
+
+  CreateTripNotifier(this._repo, this._ref)
+      : super(const AsyncValue.data(null));
 
   Future<TripModel?> create({
     required String destination,
     required String dates,
-    DateTime? startDate,    // ISO date for DB index — from calendar picker
+    DateTime? startDate,
     DateTime? endDate,
     String? vibe,
     String? budget,
@@ -56,6 +73,9 @@ class CreateTripNotifier extends StateNotifier<AsyncValue<TripModel?>> {
         intent:      intent,
       );
       state = AsyncValue.data(trip);
+      // Bust the cache so home + discover reflect the new trip
+      _ref.invalidate(myTripsProvider);
+      _ref.invalidate(activeTripsProvider);
       return trip;
     } catch (e, st) {
       state = AsyncValue.error(e, st);
@@ -66,5 +86,5 @@ class CreateTripNotifier extends StateNotifier<AsyncValue<TripModel?>> {
 
 final createTripProvider =
     StateNotifierProvider<CreateTripNotifier, AsyncValue<TripModel?>>((ref) {
-  return CreateTripNotifier(ref.watch(tripsRepositoryProvider));
+  return CreateTripNotifier(ref.watch(tripsRepositoryProvider), ref);
 });

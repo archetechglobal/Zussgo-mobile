@@ -73,14 +73,19 @@ class ProfileNotifier extends StateNotifier<AsyncValue<ProfileModel?>> {
 }
 
 /// The single source-of-truth provider for the logged-in user's profile.
+/// StateNotifier holds the value in memory — session-scoped, no TTL needed.
 final myProfileProvider =
-StateNotifierProvider<ProfileNotifier, AsyncValue<ProfileModel?>>((ref) {
+    StateNotifierProvider<ProfileNotifier, AsyncValue<ProfileModel?>>((ref) {
   final userId = Supabase.instance.client.auth.currentUser?.id ?? '';
   return ProfileNotifier(ref.watch(profileRepositoryProvider), userId);
 });
 
-/// Provider to get any user's profile by ID (for profile sheets, etc.)
+/// Any user's profile by ID — used in profile sheets, traveler cards.
+/// keepAlive: profile data rarely changes mid-session. 15-min TTL.
 final userProfileProvider =
-FutureProvider.family<ProfileModel?, String>((ref, userId) async {
-  return ref.watch(profileRepositoryProvider).getProfile(userId);
+    FutureProvider.family<ProfileModel?, String>((ref, userId) async {
+  final link = ref.keepAlive();
+  // 15 minutes — profile data is stable within a session
+  Future.delayed(const Duration(minutes: 15), link.close);
+  return ref.read(profileRepositoryProvider).getProfile(userId);
 });
