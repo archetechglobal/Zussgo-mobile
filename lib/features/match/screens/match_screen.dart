@@ -16,6 +16,56 @@ import '../../trips/providers/trips_provider.dart';
 import '../../trips/models/trip_model.dart';
 import '../../connections/providers/connections_provider.dart';
 
+// ---------------------------------------------------------------------------
+// Filter state
+// ---------------------------------------------------------------------------
+
+class _FilterState {
+  final String? vibe;       // null = any
+  final String? gender;     // null = any, 'women' = women only
+  final int? maxBudget;     // null = any, e.g. 15000 / 30000
+  final bool nextWeekOnly;  // true = next 7 days
+
+  const _FilterState({
+    this.vibe,
+    this.gender,
+    this.maxBudget,
+    this.nextWeekOnly = false,
+  });
+
+  _FilterState copyWith({
+    Object? vibe = _sentinel,
+    Object? gender = _sentinel,
+    Object? maxBudget = _sentinel,
+    bool? nextWeekOnly,
+  }) =>
+      _FilterState(
+        vibe: vibe == _sentinel ? this.vibe : vibe as String?,
+        gender: gender == _sentinel ? this.gender : gender as String?,
+        maxBudget:
+            maxBudget == _sentinel ? this.maxBudget : maxBudget as int?,
+        nextWeekOnly: nextWeekOnly ?? this.nextWeekOnly,
+      );
+
+  bool get isActive =>
+      vibe != null || gender != null || maxBudget != null || nextWeekOnly;
+
+  int get activeCount {
+    int c = 0;
+    if (vibe != null) c++;
+    if (gender != null) c++;
+    if (maxBudget != null) c++;
+    if (nextWeekOnly) c++;
+    return c;
+  }
+}
+
+const _sentinel = Object();
+
+// ---------------------------------------------------------------------------
+// MatchScreen
+// ---------------------------------------------------------------------------
+
 class MatchScreen extends ConsumerStatefulWidget {
   final String initialTab;
   const MatchScreen({super.key, this.initialTab = 'discover'});
@@ -27,6 +77,7 @@ class MatchScreen extends ConsumerStatefulWidget {
 class _MatchScreenState extends ConsumerState<MatchScreen> {
   late int _tab;
   int _activeChip = 0;
+  _FilterState _filter = const _FilterState();
 
   static const bg    = Color(0xFF070E0F);
   static const text  = Color(0xFFEDF7F4);
@@ -83,6 +134,18 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(bottomNavIndexProvider.notifier).setIndex(2);
     });
+  }
+
+  void _openFilterSheet() async {
+    final result = await showModalBottomSheet<_FilterState>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _MatchFilterSheet(current: _filter),
+    );
+    if (result != null) {
+      setState(() => _filter = result);
+    }
   }
 
   @override
@@ -157,18 +220,57 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
                           ),
                         ),
                       ),
-                      Container(
-                        width: 36,
-                        height: 36,
-                        decoration: BoxDecoration(
-                          color: teal.withOpacity(.15),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: teal.withOpacity(.22)),
-                        ),
-                        child: const Icon(
-                          Icons.tune_rounded,
-                          color: teal2,
-                          size: 16,
+                      // ── Filter button ───────────────────────────────────
+                      GestureDetector(
+                        onTap: _openFilterSheet,
+                        child: Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            AnimatedContainer(
+                              duration: const Duration(milliseconds: 200),
+                              width: 36,
+                              height: 36,
+                              decoration: BoxDecoration(
+                                color: _filter.isActive
+                                    ? teal.withOpacity(.25)
+                                    : teal.withOpacity(.15),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: _filter.isActive
+                                      ? teal.withOpacity(.55)
+                                      : teal.withOpacity(.22),
+                                ),
+                              ),
+                              child: const Icon(
+                                Icons.tune_rounded,
+                                color: teal2,
+                                size: 16,
+                              ),
+                            ),
+                            if (_filter.isActive)
+                              Positioned(
+                                top: -4,
+                                right: -4,
+                                child: Container(
+                                  width: 16,
+                                  height: 16,
+                                  decoration: const BoxDecoration(
+                                    color: teal,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Center(
+                                    child: Text(
+                                      '${_filter.activeCount}',
+                                      style: const TextStyle(
+                                        color: Color(0xFF041818),
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.w900,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
                         ),
                       ),
                     ],
@@ -213,6 +315,7 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
                             activeChip: _activeChip,
                             onChipTap: (i) => setState(() => _activeChip = i),
                             bottomInset: bottomInset,
+                            filter: _filter,
                           )
                         : _LiveRequestsView(
                             key: const ValueKey('requests'),
@@ -239,6 +342,287 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
       ),
     );
   }
+}
+
+// ---------------------------------------------------------------------------
+// _MatchFilterSheet
+// ---------------------------------------------------------------------------
+
+class _MatchFilterSheet extends StatefulWidget {
+  final _FilterState current;
+  const _MatchFilterSheet({required this.current});
+
+  @override
+  State<_MatchFilterSheet> createState() => _MatchFilterSheetState();
+}
+
+class _MatchFilterSheetState extends State<_MatchFilterSheet> {
+  late _FilterState _draft;
+
+  static const bg2   = Color(0xFF0D1A1C);
+  static const text  = Color(0xFFEDF7F4);
+  static const muted = Color(0xFFA8C4BF);
+  static const faint = Color(0xFF6A8882);
+  static const teal  = Color(0xFF1EC9B8);
+  static const teal2 = Color(0xFF58DAD0);
+
+  static const _vibes = [
+    '✈️ Adventure',
+    '🏖️ Beach',
+    '🌄 Backpacking',
+    '🍹 Party',
+    '🧘 Chill',
+    '🏙️ City Explorer',
+    '📸 Photography',
+    '🍜 Foodie',
+  ];
+
+  static const _budgets = [
+    _BudgetOption('Under ₹15k', 15000),
+    _BudgetOption('Under ₹30k', 30000),
+    _BudgetOption('Under ₹50k', 50000),
+    _BudgetOption('Any Budget', null),
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _draft = widget.current;
+  }
+
+  Widget _sectionLabel(String label) => Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: Text(label,
+            style: const TextStyle(
+              color: muted,
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.8,
+            )),
+      );
+
+  Widget _chip({
+    required String label,
+    required bool active,
+    required VoidCallback onTap,
+  }) =>
+      GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          padding:
+              const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            color: active ? teal.withOpacity(.18) : Colors.white.withOpacity(.04),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(
+              color: active ? teal.withOpacity(.55) : Colors.white.withOpacity(.08),
+            ),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              color: active ? teal2 : text.withOpacity(.7),
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    final bottom = MediaQuery.of(context).padding.bottom;
+
+    return Container(
+      margin: const EdgeInsets.only(top: 60),
+      decoration: const BoxDecoration(
+        color: bg2,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ── Handle ────────────────────────────────────────────────────────
+          Center(
+            child: Container(
+              margin: const EdgeInsets.only(top: 12, bottom: 20),
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(.15),
+                borderRadius: BorderRadius.circular(99),
+              ),
+            ),
+          ),
+          // ── Header ────────────────────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Row(
+              children: [
+                const Expanded(
+                  child: Text(
+                    'Filter Matches',
+                    style: TextStyle(
+                      color: text,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                if (_draft.isActive)
+                  GestureDetector(
+                    onTap: () =>
+                        setState(() => _draft = const _FilterState()),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(.06),
+                        borderRadius: BorderRadius.circular(99),
+                      ),
+                      child: const Text(
+                        'Reset all',
+                        style: TextStyle(
+                          color: muted,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          Flexible(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // ── Date ────────────────────────────────────────────────
+                  _sectionLabel('DATE'),
+                  _chip(
+                    label: '📅 Next 7 days only',
+                    active: _draft.nextWeekOnly,
+                    onTap: () => setState(
+                        () => _draft = _draft.copyWith(
+                            nextWeekOnly: !_draft.nextWeekOnly)),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // ── Gender ───────────────────────────────────────────────
+                  _sectionLabel('TRAVELER GENDER'),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _chip(
+                        label: '👥 All travelers',
+                        active: _draft.gender == null,
+                        onTap: () => setState(
+                            () => _draft = _draft.copyWith(gender: null)),
+                      ),
+                      _chip(
+                        label: '👩 Women only',
+                        active: _draft.gender == 'women',
+                        onTap: () => setState(() => _draft = _draft.copyWith(
+                            gender:
+                                _draft.gender == 'women' ? null : 'women')),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+
+                  // ── Budget ───────────────────────────────────────────────
+                  _sectionLabel('BUDGET'),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: _budgets
+                        .map((b) => _chip(
+                              label: b.label,
+                              active: _draft.maxBudget == b.max,
+                              onTap: () => setState(() => _draft =
+                                  _draft.copyWith(
+                                      maxBudget: _draft.maxBudget == b.max
+                                          ? null
+                                          : b.max)),
+                            ))
+                        .toList(),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // ── Vibe ─────────────────────────────────────────────────
+                  _sectionLabel('TRAVEL VIBE'),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: _vibes
+                        .map((v) => _chip(
+                              label: v,
+                              active: _draft.vibe == v,
+                              onTap: () => setState(() => _draft =
+                                  _draft.copyWith(
+                                      vibe:
+                                          _draft.vibe == v ? null : v)),
+                            ))
+                        .toList(),
+                  ),
+                  const SizedBox(height: 32),
+                ],
+              ),
+            ),
+          ),
+
+          // ── Apply button ─────────────────────────────────────────────────
+          Padding(
+            padding: EdgeInsets.fromLTRB(20, 0, 20, bottom + 20),
+            child: GestureDetector(
+              onTap: () => Navigator.of(context).pop(_draft),
+              child: Container(
+                height: 52,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF58DAD0), Color(0xFF1EC9B8)],
+                  ),
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: teal.withOpacity(.30),
+                      blurRadius: 20,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: Center(
+                  child: Text(
+                    _draft.isActive
+                        ? 'Apply ${_draft.activeCount} filter${_draft.activeCount > 1 ? 's' : ''}'
+                        : 'Show all matches',
+                    style: const TextStyle(
+                      color: Color(0xFF041818),
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BudgetOption {
+  final String label;
+  final int? max;
+  const _BudgetOption(this.label, this.max);
 }
 
 // ---------------------------------------------------------------------------
@@ -319,79 +703,130 @@ class _ToggleBtn extends StatelessWidget {
 // Filter logic
 // ---------------------------------------------------------------------------
 
-/// Returns true if [trip] passes the chip at [chipIndex].
-bool _tripPassesFilter(TripModel trip, int chipIndex) {
+bool _tripPassesFilter(TripModel trip, int chipIndex, _FilterState filter) {
+  // ── Chip filter (quick filters row) ──────────────────────────────────────
   switch (chipIndex) {
-    case 0: // All matches
-      return true;
-
+    case 0: // All matches — no chip restriction; fall through to advanced filter
+      break;
     case 1: // Next 7 days
-      // dates field is a free-form string like "May 12–15" or "2026-05-12".
-      // We try to extract a start date; fall back to createdAt if we can't.
-      final now     = DateTime.now();
-      final cutoff  = now.add(const Duration(days: 7));
+      final now    = DateTime.now();
+      final cutoff = now.add(const Duration(days: 7));
       final dateStr = trip.dates.trim();
       DateTime? startDate;
-
-      // Try ISO format first: "2026-05-12" or "2026-05-12 to 2026-05-15"
       final isoMatch = RegExp(r'(\d{4}-\d{2}-\d{2})').firstMatch(dateStr);
-      if (isoMatch != null) {
-        startDate = DateTime.tryParse(isoMatch.group(1)!);
-      }
-
-      // Fall back: trip was created within last 7 days (still relevant)
+      if (isoMatch != null) startDate = DateTime.tryParse(isoMatch.group(1)!);
       startDate ??= trip.createdAt;
-
-      return startDate.isAfter(now.subtract(const Duration(days: 1))) &&
-             startDate.isBefore(cutoff);
-
+      if (!(startDate.isAfter(now.subtract(const Duration(days: 1))) &&
+          startDate.isBefore(cutoff))) return false;
+      break;
     case 2: // Women only
-      // ProfileModel has no gender field yet. We infer from vibes list
-      // (e.g. "Women-only travel", "Girls trip") or the trip vibe string.
       final creatorVibes = (trip.creator?.vibes ?? [])
           .map((v) => v.toLowerCase())
           .toList();
-      final tripVibe     = (trip.vibe ?? '').toLowerCase();
-      const femaleHints  = ['women', 'girl', 'female', 'ladies', 'she/her'];
-      return femaleHints.any((h) =>
-          creatorVibes.any((v) => v.contains(h)) || tripVibe.contains(h));
-
+      final tripVibe = (trip.vibe ?? '').toLowerCase();
+      const femaleHints = ['women', 'girl', 'female', 'ladies', 'she/her'];
+      if (!femaleHints.any(
+          (h) => creatorVibes.any((v) => v.contains(h)) || tripVibe.contains(h))) {
+        return false;
+      }
+      break;
     case 3: // Under ₹15k
-      // Match against trip.budget or creator profile budget.
-      final budget = (trip.budget ?? trip.creator?.budget ?? '').toLowerCase();
-      // Accept if explicitly budget/low, or contains a rupee amount ≤ 15000.
-      if (budget.contains('15k') || budget.contains('15,000') ||
-          budget.contains('budget') || budget.contains('low') ||
-          budget.contains('cheap') || budget.contains('backpack')) {
-        return true;
+      final budget =
+          (trip.budget ?? trip.creator?.budget ?? '').toLowerCase();
+      if (!(budget.contains('15k') ||
+          budget.contains('15,000') ||
+          budget.contains('budget') ||
+          budget.contains('low') ||
+          budget.contains('cheap') ||
+          budget.contains('backpack'))) {
+        final numMatch = RegExp(r'(\d[\d,]*)').firstMatch(budget);
+        if (numMatch != null) {
+          final amount =
+              int.tryParse(numMatch.group(1)!.replaceAll(',', '')) ?? 99999;
+          if (amount > 15000) return false;
+        } else {
+          return false;
+        }
       }
-      // Try to extract a numeric value like "₹12000" or "12000"
-      final numMatch = RegExp(r'(\d[\d,]*)').firstMatch(budget);
-      if (numMatch != null) {
-        final amount =
-            int.tryParse(numMatch.group(1)!.replaceAll(',', '')) ?? 99999;
-        return amount <= 15000;
+      break;
+    case 4: // Budget (under ₹30k)
+      final budget =
+          (trip.budget ?? trip.creator?.budget ?? '').toLowerCase();
+      if (!(budget.contains('budget') ||
+          budget.contains('low') ||
+          budget.contains('cheap') ||
+          budget.contains('backpack') ||
+          budget.contains('economy'))) {
+        final numMatch = RegExp(r'(\d[\d,]*)').firstMatch(budget);
+        if (numMatch != null) {
+          final amount =
+              int.tryParse(numMatch.group(1)!.replaceAll(',', '')) ?? 99999;
+          if (amount > 30000) return false;
+        } else {
+          return false;
+        }
       }
-      return false;
-
-    case 4: // Budget (general — under ₹30k / backpacker style)
-      final budget = (trip.budget ?? trip.creator?.budget ?? '').toLowerCase();
-      if (budget.contains('budget') || budget.contains('low') ||
-          budget.contains('cheap') || budget.contains('backpack') ||
-          budget.contains('economy')) {
-        return true;
-      }
-      final numMatch = RegExp(r'(\d[\d,]*)').firstMatch(budget);
-      if (numMatch != null) {
-        final amount =
-            int.tryParse(numMatch.group(1)!.replaceAll(',', '')) ?? 99999;
-        return amount <= 30000;
-      }
-      return false;
-
+      break;
     default:
-      return true;
+      break;
   }
+
+  // ── Advanced filter sheet ────────────────────────────────────────────────
+
+  // Date: next 7 days
+  if (filter.nextWeekOnly) {
+    final now    = DateTime.now();
+    final cutoff = now.add(const Duration(days: 7));
+    final dateStr = trip.dates.trim();
+    DateTime? startDate;
+    final isoMatch = RegExp(r'(\d{4}-\d{2}-\d{2})').firstMatch(dateStr);
+    if (isoMatch != null) startDate = DateTime.tryParse(isoMatch.group(1)!);
+    startDate ??= trip.createdAt;
+    if (!(startDate.isAfter(now.subtract(const Duration(days: 1))) &&
+        startDate.isBefore(cutoff))) return false;
+  }
+
+  // Gender: women only
+  if (filter.gender == 'women') {
+    final creatorVibes = (trip.creator?.vibes ?? [])
+        .map((v) => v.toLowerCase())
+        .toList();
+    final tripVibe = (trip.vibe ?? '').toLowerCase();
+    const femaleHints = ['women', 'girl', 'female', 'ladies', 'she/her'];
+    if (!femaleHints.any((h) =>
+        creatorVibes.any((v) => v.contains(h)) || tripVibe.contains(h))) {
+      return false;
+    }
+  }
+
+  // Budget ceiling
+  if (filter.maxBudget != null) {
+    final budget =
+        (trip.budget ?? trip.creator?.budget ?? '').toLowerCase();
+    final numMatch = RegExp(r'(\d[\d,]*)').firstMatch(budget);
+    if (numMatch != null) {
+      final amount =
+          int.tryParse(numMatch.group(1)!.replaceAll(',', '')) ?? 99999;
+      if (amount > filter.maxBudget!) return false;
+    }
+  }
+
+  // Vibe match
+  if (filter.vibe != null) {
+    final vibeKey = filter.vibe!
+        .replaceAll(RegExp(r'[^\w\s]', unicode: true), '')
+        .trim()
+        .toLowerCase();
+    final tripVibe = (trip.vibe ?? '').toLowerCase();
+    final creatorVibes =
+        (trip.creator?.vibes ?? []).map((v) => v.toLowerCase()).toList();
+    if (!tripVibe.contains(vibeKey) &&
+        !creatorVibes.any((v) => v.contains(vibeKey))) {
+      return false;
+    }
+  }
+
+  return true;
 }
 
 // ---------------------------------------------------------------------------
@@ -403,6 +838,7 @@ class _DiscoverView extends ConsumerWidget {
   final int activeChip;
   final ValueChanged<int> onChipTap;
   final double bottomInset;
+  final _FilterState filter;
 
   const _DiscoverView({
     super.key,
@@ -410,6 +846,7 @@ class _DiscoverView extends ConsumerWidget {
     required this.activeChip,
     required this.onChipTap,
     required this.bottomInset,
+    required this.filter,
   });
 
   static const text = Color(0xFFEDF7F4);
@@ -428,12 +865,10 @@ class _DiscoverView extends ConsumerWidget {
             style: TextStyle(color: Color(0xFF6A8882))),
       ),
       data: (allTrips) {
-        // ── Apply chip filter ──────────────────────────────────────────────
         final filtered = allTrips
-            .where((t) => _tripPassesFilter(t, activeChip))
+            .where((t) => _tripPassesFilter(t, activeChip, filter))
             .toList();
 
-        // ── Convert to card data ───────────────────────────────────────────
         final travelers = filtered.map((t) => _TravelerData(
               id:        t.id,
               name:      t.creator?.name ?? 'Traveler',
@@ -448,7 +883,6 @@ class _DiscoverView extends ConsumerWidget {
 
         return Column(
           children: [
-            // ── Chips row ─────────────────────────────────────────────────
             SizedBox(
               height: 38,
               child: ListView.separated(
@@ -491,7 +925,6 @@ class _DiscoverView extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: 14),
-            // ── Grid / empty state ────────────────────────────────────────
             Expanded(
               child: travelers.isEmpty
                   ? Center(
@@ -502,7 +935,7 @@ class _DiscoverView extends ConsumerWidget {
                               style: TextStyle(fontSize: 36)),
                           const SizedBox(height: 12),
                           Text(
-                            activeChip == 0
+                            activeChip == 0 && !filter.isActive
                                 ? 'No trips available right now'
                                 : 'No matches for this filter',
                             style: const TextStyle(
