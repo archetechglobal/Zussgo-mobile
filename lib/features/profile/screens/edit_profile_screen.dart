@@ -1,43 +1,47 @@
 // lib/features/profile/screens/edit_profile_screen.dart
 
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 
-class EditProfileScreen extends StatefulWidget {
+import '../providers/profile_provider.dart';
+import '../../../features/profile/data/profile_repository.dart';
+
+class EditProfileScreen extends ConsumerStatefulWidget {
   const EditProfileScreen({super.key});
 
   @override
-  State<EditProfileScreen> createState() => _EditProfileScreenState();
+  ConsumerState<EditProfileScreen> createState() => _EditProfileScreenState();
 }
 
-class _EditProfileScreenState extends State<EditProfileScreen> {
+class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   static const _bg      = Color(0xFF070E0F);
-  static const _surface = Color(0xFF0D1819);
   static const _teal    = Color(0xFF1EC9B8);
   static const _teal2   = Color(0xFF58DAD0);
   static const _text    = Color(0xFFEDF7F4);
   static const _muted   = Color(0xFFA8C4BF);
   static const _faint   = Color(0xFF6A8882);
 
-  // Mock: existing photo + one empty slot
-  bool _hasPhoto = true;
+  late final TextEditingController _nameCtrl;
+  late final TextEditingController _baseCtrl;
+  late final TextEditingController _bioCtrl;
+  late List<String> _traits;
 
-  final _nameCtrl     = TextEditingController(text: 'Aryan');
-  final _baseCtrl     = TextEditingController(text: 'Mumbai, India');
-  final _bioCtrl      = TextEditingController(
-    text: 'Designer by day, avoiding reality by weekend. Always looking for the best local coffee and hidden dive spots.',
-  );
-
-  final List<String> _traits = [
-    '🌊 Beach Bum',
-    '🌙 Night Owl',
-    '🎒 Hostels',
-    '🇮🇳 Hindi',
-  ];
+  bool _initialized = false;
+  bool _saving      = false;
+  File? _pendingAvatar;
+  String? _existingAvatarUrl;
 
   @override
   void initState() {
     super.initState();
+    _nameCtrl = TextEditingController();
+    _baseCtrl = TextEditingController();
+    _bioCtrl  = TextEditingController();
+    _traits   = [];
     SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
       statusBarIconBrightness: Brightness.light,
@@ -50,6 +54,65 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _baseCtrl.dispose();
     _bioCtrl.dispose();
     super.dispose();
+  }
+
+  void _initFromProfile(profile) {
+    if (_initialized || profile == null) return;
+    _initialized = true;
+    _nameCtrl.text       = profile.name ?? '';
+    _baseCtrl.text       = profile.baseCity ?? '';
+    _bioCtrl.text        = profile.bio ?? '';
+    _traits              = List<String>.from(profile.vibes ?? []);
+    _existingAvatarUrl   = profile.avatarUrl;
+  }
+
+  Future<void> _pickPhoto() async {
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 800,
+      maxHeight: 800,
+      imageQuality: 85,
+    );
+    if (picked != null) {
+      setState(() => _pendingAvatar = File(picked.path));
+    }
+  }
+
+  Future<void> _save() async {
+    if (_saving) return;
+    setState(() => _saving = true);
+    try {
+      final notifier = ref.read(myProfileProvider.notifier);
+      final current  = ref.read(myProfileProvider).value;
+
+      // Upload avatar if changed
+      if (_pendingAvatar != null) {
+        await notifier.uploadAvatar(_pendingAvatar!);
+      }
+
+      // Save text fields via upsert
+      if (current != null) {
+        final updated = current.copyWith(
+          name:      _nameCtrl.text.trim(),
+          baseCity:  _baseCtrl.text.trim(),
+          bio:       _bioCtrl.text.trim(),
+          vibes:     _traits,
+        );
+        await ref.read(profileRepositoryProvider).upsertProfile(updated);
+        await notifier.refresh();
+      }
+
+      if (mounted) Navigator.of(context).pop();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Save failed: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   void _addTrait() async {
@@ -82,14 +145,16 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 ),
               ),
               const SizedBox(height: 20),
-              const Text('Add Trait', style: TextStyle(
-                color: _text, fontSize: 18, fontWeight: FontWeight.w700,
-              )),
+              const Text(
+                'Add Trait',
+                style: TextStyle(
+                    color: _text, fontSize: 18, fontWeight: FontWeight.w700),
+              ),
               const SizedBox(height: 16),
               _UnderlineField(
                 controller: ctrl,
                 label: '',
-                hint: 'e.g. 🏔 Mountains',
+                hint: 'e.g. \uD83C\uDFD4 Mountains',
               ),
               const SizedBox(height: 20),
               GestureDetector(
@@ -106,10 +171,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     borderRadius: BorderRadius.circular(14),
                   ),
                   child: const Center(
-                    child: Text('Add', style: TextStyle(
-                      color: Color(0xFF041818),
-                      fontSize: 16, fontWeight: FontWeight.w800,
-                    )),
+                    child: Text(
+                      'Add',
+                      style: TextStyle(
+                          color: Color(0xFF041818),
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800),
+                    ),
                   ),
                 ),
               ),
@@ -120,31 +188,37 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
   }
 
-  void _removeTrait(int index) {
-    setState(() => _traits.removeAt(index));
-  }
+  void _removeTrait(int index) =>
+      setState(() => _traits.removeAt(index));
 
   @override
   Widget build(BuildContext context) {
     final topInset    = MediaQuery.of(context).padding.top;
     final bottomInset = MediaQuery.of(context).padding.bottom;
+    final profileAsync = ref.watch(myProfileProvider);
+
+    profileAsync.whenData((p) => _initFromProfile(p));
+
+    final avatarUrl = _existingAvatarUrl;
+    final name      = _nameCtrl.text.isNotEmpty ? _nameCtrl.text : 'T';
+    final initial   = name[0].toUpperCase();
 
     return Scaffold(
       backgroundColor: _bg,
       body: Column(
         children: [
-          // ── Sticky header ───────────────────────────────────────────────
+          // Sticky header
           Container(
             padding: EdgeInsets.fromLTRB(20, topInset + 10, 20, 16),
             decoration: BoxDecoration(
               color: const Color(0xFF0B1516),
               border: Border(
-                bottom: BorderSide(color: Colors.white.withOpacity(.05)),
+                bottom:
+                    BorderSide(color: Colors.white.withOpacity(.05)),
               ),
             ),
             child: Row(
               children: [
-                // Back button
                 GestureDetector(
                   onTap: () => Navigator.of(context).pop(),
                   child: Container(
@@ -160,77 +234,118 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 ),
                 const Expanded(
                   child: Center(
-                    child: Text('Edit Profile', style: TextStyle(
-                      color: _text, fontSize: 16, fontWeight: FontWeight.w700,
-                    )),
+                    child: Text(
+                      'Edit Profile',
+                      style: TextStyle(
+                          color: _text,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700),
+                    ),
                   ),
                 ),
-                // Done button
                 GestureDetector(
-                  onTap: () => Navigator.of(context).pop(),
-                  child: const Text('Done', style: TextStyle(
-                    color: _teal2, fontSize: 14, fontWeight: FontWeight.w700,
-                  )),
+                  onTap: _saving ? null : _save,
+                  child: _saving
+                      ? const SizedBox(
+                          width: 18, height: 18,
+                          child: CircularProgressIndicator(
+                            color: Color(0xFF58DAD0), strokeWidth: 2,
+                          ),
+                        )
+                      : const Text(
+                          'Done',
+                          style: TextStyle(
+                              color: _teal2,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700),
+                        ),
                 ),
               ],
             ),
           ),
 
-          // ── Scrollable form body ────────────────────────────────────────
+          // Scrollable body
           Expanded(
             child: SingleChildScrollView(
-              padding: EdgeInsets.fromLTRB(20, 20, 20, 32 + bottomInset),
+              padding:
+                  EdgeInsets.fromLTRB(20, 20, 20, 32 + bottomInset),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
 
-                  // ── Photos ─────────────────────────────────────────────
-                  const _SectionLabel('Photos'),
+                  // Avatar
+                  const _SectionLabel('Photo'),
                   const SizedBox(height: 12),
-                  SizedBox(
-                    height: 120,
-                    child: ListView(
-                      scrollDirection: Axis.horizontal,
+                  GestureDetector(
+                    onTap: _pickPhoto,
+                    child: Stack(
                       children: [
-                        // Existing photo
-                        if (_hasPhoto) ...[
-                          _PhotoBox(
-                            imageUrl: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?q=80&w=200&auto=format&fit=crop',
-                            onDelete: () => setState(() => _hasPhoto = false),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(22),
+                          child: _pendingAvatar != null
+                              ? Image.file(
+                                  _pendingAvatar!,
+                                  width: 90, height: 90,
+                                  fit: BoxFit.cover,
+                                )
+                              : (avatarUrl != null && avatarUrl.isNotEmpty)
+                                  ? Image.network(
+                                      avatarUrl,
+                                      width: 90, height: 90,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, __, ___) =>
+                                          _AvatarFallbackSmall(
+                                              initial: initial),
+                                    )
+                                  : _AvatarFallbackSmall(
+                                      initial: initial),
+                        ),
+                        Positioned(
+                          bottom: 0, right: 0,
+                          child: Container(
+                            width: 28, height: 28,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF1EC9B8),
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                  color: _bg, width: 2),
+                            ),
+                            child: const Icon(
+                              Icons.camera_alt_rounded,
+                              color: Colors.white, size: 14,
+                            ),
                           ),
-                          const SizedBox(width: 12),
-                        ],
-                        // Add photo slot
-                        _AddPhotoBox(onTap: () {}),
-                        const SizedBox(width: 12),
+                        ),
                       ],
                     ),
                   ),
                   const SizedBox(height: 24),
 
-                  // ── Name ───────────────────────────────────────────────
+                  // Name
                   _UnderlineField(
                     controller: _nameCtrl,
                     label: 'Name',
                   ),
                   const SizedBox(height: 20),
 
-                  // ── Home Base ──────────────────────────────────────────
+                  // Home Base
                   _UnderlineField(
                     controller: _baseCtrl,
                     label: 'Home Base',
+                    hint: 'City, Country',
                   ),
                   const SizedBox(height: 20),
 
-                  // ── Bio ────────────────────────────────────────────────
+                  // Bio
                   _UnderlineField(
                     controller: _bioCtrl,
                     label: 'Bio',
+                    hint: 'Tell fellow travelers about yourself...',
                     maxLines: 4,
                   ),
                   const SizedBox(height: 24),
 
-                  // ── Travel Traits & Vibes ──────────────────────────────
+                  // Travel Traits
                   const _SectionLabel('Travel Traits & Vibes'),
                   const SizedBox(height: 12),
                   _TraitsBox(
@@ -238,13 +353,37 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     onRemove: _removeTrait,
                     onAdd: _addTrait,
                   ),
-
                   const SizedBox(height: 12),
                 ],
               ),
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ─── Avatar fallback (small) ──────────────────────────────────────────────────
+
+class _AvatarFallbackSmall extends StatelessWidget {
+  final String initial;
+  const _AvatarFallbackSmall({required this.initial});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 90, height: 90,
+      color: const Color(0xFF1EC9B8).withOpacity(.20),
+      child: Center(
+        child: Text(
+          initial,
+          style: const TextStyle(
+            color: Color(0xFF58DAD0),
+            fontSize: 36,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
       ),
     );
   }
@@ -265,83 +404,6 @@ class _SectionLabel extends StatelessWidget {
         fontSize: 11,
         fontWeight: FontWeight.w800,
         letterSpacing: .05,
-      ),
-    );
-  }
-}
-
-// ─── Photo box (existing) ─────────────────────────────────────────────────────
-
-class _PhotoBox extends StatelessWidget {
-  final String imageUrl;
-  final VoidCallback onDelete;
-  const _PhotoBox({required this.imageUrl, required this.onDelete});
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 100,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(16),
-            child: Image.network(
-              imageUrl,
-              width: 100, height: 120, fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => Container(
-                width: 100, height: 120,
-                color: Colors.white.withOpacity(.05),
-              ),
-            ),
-          ),
-          // Delete badge
-          Positioned(
-            top: -6, right: -6,
-            child: GestureDetector(
-              onTap: onDelete,
-              child: Container(
-                width: 22, height: 22,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF0B1516),
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white.withOpacity(.20)),
-                ),
-                child: const Icon(Icons.close_rounded,
-                    color: Colors.white, size: 12),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ─── Add photo box (empty slot) ───────────────────────────────────────────────
-
-class _AddPhotoBox extends StatelessWidget {
-  final VoidCallback onTap;
-  const _AddPhotoBox({required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 100, height: 120,
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(.02),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: Colors.white.withOpacity(.20),
-            style: BorderStyle.solid,
-          ),
-        ),
-        child: const Center(
-          child: Icon(Icons.add_rounded,
-              color: Color(0xFFA8C4BF), size: 24),
-        ),
       ),
     );
   }
@@ -371,8 +433,6 @@ class _UnderlineFieldState extends State<_UnderlineField> {
   static const _text  = Color(0xFFEDF7F4);
   static const _faint = Color(0xFF6A8882);
 
-  bool _focused = false;
-
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -382,29 +442,25 @@ class _UnderlineFieldState extends State<_UnderlineField> {
           _SectionLabel(widget.label),
           const SizedBox(height: 4),
         ],
-        Focus(
-          onFocusChange: (f) => setState(() => _focused = f),
-          child: TextField(
-            controller: widget.controller,
-            maxLines: widget.maxLines,
-            style: const TextStyle(
-              color: _text, fontSize: 15, height: 1.5,
+        TextField(
+          controller: widget.controller,
+          maxLines: widget.maxLines,
+          style: const TextStyle(
+              color: _text, fontSize: 15, height: 1.5),
+          decoration: InputDecoration(
+            hintText: widget.hint,
+            hintStyle: const TextStyle(color: _faint, fontSize: 15),
+            border: InputBorder.none,
+            enabledBorder: UnderlineInputBorder(
+              borderSide:
+                  BorderSide(color: Colors.white.withOpacity(.10)),
             ),
-            decoration: InputDecoration(
-              hintText: widget.hint,
-              hintStyle: const TextStyle(color: _faint, fontSize: 15),
-              border: InputBorder.none,
-              enabledBorder: UnderlineInputBorder(
-                borderSide: BorderSide(
-                  color: Colors.white.withOpacity(.10),
-                ),
-              ),
-              focusedBorder: const UnderlineInputBorder(
-                borderSide: BorderSide(color: _teal2, width: 1),
-              ),
-              contentPadding: const EdgeInsets.symmetric(vertical: 12),
-              isDense: true,
+            focusedBorder: const UnderlineInputBorder(
+              borderSide: BorderSide(color: _teal2, width: 1),
             ),
+            contentPadding:
+                const EdgeInsets.symmetric(vertical: 12),
+            isDense: true,
           ),
         ),
       ],
@@ -441,46 +497,47 @@ class _TraitsBox extends StatelessWidget {
       child: Wrap(
         spacing: 8, runSpacing: 8,
         children: [
-          // Existing traits with long-press to remove
           ...traits.asMap().entries.map((e) => GestureDetector(
             onLongPress: () => onRemove(e.key),
             child: Container(
               padding: const EdgeInsets.symmetric(
-                horizontal: 14, vertical: 8,
-              ),
+                  horizontal: 14, vertical: 8),
               decoration: BoxDecoration(
                 color: Colors.white.withOpacity(.05),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: Text(
-                e.value,
-                style: const TextStyle(
-                  color: _text, fontSize: 13, fontWeight: FontWeight.w600,
-                ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(e.value,
+                      style: const TextStyle(
+                          color: _text,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600)),
+                  const SizedBox(width: 6),
+                  const Icon(Icons.close_rounded,
+                      size: 12,
+                      color: Color(0xFF6A8882)),
+                ],
               ),
             ),
           )),
-
-          // "+ Add Trait" chip
           GestureDetector(
             onTap: onAdd,
             child: Container(
               padding: const EdgeInsets.symmetric(
-                horizontal: 14, vertical: 8,
-              ),
+                  horizontal: 14, vertical: 8),
               decoration: BoxDecoration(
                 color: _teal.withOpacity(.10),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                  color: _teal.withOpacity(.30),
-                  // dashed not natively supported — solid subtle border
-                ),
+                border: Border.all(color: _teal.withOpacity(.30)),
               ),
               child: const Text(
                 '+ Add Trait',
                 style: TextStyle(
-                  color: _teal2, fontSize: 13, fontWeight: FontWeight.w600,
-                ),
+                    color: _teal2,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600),
               ),
             ),
           ),
