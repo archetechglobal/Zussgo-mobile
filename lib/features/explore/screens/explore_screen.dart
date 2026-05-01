@@ -29,7 +29,7 @@ class _VibeItem {
   final String emoji;
   final String label;
   final Color color;
-  final List<String> matchCategories; // matches against ExploreDestination.categories
+  final List<String> matchCategories;
   const _VibeItem(this.emoji, this.label, this.color, this.matchCategories);
 }
 
@@ -52,6 +52,7 @@ class ExploreScreen extends ConsumerStatefulWidget {
 class _ExploreScreenState extends ConsumerState<ExploreScreen> {
   _VibeItem?           _activeVibe;
   ExploreDestination?  _detail;
+  String               _searchQuery = '';
 
   @override
   void initState() {
@@ -82,9 +83,11 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
           : _FeedView(
               top: top, navH: navH, bottom: bottom,
               activeVibe: _activeVibe,
+              searchQuery: _searchQuery,
               onVibeSelect: (v) =>
                   setState(() => _activeVibe = _activeVibe == v ? null : v),
               onDestTap: (d) => setState(() => _detail = d),
+              onSearchChanged: (q) => setState(() => _searchQuery = q),
               nav: const HomeBottomNav(),
             ),
     );
@@ -96,25 +99,43 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
 class _FeedView extends ConsumerWidget {
   final double top, navH, bottom;
   final _VibeItem? activeVibe;
+  final String searchQuery;
   final ValueChanged<_VibeItem> onVibeSelect;
   final ValueChanged<ExploreDestination> onDestTap;
+  final ValueChanged<String> onSearchChanged;
   final Widget nav;
 
   const _FeedView({
     required this.top, required this.navH, required this.bottom,
     required this.activeVibe,
-    required this.onVibeSelect, required this.onDestTap, required this.nav,
+    required this.searchQuery,
+    required this.onVibeSelect, required this.onDestTap,
+    required this.onSearchChanged, required this.nav,
   });
 
   List<ExploreDestination> _applyFilter(
-    List<ExploreDestination> all, _VibeItem? vibe,
+    List<ExploreDestination> all, _VibeItem? vibe, String query,
   ) {
-    final nonOrigin = all.where((d) => !d.isOriginCity).toList();
-    if (vibe == null) return nonOrigin;
-    return nonOrigin
-        .where((d) => d.categories.any((c) =>
-            vibe.matchCategories.any((m) => c.toLowerCase().contains(m))))
-        .toList();
+    var results = all.where((d) => !d.isOriginCity).toList();
+
+    // Search filter — match against name or region (case-insensitive)
+    final q = query.trim().toLowerCase();
+    if (q.isNotEmpty) {
+      results = results.where((d) {
+        return d.name.toLowerCase().contains(q) ||
+            d.region.toLowerCase().contains(q);
+      }).toList();
+    }
+
+    // Vibe filter
+    if (vibe != null) {
+      results = results
+          .where((d) => d.categories.any((c) =>
+              vibe.matchCategories.any((m) => c.toLowerCase().contains(m))))
+          .toList();
+    }
+
+    return results;
   }
 
   @override
@@ -126,11 +147,15 @@ class _FeedView extends ConsumerWidget {
         destsAsync.when(
           loading: () => _buildList(context, null, isLoading: true),
           error: (e, _) => _buildList(context, [], isError: true),
-          data: (all) => _buildList(context, _applyFilter(all, activeVibe)),
+          data: (all) => _buildList(
+              context, _applyFilter(all, activeVibe, searchQuery)),
         ),
         Positioned(
           top: 0, left: 0, right: 0,
-          child: _SearchHeader(top: top),
+          child: _SearchHeader(
+            top: top,
+            onSearchChanged: onSearchChanged,
+          ),
         ),
         Positioned(
           left: 12, right: 12,
@@ -147,52 +172,68 @@ class _FeedView extends ConsumerWidget {
     bool isLoading = false,
     bool isError = false,
   }) {
+    final isSearching = searchQuery.trim().isNotEmpty;
+
     return ListView(
       padding: EdgeInsets.only(top: top + 72, bottom: navH + 16),
       children: [
-        const Padding(
-          padding: EdgeInsets.fromLTRB(16, 8, 16, 12),
-          child: Text('Pick your vibe', style: TextStyle(
-            color: _kText, fontSize: 18, fontWeight: FontWeight.w700,
-            letterSpacing: -.2,
-          )),
-        ),
-        SizedBox(
-          height: 110,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            itemCount: _vibes.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 12),
-            itemBuilder: (_, i) => _VibeCard(
-              vibe: _vibes[i],
-              active: activeVibe == _vibes[i],
-              onTap: () => onVibeSelect(_vibes[i]),
+        // Hide vibe row while searching
+        if (!isSearching) ...[
+          const Padding(
+            padding: EdgeInsets.fromLTRB(16, 8, 16, 12),
+            child: Text('Pick your vibe', style: TextStyle(
+              color: _kText, fontSize: 18, fontWeight: FontWeight.w700,
+              letterSpacing: -.2,
+            )),
+          ),
+          SizedBox(
+            height: 110,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              itemCount: _vibes.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 12),
+              itemBuilder: (_, i) => _VibeCard(
+                vibe: _vibes[i],
+                active: activeVibe == _vibes[i],
+                onTap: () => onVibeSelect(_vibes[i]),
+              ),
             ),
           ),
-        ),
+        ],
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('Trending this weekend', style: TextStyle(
-                color: _kText, fontSize: 18, fontWeight: FontWeight.w700,
-                letterSpacing: -.2,
-              )),
-              const Text('See all', style: TextStyle(
-                color: _kTeal2, fontSize: 12, fontWeight: FontWeight.w700,
-              )),
+              Text(
+                isSearching
+                    ? 'Results for "${searchQuery.trim()}"'
+                    : 'Trending this weekend',
+                style: const TextStyle(
+                  color: _kText, fontSize: 18, fontWeight: FontWeight.w700,
+                  letterSpacing: -.2,
+                ),
+              ),
+              if (!isSearching)
+                const Text('See all', style: TextStyle(
+                  color: _kTeal2, fontSize: 12, fontWeight: FontWeight.w700,
+                )),
             ],
           ),
         ),
         if (isLoading)
           ..._buildSkeletonCards()
-        else if (isError || (dests?.isEmpty ?? true))
+        else if (isError)
           _EmptyStateInline(
             icon: Icons.explore_rounded,
-            message: isError
-                ? 'Could not load destinations'
+            message: 'Could not load destinations',
+          )
+        else if (dests?.isEmpty ?? true)
+          _EmptyStateInline(
+            icon: isSearching ? Icons.search_off_rounded : Icons.explore_rounded,
+            message: isSearching
+                ? 'No places found for "${searchQuery.trim()}"'
                 : 'No destinations match this vibe',
           )
         else
@@ -219,16 +260,40 @@ class _FeedView extends ConsumerWidget {
       );
 }
 
-// ─── Search header ────────────────────────────────────────────────────────────
+// ─── Search header (functional TextField) ─────────────────────────────────────
 
-class _SearchHeader extends StatelessWidget {
+class _SearchHeader extends StatefulWidget {
   final double top;
-  const _SearchHeader({required this.top});
+  final ValueChanged<String> onSearchChanged;
+  const _SearchHeader({required this.top, required this.onSearchChanged});
+
+  @override
+  State<_SearchHeader> createState() => _SearchHeaderState();
+}
+
+class _SearchHeaderState extends State<_SearchHeader> {
+  final TextEditingController _ctrl = TextEditingController();
+  bool _hasText = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl.addListener(() {
+      setState(() => _hasText = _ctrl.text.isNotEmpty);
+      widget.onSearchChanged(_ctrl.text);
+    });
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.fromLTRB(16, top + 10, 16, 14),
+      padding: EdgeInsets.fromLTRB(16, widget.top + 10, 16, 14),
       decoration: BoxDecoration(
         color: _kBg.withOpacity(.94),
         border: Border(
@@ -241,18 +306,52 @@ class _SearchHeader extends StatelessWidget {
             child: Container(
               height: 44,
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(.04),
+                color: Colors.white.withOpacity(.05),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.white.withOpacity(.07)),
+                border: Border.all(color: Colors.white.withOpacity(.08)),
               ),
-              child: const Row(
+              child: Row(
                 children: [
-                  SizedBox(width: 12),
-                  Icon(Icons.search_rounded, color: _kFaint, size: 17),
-                  SizedBox(width: 8),
-                  Text('Where to next?', style: TextStyle(
-                    color: _kFaint, fontSize: 13,
-                  )),
+                  const SizedBox(width: 12),
+                  const Icon(Icons.search_rounded, color: _kFaint, size: 17),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: TextField(
+                      controller: _ctrl,
+                      style: const TextStyle(
+                        color: _kText,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      cursorColor: _kTeal,
+                      cursorWidth: 1.5,
+                      textInputAction: TextInputAction.search,
+                      decoration: const InputDecoration(
+                        hintText: 'Where to next?',
+                        hintStyle: TextStyle(color: _kFaint, fontSize: 13),
+                        border: InputBorder.none,
+                        isDense: true,
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                    ),
+                  ),
+                  if (_hasText)
+                    GestureDetector(
+                      onTap: () {
+                        _ctrl.clear();
+                        widget.onSearchChanged('');
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        child: Icon(
+                          Icons.cancel_rounded,
+                          color: _kFaint.withOpacity(.7),
+                          size: 16,
+                        ),
+                      ),
+                    )
+                  else
+                    const SizedBox(width: 12),
                 ],
               ),
             ),
@@ -342,7 +441,6 @@ class _HeroCard extends ConsumerWidget {
     final peopleAsync = ref.watch(peopleGoingToProvider(dest.name));
     final d = dest;
 
-    // Derive a dark hero gradient from nodeColor
     final heroColor = Color.fromARGB(
       255,
       (d.nodeColor.red * 0.18).round(),
@@ -367,7 +465,6 @@ class _HeroCard extends ConsumerWidget {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              // Background — use network image if available, else gradient
               if (d.imageUrl.isNotEmpty)
                 Image.network(
                   d.imageUrl,
@@ -390,7 +487,6 @@ class _HeroCard extends ConsumerWidget {
                     ),
                   ),
                 ),
-              // Dark overlay for text legibility
               Positioned.fill(
                 child: DecoratedBox(
                   decoration: BoxDecoration(
@@ -402,7 +498,6 @@ class _HeroCard extends ConsumerWidget {
                   ),
                 ),
               ),
-              // Badge top-left
               if (d.badge.isNotEmpty)
                 Positioned(
                   top: 14, left: 14,
@@ -418,7 +513,6 @@ class _HeroCard extends ConsumerWidget {
                     )),
                   ),
                 ),
-              // Bottom info
               Positioned(
                 left: 16, right: 16, bottom: 16,
                 child: peopleAsync.when(
@@ -588,7 +682,6 @@ class _LiveAvatarStack extends StatelessWidget {
 }
 
 // ─── Detail view ──────────────────────────────────────────────────────────────
-// Accepts ExploreDestination (Supabase model) — all rich fields present.
 
 class _DetailView extends ConsumerWidget {
   final ExploreDestination dest;
@@ -605,7 +698,6 @@ class _DetailView extends ConsumerWidget {
     final peopleAsync = ref.watch(peopleGoingToProvider(d.name));
     final tripsAsync  = ref.watch(openTripsForProvider(d.name));
 
-    // Derive gradient from nodeColor
     final heroColor = Color.fromARGB(
       255,
       (d.nodeColor.red * 0.18).round(),
@@ -627,7 +719,6 @@ class _DetailView extends ConsumerWidget {
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    // Background image or gradient
                     if (d.imageUrl.isNotEmpty)
                       Image.network(
                         d.imageUrl,
@@ -651,7 +742,6 @@ class _DetailView extends ConsumerWidget {
                           ),
                         ),
                       ),
-                    // Dark overlay
                     Positioned.fill(
                       child: DecoratedBox(
                         decoration: BoxDecoration(
@@ -667,7 +757,6 @@ class _DetailView extends ConsumerWidget {
                         ),
                       ),
                     ),
-                    // Back + share buttons
                     Positioned(
                       top: top + 10, left: 16, right: 16,
                       child: Row(
@@ -678,13 +767,11 @@ class _DetailView extends ConsumerWidget {
                         ],
                       ),
                     ),
-                    // Cover bottom content
                     Positioned(
                       left: 16, right: 16, bottom: 0,
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Vibe badge
                           if (d.topVibe.isNotEmpty)
                             Container(
                               padding: const EdgeInsets.symmetric(
@@ -703,7 +790,6 @@ class _DetailView extends ConsumerWidget {
                                   )),
                             ),
                           const SizedBox(height: 10),
-                          // Place name
                           Text(d.name,
                               style: const TextStyle(
                                 color: _kText,
@@ -711,7 +797,6 @@ class _DetailView extends ConsumerWidget {
                                 fontWeight: FontWeight.w700,
                                 letterSpacing: -.4,
                               )),
-                          // State / region
                           if (d.region.isNotEmpty) ...[
                             const SizedBox(height: 3),
                             Text(d.region,
@@ -720,7 +805,6 @@ class _DetailView extends ConsumerWidget {
                                   fontSize: 12,
                                 )),
                           ],
-                          // Description
                           if (d.description.isNotEmpty) ...[
                             const SizedBox(height: 10),
                             Text(d.description,
@@ -730,7 +814,6 @@ class _DetailView extends ConsumerWidget {
                                   height: 1.55,
                                 )),
                           ],
-                          // Info chips row: best time + cost hint
                           if (d.bestTime.isNotEmpty || d.costHint.isNotEmpty) ...[
                             const SizedBox(height: 12),
                             Wrap(
@@ -752,7 +835,6 @@ class _DetailView extends ConsumerWidget {
                               ],
                             ),
                           ],
-                          // Highlights horizontal scroll
                           if (d.highlights.isNotEmpty) ...[
                             const SizedBox(height: 10),
                             SizedBox(
@@ -782,7 +864,6 @@ class _DetailView extends ConsumerWidget {
                               ),
                             ),
                           ],
-                          // Mood tags
                           if (d.moodTags.isNotEmpty) ...[
                             const SizedBox(height: 8),
                             Wrap(
