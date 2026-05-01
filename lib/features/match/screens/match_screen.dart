@@ -242,6 +242,80 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
 }
 
 // ---------------------------------------------------------------------------
+// _ToggleBtn
+// ---------------------------------------------------------------------------
+
+class _ToggleBtn extends StatelessWidget {
+  final String label;
+  final bool active;
+  final int badgeCount;
+  final VoidCallback onTap;
+
+  const _ToggleBtn({
+    required this.label,
+    required this.active,
+    required this.badgeCount,
+    required this.onTap,
+  });
+
+  static const _teal = Color(0xFF1EC9B8);
+  static const _dark = Color(0xFF041818);
+  static const _text = Color(0xFFEDF7F4);
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+          height: 38,
+          decoration: BoxDecoration(
+            color: active ? _teal : Colors.transparent,
+            borderRadius: BorderRadius.circular(96),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  color: active ? _dark : _text.withOpacity(.55),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              if (badgeCount > 0) ...[
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: active
+                        ? _dark.withOpacity(.25)
+                        : _teal.withOpacity(.20),
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                  child: Text(
+                    '$badgeCount',
+                    style: TextStyle(
+                      color: active ? _dark : _teal,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Filter logic
 // ---------------------------------------------------------------------------
 
