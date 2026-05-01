@@ -54,18 +54,22 @@ class _ChatsListScreenState extends ConsumerState<ChatsListScreen> {
     _presenceChannel = Supabase.instance.client
         .channel('online-users')
         .onPresenceSync((_) {
-          // presenceState() returns Map<String, List<Presence>>
-          // Each Presence has a .payload map with our tracked keys
-          final presenceMap = _presenceChannel.presenceState();
+          // presenceState() returns Map<String, dynamic> where each value
+          // is a List of presence entries with a .payload map.
+          // Use dynamic casting to stay compatible across realtime_client versions.
+          final raw = _presenceChannel.presenceState();
           if (!mounted) return;
           setState(() {
             _onlineIds.clear();
-            for (final presenceList in presenceMap.values) {
-              for (final presence in presenceList) {
-                final uid = presence.payload['user_id'] as String?;
+            (raw as Map<String, dynamic>).forEach((_, value) {
+              final list = value as List<dynamic>;
+              for (final item in list) {
+                final payload =
+                    (item as dynamic).payload as Map<String, dynamic>?;
+                final uid = payload?['user_id'] as String?;
                 if (uid != null && uid != me) _onlineIds.add(uid);
               }
-            }
+            });
           });
         })
         .subscribe((status, _) async {
