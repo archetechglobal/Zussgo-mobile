@@ -196,7 +196,7 @@ class _CreateTripFlowState extends ConsumerState<_CreateTripFlow> {
           userInitial: userInitial,
           onClose: () => Navigator.of(context).pop(),
           onDestinationTap: () => _pickDestination(),
-          onDatesTap: () => _pickField('Dates', ['May 10–14', 'May 12–15', 'May 18–22', 'May 20–25', 'Jun 1–7', 'Jun 14–20'], (v) => setState(() => _dates = v)),
+          onDatesTap: () => _pickDateRange(),
           onVibeTap: () => _pickField('Vibe', ['🌊 Beach & Chill', '🏔 Adventure', '🎉 Party', '🏛 Culture', '🧘 Spiritual', '🌿 Nature'], (v) => setState(() => _vibe = v)),
           onBudgetTap: () => _pickField('Budget', ['₹ Budget', '₹₹ Mid-range', '₹₹₹ Comfortable', '💎 Luxury'], (v) => setState(() => _budget = v)),
           onIntentTap: () => _typeIntent(),
@@ -242,6 +242,58 @@ class _CreateTripFlowState extends ConsumerState<_CreateTripFlow> {
         onPick: (v) => setState(() => _destination = v),
       ),
     );
+  }
+
+  Future<void> _pickDateRange() async {
+    final now = DateTime.now();
+    final picked = await showDateRangePicker(
+      context: context,
+      firstDate: now,
+      lastDate: now.add(const Duration(days: 365 * 2)),
+      initialDateRange: DateTimeRange(
+        start: now,
+        end: now.add(const Duration(days: 4)),
+      ),
+      builder: (context, child) {
+        return Theme(
+          data: ThemeData.dark().copyWith(
+            colorScheme: const ColorScheme.dark(
+              primary: _kTeal,
+              onPrimary: Color(0xFF041818),
+              surface: Color(0xFF0D1819),
+              onSurface: _kText,
+              secondary: _kTeal2,
+              onSecondary: Color(0xFF041818),
+            ),
+            dialogBackgroundColor: const Color(0xFF0D1819),
+            textButtonTheme: TextButtonThemeData(
+              style: TextButton.styleFrom(foregroundColor: _kTeal2),
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (picked != null) {
+      final start = picked.start;
+      final end   = picked.end;
+      final fmt   = _formatDateRange(start, end);
+      setState(() => _dates = fmt);
+    }
+  }
+
+  String _formatDateRange(DateTime start, DateTime end) {
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    ];
+    final sMonth = months[start.month - 1];
+    final eMonth = months[end.month - 1];
+    if (start.month == end.month && start.year == end.year) {
+      return '$sMonth ${start.day}–${end.day}';
+    }
+    return '$sMonth ${start.day} – $eMonth ${end.day}';
   }
 
   void _pickField(String label, List<String> options, ValueChanged<String> onPick) {
@@ -1631,7 +1683,7 @@ class _Tag extends StatelessWidget {
   }
 }
 
-// ─── Generic Picker sheet (Dates, Vibe, Budget) ───────────────────────────────
+// ─── Generic Picker sheet (Vibe, Budget) ──────────────────────────────────────
 
 class _PickerSheet extends StatelessWidget {
   final String label;
