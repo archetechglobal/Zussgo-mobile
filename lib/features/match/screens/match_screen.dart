@@ -1,7 +1,3 @@
-// ============================================================
-// FILE: lib/features/match/screens/match_screen.dart
-// ACTION: UPDATE (replace entire file)
-// ============================================================
 // lib/features/match/screens/match_screen.dart
 
 import 'package:flutter/material.dart';
@@ -17,6 +13,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import '../../profile/providers/profile_provider.dart';
 import '../../trips/providers/trips_provider.dart';
+import '../../trips/models/trip_model.dart';
 import '../../connections/providers/connections_provider.dart';
 
 class MatchScreen extends ConsumerStatefulWidget {
@@ -31,14 +28,14 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
   late int _tab;
   int _activeChip = 0;
 
-  static const bg = Color(0xFF070E0F);
-  static const text = Color(0xFFEDF7F4);
+  static const bg    = Color(0xFF070E0F);
+  static const text  = Color(0xFFEDF7F4);
   static const muted = Color(0xFFA8C4BF);
   static const faint = Color(0xFF6A8882);
-  static const teal = Color(0xFF1EC9B8);
+  static const teal  = Color(0xFF1EC9B8);
   static const teal2 = Color(0xFF58DAD0);
-  static const gold = Color(0xFFF7B84E);
-  static const rose = Color(0xFFFFB3C1);
+  static const gold  = Color(0xFFF7B84E);
+  static const rose  = Color(0xFFFFB3C1);
 
   final List<String> _chips = [
     'All matches',
@@ -47,8 +44,6 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
     'Under ₹15k',
     'Budget',
   ];
-
-  // Traveler cards are now loaded live from activeTripsProvider in _DiscoverView.
 
   final List<_RequestData> _requests = const [
     _RequestData(
@@ -92,11 +87,10 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final topInset = MediaQuery.of(context).padding.top;
-    final bottomInset = MediaQuery.of(context).padding.bottom;
+    final topInset      = MediaQuery.of(context).padding.top;
+    final bottomInset   = MediaQuery.of(context).padding.bottom;
     final bottomNavHeight = 88.0 + bottomInset;
 
-    // Live data
     final pendingRequests = ref.watch(tripPendingRequestsProvider);
     final pendingCount    = pendingRequests.asData?.value.length ?? 0;
 
@@ -214,29 +208,27 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
                     duration: const Duration(milliseconds: 220),
                     child: _tab == 0
                         ? _DiscoverView(
-                      key: const ValueKey('discover'),
-                      chips: _chips,
-                      activeChip: _activeChip,
-                      onChipTap: (i) => setState(() => _activeChip = i),
-                      bottomInset: bottomInset,
-                    )
+                            key: const ValueKey('discover'),
+                            chips: _chips,
+                            activeChip: _activeChip,
+                            onChipTap: (i) => setState(() => _activeChip = i),
+                            bottomInset: bottomInset,
+                          )
                         : _LiveRequestsView(
-                      key: const ValueKey('requests'),
-                      requestsAsync: pendingRequests,
-                      bottomInset: bottomInset,
-                    ),
+                            key: const ValueKey('requests'),
+                            requestsAsync: pendingRequests,
+                            bottomInset: bottomInset,
+                          ),
                   ),
                 ),
               ],
             ),
           ),
-          // ── Create Trip FAB ──────────────────────────────────────────────
           Positioned(
             right: 20,
             bottom: 88 + bottomInset + 20,
             child: _CreateTripFab(),
           ),
-
           Positioned(
             left: 12,
             right: 12,
@@ -249,82 +241,88 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
   }
 }
 
-class _ToggleBtn extends StatelessWidget {
-  final String label;
-  final bool active;
-  final int badgeCount;
-  final VoidCallback onTap;
+// ---------------------------------------------------------------------------
+// Filter logic
+// ---------------------------------------------------------------------------
 
-  const _ToggleBtn({
-    required this.label,
-    required this.active,
-    required this.badgeCount,
-    required this.onTap,
-  });
+/// Returns true if [trip] passes the chip at [chipIndex].
+bool _tripPassesFilter(TripModel trip, int chipIndex) {
+  switch (chipIndex) {
+    case 0: // All matches
+      return true;
 
-  static const text = Color(0xFFEDF7F4);
-  static const faint = Color(0xFF6A8882);
-  static const gold = Color(0xFFF7B84E);
+    case 1: // Next 7 days
+      // dates field is a free-form string like "May 12–15" or "2026-05-12".
+      // We try to extract a start date; fall back to createdAt if we can't.
+      final now     = DateTime.now();
+      final cutoff  = now.add(const Duration(days: 7));
+      final dateStr = trip.dates.trim();
+      DateTime? startDate;
 
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: GestureDetector(
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          curve: Curves.easeOut,
-          height: 40,
-          decoration: BoxDecoration(
-            color: active ? Colors.white.withOpacity(.10) : Colors.transparent,
-            borderRadius: BorderRadius.circular(100),
-            boxShadow: active
-                ? [
-              BoxShadow(
-                color: Colors.black.withOpacity(.2),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-            ]
-                : [],
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                label,
-                style: TextStyle(
-                  color: active ? text : faint,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              if (badgeCount > 0) ...[
-                const SizedBox(width: 6),
-                Container(
-                  padding:
-                  const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: gold,
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Text(
-                    '$badgeCount',
-                    style: const TextStyle(
-                      color: Color(0xFF041818),
-                      fontSize: 10,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
+      // Try ISO format first: "2026-05-12" or "2026-05-12 to 2026-05-15"
+      final isoMatch = RegExp(r'(\d{4}-\d{2}-\d{2})').firstMatch(dateStr);
+      if (isoMatch != null) {
+        startDate = DateTime.tryParse(isoMatch.group(1)!);
+      }
+
+      // Fall back: trip was created within last 7 days (still relevant)
+      startDate ??= trip.createdAt;
+
+      return startDate.isAfter(now.subtract(const Duration(days: 1))) &&
+             startDate.isBefore(cutoff);
+
+    case 2: // Women only
+      // ProfileModel has no gender field yet. We infer from vibes list
+      // (e.g. "Women-only travel", "Girls trip") or the trip vibe string.
+      final creatorVibes = (trip.creator?.vibes ?? [])
+          .map((v) => v.toLowerCase())
+          .toList();
+      final tripVibe     = (trip.vibe ?? '').toLowerCase();
+      const femaleHints  = ['women', 'girl', 'female', 'ladies', 'she/her'];
+      return femaleHints.any((h) =>
+          creatorVibes.any((v) => v.contains(h)) || tripVibe.contains(h));
+
+    case 3: // Under ₹15k
+      // Match against trip.budget or creator profile budget.
+      final budget = (trip.budget ?? trip.creator?.budget ?? '').toLowerCase();
+      // Accept if explicitly budget/low, or contains a rupee amount ≤ 15000.
+      if (budget.contains('15k') || budget.contains('15,000') ||
+          budget.contains('budget') || budget.contains('low') ||
+          budget.contains('cheap') || budget.contains('backpack')) {
+        return true;
+      }
+      // Try to extract a numeric value like "₹12000" or "12000"
+      final numMatch = RegExp(r'(\d[\d,]*)').firstMatch(budget);
+      if (numMatch != null) {
+        final amount =
+            int.tryParse(numMatch.group(1)!.replaceAll(',', '')) ?? 99999;
+        return amount <= 15000;
+      }
+      return false;
+
+    case 4: // Budget (general — under ₹30k / backpacker style)
+      final budget = (trip.budget ?? trip.creator?.budget ?? '').toLowerCase();
+      if (budget.contains('budget') || budget.contains('low') ||
+          budget.contains('cheap') || budget.contains('backpack') ||
+          budget.contains('economy')) {
+        return true;
+      }
+      final numMatch = RegExp(r'(\d[\d,]*)').firstMatch(budget);
+      if (numMatch != null) {
+        final amount =
+            int.tryParse(numMatch.group(1)!.replaceAll(',', '')) ?? 99999;
+        return amount <= 30000;
+      }
+      return false;
+
+    default:
+      return true;
   }
 }
+
+// ---------------------------------------------------------------------------
+// _DiscoverView
+// ---------------------------------------------------------------------------
 
 class _DiscoverView extends ConsumerWidget {
   final List<String> chips;
@@ -341,82 +339,139 @@ class _DiscoverView extends ConsumerWidget {
   });
 
   static const text = Color(0xFFEDF7F4);
+  static const teal = Color(0xFF1EC9B8);
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final tripsAsync = ref.watch(activeTripsProvider);
 
-    // Convert live TripModel list → _TravelerData for the existing card widget
-    final travelers = tripsAsync.asData?.value.map((t) => _TravelerData(
-      id:        t.id,
-      name:      t.creator?.name ?? 'Traveler',
-      age:       t.creator?.age ?? 0,
-      city:      t.creator?.baseCity ?? '',
-      vibe:      t.vibe ?? '✈️ Traveler',
-      rating:    t.creator?.rating ?? 0,
-      avatarUrl: t.creator?.avatarUrl,
-      vibes:     t.creator?.vibes ?? [],
-      variant:   (t.hashCode % 4) + 1,
-    )).toList() ?? [];
+    return tripsAsync.when(
+      loading: () => const Center(
+        child: CircularProgressIndicator(color: Color(0xFF1EC9B8), strokeWidth: 2),
+      ),
+      error: (e, _) => const Center(
+        child: Text('Could not load trips',
+            style: TextStyle(color: Color(0xFF6A8882))),
+      ),
+      data: (allTrips) {
+        // ── Apply chip filter ──────────────────────────────────────────────
+        final filtered = allTrips
+            .where((t) => _tripPassesFilter(t, activeChip))
+            .toList();
 
-    return Column(
-      children: [
-        SizedBox(
-          height: 38,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            itemCount: chips.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 8),
-            itemBuilder: (_, i) {
-              final active = i == activeChip;
-              return GestureDetector(
-                onTap: () => onChipTap(i),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 180),
-                  curve: Curves.easeOut,
-                  padding:
-                  const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: active ? text : Colors.white.withOpacity(.04),
-                    borderRadius: BorderRadius.circular(999),
-                    border: Border.all(
-                      color: active
-                          ? Colors.transparent
-                          : Colors.white.withOpacity(.08),
+        // ── Convert to card data ───────────────────────────────────────────
+        final travelers = filtered.map((t) => _TravelerData(
+              id:        t.id,
+              name:      t.creator?.name ?? 'Traveler',
+              age:       t.creator?.age ?? 0,
+              city:      t.creator?.baseCity ?? '',
+              vibe:      t.vibe ?? '✈️ Traveler',
+              rating:    t.creator?.rating ?? 0,
+              avatarUrl: t.creator?.avatarUrl,
+              vibes:     t.creator?.vibes ?? [],
+              variant:   (t.hashCode % 4) + 1,
+            )).toList();
+
+        return Column(
+          children: [
+            // ── Chips row ─────────────────────────────────────────────────
+            SizedBox(
+              height: 38,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: chips.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 8),
+                itemBuilder: (_, i) {
+                  final active = i == activeChip;
+                  return GestureDetector(
+                    onTap: () => onChipTap(i),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
+                      curve: Curves.easeOut,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: active
+                            ? text
+                            : Colors.white.withOpacity(.04),
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(
+                          color: active
+                              ? Colors.transparent
+                              : Colors.white.withOpacity(.08),
+                        ),
+                      ),
+                      child: Text(
+                        chips[i],
+                        style: TextStyle(
+                          color:
+                              active ? const Color(0xFF041818) : text,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                     ),
-                  ),
-                  child: Text(
-                    chips[i],
-                    style: TextStyle(
-                      color: active ? const Color(0xFF041818) : text,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-        const SizedBox(height: 14),
-        Expanded(
-          child: GridView.builder(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              mainAxisSpacing: 12,
-              crossAxisSpacing: 12,
-              childAspectRatio: 3 / 4,
+                  );
+                },
+              ),
             ),
-            itemCount: travelers.length,
-            itemBuilder: (_, i) => _TravelerCardWidget(data: travelers[i]),
-          ),
-        ),
-      ],
+            const SizedBox(height: 14),
+            // ── Grid / empty state ────────────────────────────────────────
+            Expanded(
+              child: travelers.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text('🔍',
+                              style: TextStyle(fontSize: 36)),
+                          const SizedBox(height: 12),
+                          Text(
+                            activeChip == 0
+                                ? 'No trips available right now'
+                                : 'No matches for this filter',
+                            style: const TextStyle(
+                              color: Color(0xFFEDF7F4),
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          const Text(
+                            'Try a different filter or check back soon',
+                            style: TextStyle(
+                                color: Color(0xFF6A8882), fontSize: 12),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
+                    )
+                  : GridView.builder(
+                      padding:
+                          const EdgeInsets.fromLTRB(16, 0, 16, 20),
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 2,
+                        mainAxisSpacing: 12,
+                        crossAxisSpacing: 12,
+                        childAspectRatio: 3 / 4,
+                      ),
+                      itemCount: travelers.length,
+                      itemBuilder: (_, i) =>
+                          _TravelerCardWidget(data: travelers[i]),
+                    ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
+
+// ---------------------------------------------------------------------------
+// _LiveRequestsView
+// ---------------------------------------------------------------------------
 
 class _LiveRequestsView extends StatelessWidget {
   final AsyncValue<List<Map<String, dynamic>>> requestsAsync;
@@ -437,26 +492,34 @@ class _LiveRequestsView extends StatelessWidget {
   Widget build(BuildContext context) {
     return requestsAsync.when(
       loading: () => const Center(
-        child: CircularProgressIndicator(color: Color(0xFF1EC9B8), strokeWidth: 2),
+        child: CircularProgressIndicator(
+            color: Color(0xFF1EC9B8), strokeWidth: 2),
       ),
-      error: (e, _) => Center(
-        child: Text('Could not load requests', style: const TextStyle(color: Color(0xFF6A8882))),
+      error: (e, _) => const Center(
+        child: Text('Could not load requests',
+            style: TextStyle(color: Color(0xFF6A8882))),
       ),
       data: (requests) {
         if (requests.isEmpty) {
           return Center(
             child: Column(
               mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text('🎒', style: TextStyle(fontSize: 40)),
-                const SizedBox(height: 12),
-                const Text('No pending requests', style: TextStyle(
-                  color: Color(0xFFEDF7F4), fontSize: 16, fontWeight: FontWeight.w600,
-                )),
-                const SizedBox(height: 6),
-                const Text('Create a trip to start getting companion requests',
-                    style: TextStyle(color: Color(0xFF6A8882), fontSize: 13),
-                    textAlign: TextAlign.center),
+              children: const [
+                Text('🎒', style: TextStyle(fontSize: 40)),
+                SizedBox(height: 12),
+                Text('No pending requests',
+                    style: TextStyle(
+                      color: Color(0xFFEDF7F4),
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    )),
+                SizedBox(height: 6),
+                Text(
+                  'Create a trip to start getting companion requests',
+                  style: TextStyle(
+                      color: Color(0xFF6A8882), fontSize: 13),
+                  textAlign: TextAlign.center,
+                ),
               ],
             ),
           );
@@ -465,12 +528,17 @@ class _LiveRequestsView extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
           itemCount: requests.length,
           separatorBuilder: (_, __) => const SizedBox(height: 16),
-          itemBuilder: (_, i) => _LiveRequestCard(request: requests[i]),
+          itemBuilder: (_, i) =>
+              _LiveRequestCard(request: requests[i]),
         );
       },
     );
   }
 }
+
+// ---------------------------------------------------------------------------
+// _LiveRequestCard
+// ---------------------------------------------------------------------------
 
 class _LiveRequestCard extends StatelessWidget {
   final Map<String, dynamic> request;
@@ -486,9 +554,9 @@ class _LiveRequestCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final requester = request['requester'] as Map<String, dynamic>? ?? {};
     final trip      = request['trip']      as Map<String, dynamic>? ?? {};
-    final name      = requester['name']  as String? ?? 'Someone';
-    final tripName  = trip['destination'] as String? ?? 'your trip';
-    final dates     = trip['dates']      as String? ?? '';
+    final name      = requester['name']    as String? ?? 'Someone';
+    final tripName  = trip['destination']  as String? ?? 'your trip';
+    final dates     = trip['dates']        as String? ?? '';
     final avatarUrl = requester['avatar_url'] as String?;
     final rating    = (requester['rating'] as num?)?.toDouble() ?? 0;
     final createdAt = request['created_at'] as String?;
@@ -509,7 +577,6 @@ class _LiveRequestCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Avatar
               _LiveAvatar(url: avatarUrl, initial: name[0].toUpperCase()),
               const SizedBox(width: 12),
               Expanded(
@@ -518,15 +585,22 @@ class _LiveRequestCard extends StatelessWidget {
                   children: [
                     Text('$name wants to join your $tripName trip',
                         style: const TextStyle(
-                          color: text, fontSize: 15, fontWeight: FontWeight.w700, height: 1.3,
+                          color: text,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          height: 1.3,
                         )),
                     if (dates.isNotEmpty) ...[
                       const SizedBox(height: 4),
-                      Text(dates, style: const TextStyle(color: muted, fontSize: 12)),
+                      Text(dates,
+                          style: const TextStyle(
+                              color: muted, fontSize: 12)),
                     ],
                     if (timeAgo.isNotEmpty) ...[
                       const SizedBox(height: 4),
-                      Text('Requested $timeAgo', style: const TextStyle(color: faint, fontSize: 10)),
+                      Text('Requested $timeAgo',
+                          style: const TextStyle(
+                              color: faint, fontSize: 10)),
                     ],
                   ],
                 ),
@@ -536,13 +610,15 @@ class _LiveRequestCard extends StatelessWidget {
           if (rating > 0) ...[
             const SizedBox(height: 12),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
                 color: Colors.black.withOpacity(.2),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Text('★ ${rating.toStringAsFixed(1)} rating',
-                  style: const TextStyle(color: Color(0xFFF7B84E), fontSize: 12)),
+                  style: const TextStyle(
+                      color: Color(0xFFF7B84E), fontSize: 12)),
             ),
           ],
           const SizedBox(height: 16),
@@ -556,11 +632,16 @@ class _LiveRequestCard extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: Colors.white.withOpacity(.04),
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.white.withOpacity(.08)),
+                      border: Border.all(
+                          color: Colors.white.withOpacity(.08)),
                     ),
-                    child: const Center(child: Text('Decline', style: TextStyle(
-                      color: muted, fontSize: 14, fontWeight: FontWeight.w600,
-                    ))),
+                    child: const Center(
+                        child: Text('Decline',
+                            style: TextStyle(
+                              color: muted,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ))),
                   ),
                 ),
               ),
@@ -576,9 +657,13 @@ class _LiveRequestCard extends StatelessWidget {
                       ),
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: const Center(child: Text('Accept', style: TextStyle(
-                      color: Color(0xFF041818), fontSize: 14, fontWeight: FontWeight.w800,
-                    ))),
+                    child: const Center(
+                        child: Text('Accept',
+                            style: TextStyle(
+                              color: Color(0xFF041818),
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800,
+                            ))),
                   ),
                 ),
               ),
@@ -589,6 +674,10 @@ class _LiveRequestCard extends StatelessWidget {
     );
   }
 }
+
+// ---------------------------------------------------------------------------
+// _LiveAvatar
+// ---------------------------------------------------------------------------
 
 class _LiveAvatar extends StatelessWidget {
   final String? url;
@@ -601,7 +690,10 @@ class _LiveAvatar extends StatelessWidget {
       return ClipRRect(
         borderRadius: BorderRadius.circular(14),
         child: CachedNetworkImage(
-          imageUrl: url!, width: 48, height: 48, fit: BoxFit.cover,
+          imageUrl: url!,
+          width: 48,
+          height: 48,
+          fit: BoxFit.cover,
           errorWidget: (_, __, ___) => _fallback(),
         ),
       );
@@ -610,16 +702,25 @@ class _LiveAvatar extends StatelessWidget {
   }
 
   Widget _fallback() => Container(
-    width: 48, height: 48,
-    decoration: BoxDecoration(
-      color: const Color(0xFF1EC9B8).withOpacity(.2),
-      borderRadius: BorderRadius.circular(14),
-    ),
-    child: Center(child: Text(initial, style: const TextStyle(
-      color: Color(0xFF58DAD0), fontSize: 18, fontWeight: FontWeight.w800,
-    ))),
-  );
+        width: 48,
+        height: 48,
+        decoration: BoxDecoration(
+          color: const Color(0xFF1EC9B8).withOpacity(.2),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Center(
+            child: Text(initial,
+                style: const TextStyle(
+                  color: Color(0xFF58DAD0),
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                ))),
+      );
 }
+
+// ---------------------------------------------------------------------------
+// _RequestsView (legacy static mock — kept for reference)
+// ---------------------------------------------------------------------------
 
 class _RequestsView extends StatelessWidget {
   final List<_RequestData> requests;
@@ -646,22 +747,19 @@ class _RequestCard extends StatelessWidget {
   final _RequestData data;
   const _RequestCard({required this.data});
 
-  static const text = Color(0xFFEDF7F4);
+  static const text  = Color(0xFFEDF7F4);
   static const muted = Color(0xFFA8C4BF);
   static const faint = Color(0xFF6A8882);
-  static const teal = Color(0xFF1EC9B8);
+  static const teal  = Color(0xFF1EC9B8);
   static const teal2 = Color(0xFF58DAD0);
-  static const gold = Color(0xFFF7B84E);
-  static const rose = Color(0xFFFFB3C1);
+  static const gold  = Color(0xFFF7B84E);
+  static const rose  = Color(0xFFFFB3C1);
 
   Color get _avatarColor {
     switch (data.avatarVariant) {
-      case 'gold':
-        return gold;
-      case 'rose':
-        return rose;
-      default:
-        return teal2;
+      case 'gold':  return gold;
+      case 'rose':  return rose;
+      default:      return teal2;
     }
   }
 
@@ -695,9 +793,7 @@ class _RequestCard extends StatelessWidget {
                           color: _avatarColor.withOpacity(.7),
                           borderRadius: BorderRadius.circular(14),
                           border: Border.all(
-                            color: const Color(0xFF0B1516),
-                            width: 2,
-                          ),
+                              color: const Color(0xFF0B1516), width: 2),
                         ),
                       ),
                     ),
@@ -713,19 +809,15 @@ class _RequestCard extends StatelessWidget {
                           ),
                           borderRadius: BorderRadius.circular(14),
                           border: Border.all(
-                            color: const Color(0xFF0B1516),
-                            width: 2,
-                          ),
+                              color: const Color(0xFF0B1516), width: 2),
                         ),
                         child: const Center(
-                          child: Text(
-                            'A',
-                            style: TextStyle(
-                              color: Color(0xFF041818),
-                              fontSize: 14,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
+                          child: Text('A',
+                              style: TextStyle(
+                                color: Color(0xFF041818),
+                                fontSize: 14,
+                                fontWeight: FontWeight.w800,
+                              )),
                         ),
                       ),
                     ),
@@ -737,25 +829,21 @@ class _RequestCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      '${data.name} ${data.tripLabel}',
-                      style: const TextStyle(
-                        color: text,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                        height: 1.3,
-                      ),
-                    ),
+                    Text('${data.name} ${data.tripLabel}',
+                        style: const TextStyle(
+                          color: text,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          height: 1.3,
+                        )),
                     const SizedBox(height: 4),
-                    Text(
-                      data.dates,
-                      style: const TextStyle(color: muted, fontSize: 12),
-                    ),
+                    Text(data.dates,
+                        style:
+                            const TextStyle(color: muted, fontSize: 12)),
                     const SizedBox(height: 4),
-                    Text(
-                      data.timeAgo,
-                      style: const TextStyle(color: faint, fontSize: 10),
-                    ),
+                    Text(data.timeAgo,
+                        style:
+                            const TextStyle(color: faint, fontSize: 10)),
                   ],
                 ),
               ),
@@ -767,20 +855,23 @@ class _RequestCard extends StatelessWidget {
             decoration: BoxDecoration(
               color: Colors.black.withOpacity(.2),
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.white.withOpacity(.03)),
+              border:
+                  Border.all(color: Colors.white.withOpacity(.03)),
             ),
             child: Column(
               children: [
                 _StatRow(
                   label: 'Compatibility',
                   value: data.compatibility,
-                  valueColor: data.compatibilityHigh ? gold : text,
+                  valueColor:
+                      data.compatibilityHigh ? gold : text,
                 ),
                 const _StatDivider(),
                 _StatRow(
                   label: 'Travel Vibe',
                   value: data.vibe,
-                  valueColor: data.compatibilityHigh ? teal2 : rose,
+                  valueColor:
+                      data.compatibilityHigh ? teal2 : rose,
                 ),
                 const _StatDivider(),
                 _StatRow(
@@ -808,8 +899,11 @@ class _RequestCard extends StatelessWidget {
                   decoration: BoxDecoration(
                     gradient: data.compatibilityHigh
                         ? const LinearGradient(
-                      colors: [Color(0xFF58DAD0), Color(0xFF1EC9B8)],
-                    )
+                            colors: [
+                              Color(0xFF58DAD0),
+                              Color(0xFF1EC9B8)
+                            ],
+                          )
                         : null,
                     color: data.compatibilityHigh
                         ? null
@@ -817,12 +911,12 @@ class _RequestCard extends StatelessWidget {
                     borderRadius: BorderRadius.circular(14),
                     boxShadow: data.compatibilityHigh
                         ? [
-                      BoxShadow(
-                        color: teal.withOpacity(.15),
-                        blurRadius: 24,
-                        offset: const Offset(0, 12),
-                      ),
-                    ]
+                            BoxShadow(
+                              color: teal.withOpacity(.15),
+                              blurRadius: 24,
+                              offset: const Offset(0, 12),
+                            ),
+                          ]
                         : [],
                   ),
                   child: Center(
@@ -848,7 +942,8 @@ class _RequestCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(color: rose.withOpacity(.12)),
                 ),
-                child: const Icon(Icons.close_rounded, color: rose, size: 20),
+                child: const Icon(Icons.close_rounded,
+                    color: rose, size: 20),
               ),
             ],
           ),
@@ -876,15 +971,14 @@ class _StatRow extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label, style: const TextStyle(color: faint, fontSize: 12)),
-        Text(
-          value,
-          style: TextStyle(
-            color: valueColor,
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
+        Text(label,
+            style: const TextStyle(color: faint, fontSize: 12)),
+        Text(value,
+            style: TextStyle(
+              color: valueColor,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            )),
       ],
     );
   }
@@ -903,13 +997,17 @@ class _StatDivider extends StatelessWidget {
   }
 }
 
+// ---------------------------------------------------------------------------
+// _TravelerCardWidget
+// ---------------------------------------------------------------------------
+
 class _TravelerCardWidget extends StatelessWidget {
   final _TravelerData data;
   const _TravelerCardWidget({required this.data});
 
-  static const text = Color(0xFFEDF7F4);
+  static const text  = Color(0xFFEDF7F4);
   static const teal2 = Color(0xFF58DAD0);
-  static const gold = Color(0xFFF7B84E);
+  static const gold  = Color(0xFFF7B84E);
 
   static const List<List<Color>> _gradients = [
     [Color(0xFF1E4044), Color(0xFF112425)],
@@ -920,9 +1018,10 @@ class _TravelerCardWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors     = _gradients[(data.variant - 1) % 4];
-    final hasAvatar  = data.avatarUrl != null && data.avatarUrl!.isNotEmpty;
-    final ratingStr  = data.rating > 0 ? '★ ${data.rating.toStringAsFixed(1)}' : null;
+    final colors    = _gradients[(data.variant - 1) % 4];
+    final hasAvatar = data.avatarUrl != null && data.avatarUrl!.isNotEmpty;
+    final ratingStr =
+        data.rating > 0 ? '★ ${data.rating.toStringAsFixed(1)}' : null;
 
     return GestureDetector(
       onTap: () => UserProfileSheet.show(context, name: data.name),
@@ -931,7 +1030,6 @@ class _TravelerCardWidget extends StatelessWidget {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            // Background: avatar photo or gradient fallback
             if (hasAvatar)
               CachedNetworkImage(
                 imageUrl: data.avatarUrl!,
@@ -939,7 +1037,8 @@ class _TravelerCardWidget extends StatelessWidget {
                 errorWidget: (_, __, ___) => Container(
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
-                      begin: Alignment.topLeft, end: Alignment.bottomRight,
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
                       colors: colors,
                     ),
                   ),
@@ -949,75 +1048,104 @@ class _TravelerCardWidget extends StatelessWidget {
               Container(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    begin: Alignment.topLeft, end: Alignment.bottomRight,
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
                     colors: colors,
                   ),
                 ),
               ),
-            // Bottom scrim
             Container(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  begin: Alignment.topCenter, end: Alignment.bottomCenter,
-                  colors: [Colors.transparent, Colors.black.withOpacity(.82)],
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.transparent,
+                    Colors.black.withOpacity(.82)
+                  ],
                   stops: const [0.38, 1.0],
                 ),
               ),
             ),
-            // Rating badge
             if (ratingStr != null)
               Positioned(
-                top: 8, right: 8,
+                top: 8,
+                right: 8,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     color: const Color(0xB20A1213),
                     borderRadius: BorderRadius.circular(999),
-                    border: Border.all(color: Colors.white.withOpacity(.10)),
+                    border: Border.all(
+                        color: Colors.white.withOpacity(.10)),
                   ),
-                  child: Text(ratingStr, style: const TextStyle(
-                    color: gold, fontSize: 10, fontWeight: FontWeight.w800,
-                  )),
+                  child: Text(ratingStr,
+                      style: const TextStyle(
+                        color: gold,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                      )),
                 ),
               ),
-            // Info bottom
             Positioned(
-              left: 12, right: 12, bottom: 12,
+              left: 12,
+              right: 12,
+              bottom: 12,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Row(
                     children: [
-                      Text(data.name, style: const TextStyle(
-                        color: text, fontSize: 15, fontWeight: FontWeight.w700, height: 1.2,
-                      )),
+                      Text(data.name,
+                          style: const TextStyle(
+                            color: text,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            height: 1.2,
+                          )),
                       const SizedBox(width: 4),
                       Container(
-                        width: 13, height: 13,
-                        decoration: const BoxDecoration(color: Color(0xFF58DAD0), shape: BoxShape.circle),
-                        child: const Center(child: Text('✓', style: TextStyle(
-                          color: Colors.black, fontSize: 7, fontWeight: FontWeight.w900,
-                        ))),
+                        width: 13,
+                        height: 13,
+                        decoration: const BoxDecoration(
+                            color: Color(0xFF58DAD0),
+                            shape: BoxShape.circle),
+                        child: const Center(
+                            child: Text('✓',
+                                style: TextStyle(
+                                  color: Colors.black,
+                                  fontSize: 7,
+                                  fontWeight: FontWeight.w900,
+                                ))),
                       ),
                     ],
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    [if (data.age > 0) '${data.age}', if (data.city.isNotEmpty) data.city].join(' · '),
-                    style: TextStyle(color: Colors.white.withOpacity(.70), fontSize: 11),
+                    [
+                      if (data.age > 0) '${data.age}',
+                      if (data.city.isNotEmpty) data.city
+                    ].join(' · '),
+                    style: TextStyle(
+                        color: Colors.white.withOpacity(.70),
+                        fontSize: 11),
                   ),
                   const SizedBox(height: 6),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
                       color: Colors.white.withOpacity(.15),
                       borderRadius: BorderRadius.circular(6),
                     ),
-                    child: Text(data.vibe, style: const TextStyle(
-                      color: text, fontSize: 9, fontWeight: FontWeight.w800,
-                    ),
-                    ),
+                    child: Text(data.vibe,
+                        style: const TextStyle(
+                          color: text,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w800,
+                        )),
                   ),
                 ],
               ),
@@ -1028,6 +1156,10 @@ class _TravelerCardWidget extends StatelessWidget {
     );
   }
 }
+
+// ---------------------------------------------------------------------------
+// Data classes
+// ---------------------------------------------------------------------------
 
 class _TravelerData {
   final String id;
@@ -1078,7 +1210,10 @@ class _RequestData {
     required this.avatarVariant,
   });
 }
-// ─── Create Trip FAB ──────────────────────────────────────────────────────────
+
+// ---------------------------------------------------------------------------
+// Create Trip FAB
+// ---------------------------------------------------------------------------
 
 class _CreateTripFab extends StatefulWidget {
   @override
