@@ -34,10 +34,10 @@ class _VibeItem {
 }
 
 const _vibes = [
-  _VibeItem('🌊', 'Beach &\nSocial',     Color(0xFF1EC9B8), ['beaches', 'beach']),
-  _VibeItem('🏔️', 'Mountains\n& Trek',   Color(0xFF9FD9BE), ['mountains', 'adventure', 'roadtrip']),
-  _VibeItem('🎪', 'Culture &\nFestivals', Color(0xFFF7B84E), ['culture', 'heritage', 'spiritual']),
-  _VibeItem('✨', 'Wellness\n& Retreat',  Color(0xFFFFB3C1), ['wellness', 'yoga']),
+  _VibeItem('\u{1F30A}', 'Beach &\nSocial',     Color(0xFF1EC9B8), ['beaches', 'beach']),
+  _VibeItem('\u26F0\uFE0F', 'Mountains\n& Trek',   Color(0xFF9FD9BE), ['mountains', 'adventure', 'roadtrip']),
+  _VibeItem('\u{1F3AA}', 'Culture &\nFestivals', Color(0xFFF7B84E), ['culture', 'heritage', 'spiritual']),
+  _VibeItem('\u2728', 'Wellness\n& Retreat',  Color(0xFFFFB3C1), ['wellness', 'yoga']),
 ];
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
@@ -141,9 +141,10 @@ class _FeedView extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final destsAsync = ref.watch(destinationsProvider);
+    final isSearching = searchQuery.trim().isNotEmpty;
 
-    // Header height: top padding + 10 top + 46 bar + (search label ~28 if active) + 14 bottom
-    final headerH = top + 10 + 46 + 14 + (searchQuery.trim().isNotEmpty ? 28.0 : 0.0);
+    // Header height: top padding + 10 top + 46 bar + (place label ~28 if active) + 14 bottom
+    final headerH = top + 10 + 46 + 14 + (isSearching ? 28.0 : 0.0);
 
     return Stack(
       children: [
@@ -282,10 +283,10 @@ class _SearchHeaderState extends State<_SearchHeader> {
   @override
   void initState() {
     super.initState();
+    // Keep _hasText in sync so clear button and border colour update
     _ctrl.addListener(() {
       final hasText = _ctrl.text.isNotEmpty;
       if (hasText != _hasText) setState(() => _hasText = hasText);
-      widget.onSearchChanged(_ctrl.text);
     });
   }
 
@@ -293,6 +294,16 @@ class _SearchHeaderState extends State<_SearchHeader> {
   void dispose() {
     _ctrl.dispose();
     super.dispose();
+  }
+
+  void _handleChange(String value) {
+    // Propagate every keystroke to the parent screen so the list updates
+    widget.onSearchChanged(value);
+  }
+
+  void _clearSearch() {
+    _ctrl.clear();
+    widget.onSearchChanged('');
   }
 
   @override
@@ -333,6 +344,8 @@ class _SearchHeaderState extends State<_SearchHeader> {
                 Expanded(
                   child: TextField(
                     controller: _ctrl,
+                    // FIX: wire onChanged so every keystroke triggers the parent filter
+                    onChanged: _handleChange,
                     style: const TextStyle(
                       color: _kText,
                       fontSize: 14,
@@ -341,8 +354,11 @@ class _SearchHeaderState extends State<_SearchHeader> {
                     cursorColor: _kTeal,
                     cursorWidth: 1.5,
                     textInputAction: TextInputAction.search,
+                    // FIX: onSubmitted also triggers the filter (covers virtual keyboard’s
+                    //      Search action which may not fire onChanged on some devices)
+                    onSubmitted: _handleChange,
                     decoration: const InputDecoration(
-                      hintText: 'Search a place…',
+                      hintText: 'Search a place\u2026',
                       hintStyle: TextStyle(color: _kFaint, fontSize: 14),
                       border: InputBorder.none,
                       isDense: true,
@@ -352,10 +368,7 @@ class _SearchHeaderState extends State<_SearchHeader> {
                 ),
                 if (_hasText)
                   GestureDetector(
-                    onTap: () {
-                      _ctrl.clear();
-                      widget.onSearchChanged('');
-                    },
+                    onTap: _clearSearch,
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 12),
                       child: Icon(
@@ -1159,7 +1172,7 @@ class _LiveMatchCard extends StatelessWidget {
                     ),
                     child: Text(
                       profile.vibes.first.length > 8
-                          ? '${profile.vibes.first.substring(0, 7)}…'
+                          ? '${profile.vibes.first.substring(0, 7)}\u2026'
                           : profile.vibes.first,
                       style: const TextStyle(
                         color: _kGold, fontSize: 8, fontWeight: FontWeight.w900,
@@ -1196,7 +1209,7 @@ class _LiveTripCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final vibeLabel = trip.vibe ?? trip.intent ?? '';
     final title = vibeLabel.isNotEmpty
-        ? '${trip.destination} · $vibeLabel'
+        ? '${trip.destination} \u00b7 $vibeLabel'
         : trip.destination;
 
     const totalSlots  = 4;
@@ -1250,7 +1263,7 @@ class _LiveTripCard extends StatelessWidget {
                       ),
                     ),
                     child: Center(
-                      child: Text(filled ? '✓' : '+', style: TextStyle(
+                      child: Text(filled ? '\u2713' : '+', style: TextStyle(
                         color: filled ? _kTeal2 : _kFaint, fontSize: 10,
                       )),
                     ),
