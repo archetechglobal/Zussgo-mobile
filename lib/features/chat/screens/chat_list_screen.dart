@@ -4,10 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/providers/nav_provider.dart';
 import '../../home/widgets/home_bottom_nav.dart';
-import '../models/chat_preview.dart';
+import '../providers/chat_provider.dart';
 
 class ChatsListScreen extends ConsumerStatefulWidget {
   const ChatsListScreen({super.key});
@@ -17,6 +18,21 @@ class ChatsListScreen extends ConsumerStatefulWidget {
 }
 
 class _ChatsListScreenState extends ConsumerState<ChatsListScreen> {
+  static const _bg      = Color(0xFF081314);
+  static const _surface = Color(0xFF0C1D1F);
+  static const _teal    = Color(0xFF1EC9B8);
+  static const _teal2   = Color(0xFF58DAD0);
+  static const _text    = Color(0xFFEDF7F4);
+  static const _muted   = Color(0xFF8AADA8);
+  static const _faint   = Color(0xFF3D5C58);
+
+  final _searchCtrl = TextEditingController();
+  String _query = '';
+
+  // Supabase Realtime presence channel for online dots
+  late final RealtimeChannel _presenceChannel;
+  final Set<String> _onlineIds = {};
+
   @override
   void initState() {
     super.initState();
@@ -27,29 +43,109 @@ class _ChatsListScreenState extends ConsumerState<ChatsListScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(bottomNavIndexProvider.notifier).setIndex(3);
     });
+    _subscribePresence();
+    _searchCtrl.addListener(() {
+      setState(() => _query = _searchCtrl.text.toLowerCase().trim());
+    });
   }
 
-  static const _bg      = Color(0xFF081314);
-  static const _surface = Color(0xFF0C1D1F);
-  static const _teal    = Color(0xFF1EC9B8);
-  static const _teal2   = Color(0xFF58DAD0);
-  static const _text    = Color(0xFFEDF7F4);
-  static const _muted   = Color(0xFF8AADA8);
-  static const _faint   = Color(0xFF3D5C58);
+  void _subscribePresence() {
+    final me = Supabase.instance.client.auth.currentUser?.id ?? '';
+    _presenceChannel = Supabase.instance.client
+        .channel('online-users')
+        .onPresenceSync((_) {
+          final state = _presenceChannel.presenceState();
+          if (!mounted) return;
+          setState(() {
+            _onlineIds.clear();
+            for (final presences in state.values) {
+              for (final p in presences) {
+                final uid = (p as Map<String, dynamic>)['user_id'] as String?;
+                if (uid != null && uid != me) _onlineIds.add(uid);
+              }
+            }
+          });
+        })
+        .subscribe((status, _) async {
+          if (status == RealtimeSubscribeStatus.subscribed) {
+            await _presenceChannel.track({'user_id': me});
+          }
+        });
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    _presenceChannel.unsubscribe();
+    super.dispose();
+  }
+
+  // ── helpers ──────────────────────────────────────────────────────────────
+
+  String _peerId(Map<String, dynamic> c) {
+    final me = Supabase.instance.client.auth.currentUser?.id ?? '';
+    return c['requester_id'] == me
+        ? c['receiver_id'] as String
+        : c['requester_id'] as String;
+  }
+
+  Map<String, dynamic>? _peerProfile(Map<String, dynamic> c) {
+    final me = Supabase.instance.client.auth.currentUser?.id ?? '';
+    return (c['requester_id'] == me ? c['receiver'] : c['requester'])
+        as Map<String, dynamic>?;
+  }
+
+  String _peerName(Map<String, dynamic> c) {
+    return (_peerProfile(c)?['name'] as String? ?? 'Unknown').trim();
+  }
+
+  String _initial(String name) =>
+      name.isNotEmpty ? name[0].toUpperCase() : '?';
+
+  Color _avatarColor(String peerId) {
+    final palette = [
+      const Color(0xFF58DAD0),
+      const Color(0xFFFF8A65),
+      const Color(0xFFBA68C8),
+      const Color(0xFF4DD0E1),
+      const Color(0xFF81C784),
+      const Color(0xFFFFB74D),
+    ];
+    return palette[peerId.hashCode.abs() % palette.length];
+  }
+
+  String _timestamp(Map<String, dynamic> c) {
+    final raw = c['updated_at'] as String?;
+    if (raw == null) return '';
+    try {
+      final dt = DateTime.parse(raw).toLocal();
+      final now = DateTime.now();
+      if (dt.day == now.day && dt.month == now.month && dt.year == now.year) {
+        final h = dt.hour > 12
+            ? dt.hour - 12
+            : dt.hour == 0 ? 12 : dt.hour;
+        final m = dt.minute.toString().padLeft(2, '0');
+        return '$h:$m ${dt.hour >= 12 ? 'PM' : 'AM'}';
+      }
+      return '${dt.day}/${dt.month}';
+    } catch (_) {
+      return '';
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final topInset    = MediaQuery.of(context).padding.top;
     final bottomInset = MediaQuery.of(context).padding.bottom;
+    final previewsAsync = ref.watch(chatPreviewsProvider);
 
     return Scaffold(
       backgroundColor: _bg,
       body: Stack(
         children: [
-          // ── Content ──────────────────────────────────────────────────────
           CustomScrollView(
             slivers: [
-              // Header
+              // ── Header ───────────────────────────────────────────────────
               SliverToBoxAdapter(
                 child: Padding(
                   padding: EdgeInsets.fromLTRB(20, topInset + 16, 20, 0),
@@ -65,9 +161,8 @@ class _ChatsListScreenState extends ConsumerState<ChatsListScreen> {
                           ),
                         ),
                       ),
-                      // New chat icon
                       GestureDetector(
-                        onTap: () {},
+                        onTap: () => ref.refresh(chatPreviewsProvider),
                         child: Container(
                           width: 38, height: 38,
                           decoration: BoxDecoration(
@@ -87,7 +182,7 @@ class _ChatsListScreenState extends ConsumerState<ChatsListScreen> {
                 ),
               ),
 
-              // Search bar
+              // ── Search bar ───────────────────────────────────────────────
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
@@ -103,14 +198,26 @@ class _ChatsListScreenState extends ConsumerState<ChatsListScreen> {
                         const SizedBox(width: 12),
                         Icon(Icons.search_rounded, color: _muted, size: 18),
                         const SizedBox(width: 8),
-                        const Expanded(
+                        Expanded(
                           child: TextField(
-                            style: TextStyle(color: _text, fontSize: 14),
+                            controller: _searchCtrl,
+                            style: const TextStyle(color: _text, fontSize: 14),
                             decoration: InputDecoration(
                               hintText: 'Search conversations...',
-                              hintStyle: TextStyle(color: Color(0xFF3D5C58), fontSize: 14),
+                              hintStyle: const TextStyle(
+                                  color: Color(0xFF3D5C58), fontSize: 14),
                               border: InputBorder.none,
                               isDense: true,
+                              suffixIcon: _query.isNotEmpty
+                                  ? GestureDetector(
+                                      onTap: () => _searchCtrl.clear(),
+                                      child: const Icon(
+                                        Icons.close_rounded,
+                                        color: Color(0xFF3D5C58),
+                                        size: 16,
+                                      ),
+                                    )
+                                  : null,
                             ),
                           ),
                         ),
@@ -120,44 +227,187 @@ class _ChatsListScreenState extends ConsumerState<ChatsListScreen> {
                 ),
               ),
 
-              // Active now row (stories-style)
-              SliverToBoxAdapter(
-                child: _ActiveNowRow(chats: mockChatPreviews.where((c) => c.isOnline).toList()),
-              ),
-
-              // Section label
-              const SliverToBoxAdapter(
-                child: Padding(
-                  padding: EdgeInsets.fromLTRB(20, 20, 20, 8),
-                  child: Text(
-                    'Recent',
-                    style: TextStyle(
-                      color: Color(0xFF3D5C58),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.8,
+              // ── Body ─────────────────────────────────────────────────────
+              previewsAsync.when(
+                loading: () => const SliverFillRemaining(
+                  child: Center(
+                    child: CircularProgressIndicator(
+                      color: Color(0xFF1EC9B8),
+                      strokeWidth: 2,
                     ),
                   ),
                 ),
-              ),
-
-              // Chat list
-              SliverList(
-                delegate: SliverChildBuilderDelegate(
-                      (context, index) {
-                    final chat = mockChatPreviews[index];
-                    return _ChatRow(
-                      chat: chat,
-                      onTap: () => context.go('/chat/${chat.id}'),
-                    );
-                  },
-                  childCount: mockChatPreviews.length,
+                error: (e, _) => SliverFillRemaining(
+                  child: Center(
+                    child: Text(
+                      'Could not load chats',
+                      style: TextStyle(color: _faint, fontSize: 14),
+                    ),
+                  ),
                 ),
-              ),
+                data: (raw) {
+                  // Filter by search query
+                  final chats = _query.isEmpty
+                      ? raw
+                      : raw.where((c) {
+                          final name = _peerName(c).toLowerCase();
+                          return name.contains(_query);
+                        }).toList();
 
-              // Bottom padding for nav bar
-              SliverToBoxAdapter(
-                child: SizedBox(height: 100 + bottomInset),
+                  // Active-now strip (people currently online)
+                  final activeChats = chats
+                      .where((c) => _onlineIds.contains(_peerId(c)))
+                      .toList();
+
+                  return SliverList(
+                    delegate: SliverChildListDelegate([
+                      // Active now
+                      if (activeChats.isNotEmpty) ...[
+                        const Padding(
+                          padding: EdgeInsets.fromLTRB(20, 16, 20, 10),
+                          child: Text(
+                            'ACTIVE NOW',
+                            style: TextStyle(
+                              color: Color(0xFF3D5C58),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.8,
+                            ),
+                          ),
+                        ),
+                        SizedBox(
+                          height: 80,
+                          child: ListView.separated(
+                            padding:
+                                const EdgeInsets.symmetric(horizontal: 20),
+                            scrollDirection: Axis.horizontal,
+                            itemCount: activeChats.length,
+                            separatorBuilder: (_, __) =>
+                                const SizedBox(width: 16),
+                            itemBuilder: (context, i) {
+                              final c = activeChats[i];
+                              final pid  = _peerId(c);
+                              final name = _peerName(c);
+                              final col  = _avatarColor(pid);
+                              return GestureDetector(
+                                onTap: () => context.go(
+                                  '/chat/$pid',
+                                  extra: {
+                                    'peerName':  name,
+                                    'tripLabel': 'Trip',
+                                  },
+                                ),
+                                child: Column(
+                                  children: [
+                                    Stack(
+                                      children: [
+                                        _AvatarCircle(
+                                          initial: _initial(name),
+                                          color: col,
+                                          size: 52,
+                                        ),
+                                        Positioned(
+                                          bottom: 2, right: 2,
+                                          child: Container(
+                                            width: 12, height: 12,
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFF2ECC71),
+                                              shape: BoxShape.circle,
+                                              border: Border.all(
+                                                color: const Color(0xFF081314),
+                                                width: 2,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      name.split(' ').first,
+                                      style: const TextStyle(
+                                        color: _muted,
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ],
+
+                      // Recent label
+                      if (chats.isNotEmpty)
+                        const Padding(
+                          padding: EdgeInsets.fromLTRB(20, 20, 20, 8),
+                          child: Text(
+                            'RECENT',
+                            style: TextStyle(
+                              color: Color(0xFF3D5C58),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.8,
+                            ),
+                          ),
+                        ),
+
+                      // Chat rows
+                      ...chats.map((c) {
+                        final pid     = _peerId(c);
+                        final name    = _peerName(c);
+                        final col     = _avatarColor(pid);
+                        final isOnline = _onlineIds.contains(pid);
+                        final ts      = _timestamp(c);
+
+                        return _ChatRow(
+                          connectionId: c['id'] as String,
+                          peerId:    pid,
+                          peerName:  name,
+                          color:     col,
+                          isOnline:  isOnline,
+                          timestamp: ts,
+                          onTap: () => context.go(
+                            '/chat/$pid',
+                            extra: {
+                              'peerName':  name,
+                              'tripLabel': 'Trip',
+                            },
+                          ),
+                        );
+                      }),
+
+                      // Empty state
+                      if (chats.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 80),
+                          child: Column(
+                            children: [
+                              const Icon(
+                                Icons.chat_bubble_outline_rounded,
+                                color: Color(0xFF3D5C58),
+                                size: 48,
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                _query.isNotEmpty
+                                    ? 'No results for "$_query"'
+                                    : 'No conversations yet',
+                                style: const TextStyle(
+                                  color: Color(0xFF3D5C58),
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                      SizedBox(height: 100 + bottomInset),
+                    ]),
+                  );
+                },
               ),
             ],
           ),
@@ -174,92 +424,26 @@ class _ChatsListScreenState extends ConsumerState<ChatsListScreen> {
   }
 }
 
-// ── Active Now horizontal strip ───────────────────────────────────────────────
+// ── Chat row (live last message via stream) ───────────────────────────────────
 
-class _ActiveNowRow extends StatelessWidget {
-  final List<ChatPreview> chats;
-  const _ActiveNowRow({required this.chats});
-
-  static const _teal2 = Color(0xFF58DAD0);
-  static const _muted = Color(0xFF8AADA8);
-
-  @override
-  Widget build(BuildContext context) {
-    if (chats.isEmpty) return const SizedBox.shrink();
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Padding(
-          padding: EdgeInsets.fromLTRB(20, 16, 20, 10),
-          child: Text(
-            'Active now',
-            style: TextStyle(
-              color: Color(0xFF3D5C58),
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.8,
-            ),
-          ),
-        ),
-        SizedBox(
-          height: 80,
-          child: ListView.separated(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            scrollDirection: Axis.horizontal,
-            itemCount: chats.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 16),
-            itemBuilder: (context, i) {
-              final c = chats[i];
-              return GestureDetector(
-                onTap: () => context.go('/chat/${c.id}'),
-                child: Column(
-                  children: [
-                    Stack(
-                      children: [
-                        _AvatarCircle(
-                          initial: c.avatarInitial,
-                          color: Color(int.parse(c.avatarColor)),
-                          size: 52,
-                        ),
-                        Positioned(
-                          bottom: 2, right: 2,
-                          child: Container(
-                            width: 12, height: 12,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF2ECC71),
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: const Color(0xFF081314), width: 2,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      c.name,
-                      style: const TextStyle(
-                        color: _muted, fontSize: 11, fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            },
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-// ── Single chat row ───────────────────────────────────────────────────────────
-
-class _ChatRow extends StatelessWidget {
-  final ChatPreview chat;
+class _ChatRow extends ConsumerWidget {
+  final String connectionId;
+  final String peerId;
+  final String peerName;
+  final Color  color;
+  final bool   isOnline;
+  final String timestamp;
   final VoidCallback onTap;
-  const _ChatRow({required this.chat, required this.onTap});
+
+  const _ChatRow({
+    required this.connectionId,
+    required this.peerId,
+    required this.peerName,
+    required this.color,
+    required this.isOnline,
+    required this.timestamp,
+    required this.onTap,
+  });
 
   static const _text    = Color(0xFFEDF7F4);
   static const _muted   = Color(0xFF8AADA8);
@@ -269,9 +453,22 @@ class _ChatRow extends StatelessWidget {
   static const _surface = Color(0xFF0C1D1F);
 
   @override
-  Widget build(BuildContext context) {
-    final color = Color(int.parse(chat.avatarColor));
-    final hasUnread = chat.unreadCount > 0;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final messagesAsync = ref.watch(messagesStreamProvider(connectionId));
+    final me = Supabase.instance.client.auth.currentUser?.id ?? '';
+
+    final lastMsg = messagesAsync.whenOrNull(
+          data: (msgs) => msgs.isNotEmpty ? msgs.last : null,
+        );
+
+    final unread = messagesAsync.whenOrNull(
+          data: (msgs) => msgs
+              .where((m) => m.senderId != me && m.readAt == null)
+              .length,
+        ) ?? 0;
+
+    final hasUnread = unread > 0;
+    final initial = peerName.isNotEmpty ? peerName[0].toUpperCase() : '?';
 
     return GestureDetector(
       onTap: onTap,
@@ -290,8 +487,8 @@ class _ChatRow extends StatelessWidget {
             // Avatar + online dot
             Stack(
               children: [
-                _AvatarCircle(initial: chat.avatarInitial, color: color, size: 50),
-                if (chat.isOnline)
+                _AvatarCircle(initial: initial, color: color, size: 50),
+                if (isOnline)
                   Positioned(
                     bottom: 2, right: 2,
                     child: Container(
@@ -299,7 +496,8 @@ class _ChatRow extends StatelessWidget {
                       decoration: BoxDecoration(
                         color: const Color(0xFF2ECC71),
                         shape: BoxShape.circle,
-                        border: Border.all(color: const Color(0xFF081314), width: 2),
+                        border: Border.all(
+                          color: const Color(0xFF081314), width: 2),
                       ),
                     ),
                   ),
@@ -307,7 +505,6 @@ class _ChatRow extends StatelessWidget {
             ),
             const SizedBox(width: 12),
 
-            // Name + message
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -316,57 +513,39 @@ class _ChatRow extends StatelessWidget {
                     children: [
                       Expanded(
                         child: Text(
-                          chat.name,
+                          peerName,
                           style: TextStyle(
                             color: _text,
                             fontSize: 15,
-                            fontWeight: hasUnread ? FontWeight.w700 : FontWeight.w500,
+                            fontWeight:
+                                hasUnread ? FontWeight.w700 : FontWeight.w500,
                           ),
                         ),
                       ),
                       Text(
-                        chat.time,
+                        timestamp,
                         style: TextStyle(
                           color: hasUnread ? _teal2 : _faint,
                           fontSize: 11,
-                          fontWeight: hasUnread ? FontWeight.w700 : FontWeight.w400,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 3),
-
-                  // Destination chip
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: color.withOpacity(.10),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          '✈ ${chat.destination}',
-                          style: TextStyle(
-                            color: color,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                          ),
+                          fontWeight: hasUnread
+                              ? FontWeight.w700
+                              : FontWeight.w400,
                         ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 4),
-
                   Row(
                     children: [
                       Expanded(
                         child: Text(
-                          chat.lastMessage,
+                          lastMsg?.content ?? 'Say hello 👋',
                           style: TextStyle(
                             color: hasUnread ? _muted : _faint,
                             fontSize: 13,
-                            fontWeight: hasUnread ? FontWeight.w500 : FontWeight.w400,
+                            fontWeight: hasUnread
+                                ? FontWeight.w500
+                                : FontWeight.w400,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -376,15 +555,15 @@ class _ChatRow extends StatelessWidget {
                         const SizedBox(width: 8),
                         Container(
                           width: 20, height: 20,
-                          decoration: BoxDecoration(
-                            gradient: const LinearGradient(
+                          decoration: const BoxDecoration(
+                            gradient: LinearGradient(
                               colors: [Color(0xFF58DAD0), Color(0xFF1EC9B8)],
                             ),
                             shape: BoxShape.circle,
                           ),
                           child: Center(
                             child: Text(
-                              '${chat.unreadCount}',
+                              unread > 99 ? '99+' : '$unread',
                               style: const TextStyle(
                                 color: Color(0xFF041818),
                                 fontSize: 10,
@@ -406,13 +585,18 @@ class _ChatRow extends StatelessWidget {
   }
 }
 
-// ── Shared avatar ─────────────────────────────────────────────────────────────
+// ── Shared avatar widget ──────────────────────────────────────────────────────
 
 class _AvatarCircle extends StatelessWidget {
   final String initial;
-  final Color color;
+  final Color  color;
   final double size;
-  const _AvatarCircle({required this.initial, required this.color, required this.size});
+
+  const _AvatarCircle({
+    required this.initial,
+    required this.color,
+    required this.size,
+  });
 
   @override
   Widget build(BuildContext context) {

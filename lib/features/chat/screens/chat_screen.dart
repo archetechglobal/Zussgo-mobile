@@ -4,8 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/chat_message.dart';
+import '../models/message_model.dart';
 import '../providers/chat_provider.dart';
 import '../widgets/ai_spark_chip.dart';
 import '../widgets/itinerary_tray.dart';
@@ -21,8 +23,8 @@ class ChatScreen extends ConsumerStatefulWidget {
   const ChatScreen({
     super.key,
     this.peerId    = '',
-    this.peerName  = 'Rahul',
-    this.tripLabel = 'Goa Beach Crew',
+    this.peerName  = 'Traveller',
+    this.tripLabel = 'Trip',
   });
 
   @override
@@ -30,9 +32,9 @@ class ChatScreen extends ConsumerStatefulWidget {
 }
 
 class _ChatScreenState extends ConsumerState<ChatScreen> {
-  final _controller      = TextEditingController();
+  final _controller       = TextEditingController();
   final _scrollController = ScrollController();
-  bool _showItinerary = false;
+  bool  _showItinerary    = false;
 
   static const _bg    = Color(0xFF070E0F);
   static const _teal  = Color(0xFF1EC9B8);
@@ -40,6 +42,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   static const _text  = Color(0xFFEDF7F4);
   static const _muted = Color(0xFFA8C4BF);
   static const _faint = Color(0xFF6A8882);
+
+  // ── Build a ChatMessage (local UI model) from a live MessageModel ─────────
+  ChatMessage _toLocal(MessageModel m, String myId) {
+    return ChatMessage(
+      id:        m.id,
+      text:      m.content,
+      isMe:      m.senderId == myId,
+      timestamp: m.createdAt,
+    );
+  }
 
   @override
   void initState() {
@@ -66,24 +78,23 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     }
   }
 
-  void _sendText() {
+  void _sendText(String connectionId) {
     final text = _controller.text.trim();
     if (text.isEmpty) return;
-    ref.read(messagesProvider.notifier).send(text);
+    ref.read(chatNotifierProvider(connectionId)).send(text);
     _controller.clear();
     ref.read(aiSparkProvider.notifier).state = null;
     _scrollToBottom();
   }
 
-  void _sendPlanCard(PlanCardData card) {
-    ref.read(messagesProvider.notifier).addPlanCard(card);
+  void _sendPlanCard(String connectionId, PlanCardData card) {
+    // Plan cards are sent as a text message with JSON payload in content
+    // For now send as readable text; extend type field later
+    ref.read(chatNotifierProvider(connectionId)).send(
+      '📍 ${card.placeName} • ${card.category} • ${card.date} ${card.time}',
+    );
     ref.read(aiSparkProvider.notifier).state = null;
     _scrollToBottom();
-  }
-
-  void _addToItinerary(String messageId, PlanCardData card) {
-    ref.read(messagesProvider.notifier).markAdded(messageId);
-    ref.read(itineraryProvider.notifier).addFromCard(card);
   }
 
   void _scrollToBottom() {
@@ -139,14 +150,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     return 'Today, $hour:$min $ampm';
   }
 
-  void _openSuggestSheet({PlanCardData? prefilled}) {
+  void _openSuggestSheet(String connectionId, {PlanCardData? prefilled}) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => SuggestPlaceSheet(
         prefilled: prefilled,
-        onSend: _sendPlanCard,
+        onSend: (card) => _sendPlanCard(connectionId, card),
       ),
     );
   }
@@ -155,85 +166,251 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   Widget build(BuildContext context) {
     final topInset    = MediaQuery.of(context).padding.top;
     final bottomInset = MediaQuery.of(context).padding.bottom;
-    final messages    = ref.watch(messagesProvider);
-    final aiSpark     = ref.watch(aiSparkProvider);
-    final itinerary   = ref.watch(itineraryProvider);
+    final myId        = Supabase.instance.client.auth.currentUser?.id ?? '';
+
+    final aiSpark   = ref.watch(aiSparkProvider);
+    final itinerary = ref.watch(itineraryProvider);
+
+    // ── Resolve connection id first ──────────────────────────────────────────
+    final connAsync = ref.watch(connectionIdProvider(widget.peerId));
 
     return Scaffold(
       backgroundColor: _bg,
       resizeToAvoidBottomInset: true,
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: RadialGradient(
-            center: Alignment(0.8, -0.8),
-            radius: 1.0,
-            colors: [Color(0x181EC9B8), Colors.transparent],
+      body: connAsync.when(
+        loading: () => const Center(
+          child: CircularProgressIndicator(
+            color: Color(0xFF1EC9B8), strokeWidth: 2,
           ),
         ),
-        child: Column(
-          children: [
-            SizedBox(height: topInset),
+        error: (e, _) => Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.wifi_off_rounded,
+                  color: Color(0xFF3D5C58), size: 48),
+              const SizedBox(height: 12),
+              Text(
+                'Could not connect',
+                style: TextStyle(color: _faint, fontSize: 14),
+              ),
+              const SizedBox(height: 16),
+              GestureDetector(
+                onTap: () =>
+                    ref.refresh(connectionIdProvider(widget.peerId)),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: _teal.withOpacity(.15),
+                    borderRadius: BorderRadius.circular(12),
+                    border:
+                        Border.all(color: _teal.withOpacity(.3)),
+                  ),
+                  child: const Text(
+                    'Retry',
+                    style: TextStyle(
+                      color: Color(0xFF58DAD0),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        data: (connectionId) {
+          // No accepted connection yet
+          if (connectionId == null) {
+            return _NoConnectionView(
+              peerName: widget.peerName,
+              onBack: () => context.go('/chat'),
+            );
+          }
 
-            _ChatAppBar(
-              peerName:       widget.peerName,
-              tripLabel:      widget.tripLabel,
-              onBack:         () => context.go('/chat'),
-              onItineraryTap: () =>
-                  setState(() => _showItinerary = !_showItinerary),
-              itineraryCount: itinerary.length,
-            ),
+          // ── Live message stream ────────────────────────────────────────
+          final msgsAsync =
+              ref.watch(messagesStreamProvider(connectionId));
 
-            AnimatedSize(
-              duration: const Duration(milliseconds: 260),
-              curve: Curves.easeOutCubic,
-              child: _showItinerary
-                  ? ItineraryTray(items: itinerary, onExpand: () {})
-                  : const SizedBox.shrink(),
-            ),
-
-            _StartTripBanner(
-              peerName:  widget.peerName,
-              tripLabel: widget.tripLabel,
-              onStart:   _startTrip,
-            ),
-
-            Expanded(
-              child: ListView.builder(
-                controller: _scrollController,
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-                itemCount: messages.length,
-                itemBuilder: (_, i) {
-                  final msg = messages[i];
-                  return MessageBubble(
-                    message: msg,
-                    onAddToItinerary: msg.planCard != null &&
-                        !msg.planCard!.addedToItinerary
-                        ? () => _addToItinerary(msg.id, msg.planCard!)
-                        : null,
-                  );
-                },
+          return Container(
+            decoration: const BoxDecoration(
+              gradient: RadialGradient(
+                center: Alignment(0.8, -0.8),
+                radius: 1.0,
+                colors: [Color(0x181EC9B8), Colors.transparent],
               ),
             ),
+            child: Column(
+              children: [
+                SizedBox(height: topInset),
 
-            AnimatedSize(
-              duration: const Duration(milliseconds: 220),
-              curve: Curves.easeOutCubic,
-              child: aiSpark != null
-                  ? AiSparkChip(
-                suggestion: aiSpark,
-                onPreview:  () => _openSuggestSheet(prefilled: aiSpark),
-                onDismiss:  () =>
-                ref.read(aiSparkProvider.notifier).state = null,
-              )
-                  : const SizedBox.shrink(),
+                _ChatAppBar(
+                  peerName:       widget.peerName,
+                  tripLabel:      widget.tripLabel,
+                  onBack:         () => context.go('/chat'),
+                  onItineraryTap: () =>
+                      setState(() => _showItinerary = !_showItinerary),
+                  itineraryCount: itinerary.length,
+                ),
+
+                AnimatedSize(
+                  duration: const Duration(milliseconds: 260),
+                  curve: Curves.easeOutCubic,
+                  child: _showItinerary
+                      ? ItineraryTray(items: itinerary, onExpand: () {})
+                      : const SizedBox.shrink(),
+                ),
+
+                _StartTripBanner(
+                  peerName:  widget.peerName,
+                  tripLabel: widget.tripLabel,
+                  onStart:   _startTrip,
+                ),
+
+                // ── Message list ─────────────────────────────────────────
+                Expanded(
+                  child: msgsAsync.when(
+                    loading: () => const Center(
+                      child: CircularProgressIndicator(
+                        color: Color(0xFF1EC9B8), strokeWidth: 2,
+                      ),
+                    ),
+                    error: (e, _) => Center(
+                      child: Text(
+                        'Could not load messages',
+                        style:
+                            TextStyle(color: _faint, fontSize: 13),
+                      ),
+                    ),
+                    data: (liveMessages) {
+                      // Auto-scroll when new message arrives
+                      WidgetsBinding.instance
+                          .addPostFrameCallback((_) => _scrollToBottom());
+
+                      if (liveMessages.isEmpty) {
+                        return Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Text(
+                                '👋',
+                                style: TextStyle(fontSize: 40),
+                              ),
+                              const SizedBox(height: 12),
+                              Text(
+                                'Say hi to ${widget.peerName}!',
+                                style: TextStyle(
+                                  color: _faint,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }
+
+                      final uiMessages = liveMessages
+                          .map((m) => _toLocal(m, myId))
+                          .toList();
+
+                      return ListView.builder(
+                        controller: _scrollController,
+                        padding: const EdgeInsets.fromLTRB(
+                            16, 8, 16, 12),
+                        itemCount: uiMessages.length,
+                        itemBuilder: (_, i) {
+                          final msg = uiMessages[i];
+                          return MessageBubble(
+                            message: msg,
+                            onAddToItinerary: null,
+                          );
+                        },
+                      );
+                    },
+                  ),
+                ),
+
+                // ── AI spark chip ────────────────────────────────────────
+                AnimatedSize(
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeOutCubic,
+                  child: aiSpark != null
+                      ? AiSparkChip(
+                          suggestion: aiSpark,
+                          onPreview: () => _openSuggestSheet(
+                              connectionId,
+                              prefilled: aiSpark),
+                          onDismiss: () => ref
+                              .read(aiSparkProvider.notifier)
+                              .state = null,
+                        )
+                      : const SizedBox.shrink(),
+                ),
+
+                // ── Input bar ────────────────────────────────────────────
+                _InputBar(
+                  controller:  _controller,
+                  onChanged:   _onTextChanged,
+                  onSend:      () => _sendText(connectionId),
+                  onPlustap:   () =>
+                      _openSuggestSheet(connectionId),
+                  bottomInset: bottomInset,
+                ),
+              ],
             ),
+          );
+        },
+      ),
+    );
+  }
+}
 
-            _InputBar(
-              controller:   _controller,
-              onChanged:    _onTextChanged,
-              onSend:       _sendText,
-              onPlustap:    () => _openSuggestSheet(),
-              bottomInset:  bottomInset,
+// ─── No connection placeholder ────────────────────────────────────────────────
+
+class _NoConnectionView extends StatelessWidget {
+  final String peerName;
+  final VoidCallback onBack;
+  const _NoConnectionView({required this.peerName, required this.onBack});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF070E0F),
+      body: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.lock_outline_rounded,
+                color: Color(0xFF3D5C58), size: 48),
+            const SizedBox(height: 16),
+            Text(
+              'No accepted connection\nwith $peerName yet.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                  color: Color(0xFF6A8882), fontSize: 14),
+            ),
+            const SizedBox(height: 24),
+            GestureDetector(
+              onTap: onBack,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 20, vertical: 10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1EC9B8).withOpacity(.15),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                      color: const Color(0xFF1EC9B8).withOpacity(.3)),
+                ),
+                child: const Text(
+                  'Back to Chats',
+                  style: TextStyle(
+                    color: Color(0xFF58DAD0),
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
             ),
           ],
         ),
@@ -277,7 +454,8 @@ class _ChatAppBar extends StatelessWidget {
               decoration: BoxDecoration(
                 color: Colors.white.withOpacity(.05),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.white.withOpacity(.08)),
+                border:
+                    Border.all(color: Colors.white.withOpacity(.08)),
               ),
               child: const Icon(
                 Icons.arrow_back_ios_new_rounded,
@@ -323,7 +501,8 @@ class _ChatAppBar extends StatelessWidget {
                 ),
                 Text(
                   tripLabel,
-                  style: const TextStyle(color: _muted, fontSize: 11),
+                  style: const TextStyle(
+                      color: _muted, fontSize: 11),
                 ),
               ],
             ),
@@ -332,7 +511,8 @@ class _ChatAppBar extends StatelessWidget {
           GestureDetector(
             onTap: onItineraryTap,
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
                 color: _teal.withOpacity(.12),
                 borderRadius: BorderRadius.circular(12),
@@ -383,10 +563,10 @@ class _ChatAppBar extends StatelessWidget {
 
 class _InputBar extends StatelessWidget {
   final TextEditingController controller;
-  final ValueChanged<String> onChanged;
-  final VoidCallback onSend;
-  final VoidCallback onPlustap;
-  final double bottomInset;
+  final ValueChanged<String>  onChanged;
+  final VoidCallback          onSend;
+  final VoidCallback          onPlustap;
+  final double                bottomInset;
 
   const _InputBar({
     required this.controller,
@@ -397,17 +577,17 @@ class _InputBar extends StatelessWidget {
   });
 
   static const _teal = Color(0xFF1EC9B8);
-  static const _teal2 = Color(0xFF58DAD0);
-  static const _faint = Color(0xFF6A8882);
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.fromLTRB(16, 10, 16, 16 + bottomInset),
+      padding:
+          EdgeInsets.fromLTRB(16, 10, 16, 16 + bottomInset),
       decoration: BoxDecoration(
         color: const Color(0xFF0A1516),
         border: Border(
-          top: BorderSide(color: Colors.white.withOpacity(.05)),
+          top: BorderSide(
+              color: Colors.white.withOpacity(.05)),
         ),
       ),
       child: Row(
@@ -420,7 +600,8 @@ class _InputBar extends StatelessWidget {
               decoration: BoxDecoration(
                 color: Colors.white.withOpacity(.05),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.white.withOpacity(.08)),
+                border: Border.all(
+                    color: Colors.white.withOpacity(.08)),
               ),
               child: const Icon(
                 Icons.add_rounded,
@@ -433,15 +614,18 @@ class _InputBar extends StatelessWidget {
 
           Expanded(
             child: Container(
-              constraints: const BoxConstraints(maxHeight: 120),
+              constraints:
+                  const BoxConstraints(maxHeight: 120),
               decoration: BoxDecoration(
                 color: Colors.white.withOpacity(.04),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.white.withOpacity(.08)),
+                border: Border.all(
+                    color: Colors.white.withOpacity(.08)),
               ),
               child: TextField(
                 controller: controller,
-                onChanged: onChanged,
+                onChanged:  onChanged,
+                onSubmitted: (_) => onSend(),
                 maxLines: null,
                 style: const TextStyle(
                   color: Color(0xFFEDF7F4),
@@ -449,10 +633,11 @@ class _InputBar extends StatelessWidget {
                 ),
                 decoration: const InputDecoration(
                   hintText: 'Message...',
-                  hintStyle: TextStyle(color: Color(0xFF6A8882), fontSize: 14),
+                  hintStyle: TextStyle(
+                      color: Color(0xFF6A8882), fontSize: 14),
                   border: InputBorder.none,
-                  contentPadding:
-                  EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  contentPadding: EdgeInsets.symmetric(
+                      horizontal: 14, vertical: 10),
                 ),
               ),
             ),
@@ -465,7 +650,10 @@ class _InputBar extends StatelessWidget {
               width: 40, height: 40,
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
-                  colors: [Color(0xFF58DAD0), Color(0xFF1EC9B8)],
+                  colors: [
+                    Color(0xFF58DAD0),
+                    Color(0xFF1EC9B8),
+                  ],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
@@ -511,7 +699,7 @@ class _StartTripBanner extends StatefulWidget {
 class _StartTripBannerState extends State<_StartTripBanner>
     with SingleTickerProviderStateMixin {
   late final AnimationController _pulse;
-  late final Animation<double> _glow;
+  late final Animation<double>   _glow;
 
   static const _teal  = Color(0xFF1EC9B8);
   static const _teal2 = Color(0xFF58DAD0);
@@ -545,10 +733,14 @@ class _StartTripBannerState extends State<_StartTripBanner>
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [_teal.withOpacity(.12), Colors.transparent],
+            colors: [
+              _teal.withOpacity(.12),
+              Colors.transparent,
+            ],
           ),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: _teal.withOpacity(_glow.value)),
+          border: Border.all(
+              color: _teal.withOpacity(_glow.value)),
           boxShadow: [
             BoxShadow(
               color: _teal.withOpacity(_glow.value * 0.5),
@@ -561,7 +753,6 @@ class _StartTripBannerState extends State<_StartTripBanner>
           padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
           child: Row(
             children: [
-              // Pulsing dot
               SizedBox(
                 width: 14, height: 14,
                 child: Stack(
@@ -571,7 +762,8 @@ class _StartTripBannerState extends State<_StartTripBanner>
                       width: 14, height: 14,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: _teal.withOpacity(_glow.value * 0.6),
+                        color: _teal.withOpacity(
+                            _glow.value * 0.6),
                       ),
                     ),
                     Container(
@@ -601,7 +793,8 @@ class _StartTripBannerState extends State<_StartTripBanner>
                     const SizedBox(height: 2),
                     const Text(
                       'Plans locked in? Start live tracking.',
-                      style: TextStyle(color: _faint, fontSize: 11),
+                      style: TextStyle(
+                          color: _faint, fontSize: 11),
                     ),
                   ],
                 ),
