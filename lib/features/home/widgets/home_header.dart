@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../notifications/providers/notifications_provider.dart';
 import '../../profile/providers/profile_provider.dart';
-import '../../profile/widgets/user_profile_sheet.dart';
 import '../providers/home_provider.dart';
 
 class HomeHeader extends ConsumerStatefulWidget {
@@ -69,8 +68,6 @@ class _HomeHeaderState extends ConsumerState<HomeHeader> {
 
     final profile   = profileAsync.asData?.value;
     final firstName = (profile?.name ?? 'Traveler').split(' ').first;
-    final initial   = firstName.isNotEmpty ? firstName[0].toUpperCase() : 'Z';
-    final avatarUrl = profile?.avatarUrl;
 
     final hasQuery  = query.isNotEmpty;
     final borderColor = hasQuery
@@ -81,7 +78,7 @@ class _HomeHeaderState extends ConsumerState<HomeHeader> {
       padding: EdgeInsets.fromLTRB(16, widget.topInset + 10, 16, 0),
       child: Column(
         children: [
-          // ── Top row: greeting + bell + avatar ──────────────────────────────
+          // ── Top row: greeting + bell ────────────────────────────────────────
           Row(
             children: [
               Column(
@@ -147,30 +144,6 @@ class _HomeHeaderState extends ConsumerState<HomeHeader> {
                         ),
                       ),
                   ],
-                ),
-              ),
-              const SizedBox(width: 10),
-
-              // Avatar
-              GestureDetector(
-                onTap: () => UserProfileSheet.show(context, name: firstName),
-                child: Container(
-                  width: 42, height: 42,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(14),
-                    gradient: avatarUrl == null
-                        ? const LinearGradient(colors: [_teal2, _teal, _gold])
-                        : null,
-                  ),
-                  child: avatarUrl != null
-                      ? ClipRRect(
-                          borderRadius: BorderRadius.circular(14),
-                          child: Image.network(
-                            avatarUrl, width: 42, height: 42, fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => _InitialAvatar(initial: initial),
-                          ),
-                        )
-                      : _InitialAvatar(initial: initial),
                 ),
               ),
             ],
@@ -257,23 +230,6 @@ class _HomeHeaderState extends ConsumerState<HomeHeader> {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _InitialAvatar extends StatelessWidget {
-  final String initial;
-  const _InitialAvatar({required this.initial});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Text(
-        initial,
-        style: const TextStyle(
-          color: Color(0xFF041818), fontSize: 15, fontWeight: FontWeight.w800,
-        ),
       ),
     );
   }
