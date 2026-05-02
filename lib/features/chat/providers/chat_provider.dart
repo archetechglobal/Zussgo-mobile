@@ -17,15 +17,16 @@ final connectionIdProvider = FutureProvider.family<String?, String>((ref, peerId
 
 // ── Stream messages from Supabase (keyed by connectionId) ─────────────────────
 final messagesStreamProvider =
-StreamProvider.family<List<MessageModel>, String>((ref, connectionId) {
+    StreamProvider.family<List<MessageModel>, String>((ref, connectionId) {
   return ref.watch(chatRepositoryProvider).messagesStream(connectionId: connectionId);
 });
 
-// ── Chat list for ChatsListScreen ─────────────────────────────────────────────
-final chatPreviewsProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
+// ── Realtime chat list with unread counts ─────────────────────────────────────
+// StreamProvider so the list updates automatically when new messages arrive.
+final chatPreviewsProvider = StreamProvider<List<Map<String, dynamic>>>((ref) {
   final repo   = ref.watch(chatRepositoryProvider);
   final userId = Supabase.instance.client.auth.currentUser?.id ?? '';
-  return repo.getChatPreviews(userId);
+  return repo.realtimeChatPreviews(userId);
 });
 
 // ── Send message (keyed by connectionId) ──────────────────────────────────────
@@ -51,11 +52,19 @@ class ChatNotifier extends StateNotifier<AsyncValue<void>> {
       state = AsyncValue.error(e, st);
     }
   }
+
+  /// Mark all messages in this connection as read by the current user.
+  Future<void> markRead() async {
+    await _repo.markMessagesRead(
+      connectionId: _connectionId,
+      userId:       _senderId,
+    );
+  }
 }
 
 final chatNotifierProvider =
-StateNotifierProvider.family<ChatNotifier, AsyncValue<void>, String>(
-      (ref, connectionId) {
+    StateNotifierProvider.family<ChatNotifier, AsyncValue<void>, String>(
+  (ref, connectionId) {
     final repo   = ref.watch(chatRepositoryProvider);
     final userId = Supabase.instance.client.auth.currentUser?.id ?? '';
     return ChatNotifier(repo, connectionId, userId);
@@ -63,78 +72,8 @@ StateNotifierProvider.family<ChatNotifier, AsyncValue<void>, String>(
 );
 
 // ═════════════════════════════════════════════════════════════════════════════
-// LOCAL UI STATE — used only inside ChatScreen
-// These are purely UI-layer concerns (local message list, AI spark, itinerary).
-// They are NOT backed by Supabase.
+// LOCAL UI STATE — purely UI-layer, NOT backed by Supabase
 // ═════════════════════════════════════════════════════════════════════════════
-
-// ── Local message list notifier ───────────────────────────────────────────────
-class MessagesNotifier extends StateNotifier<List<ChatMessage>> {
-  MessagesNotifier() : super(_initialMessages);
-
-  static final _initialMessages = [
-    ChatMessage(
-      id: '1',
-      text: 'Hey! Excited for Goa 🌊',
-      isMe: false,
-      timestamp: DateTime.now().subtract(const Duration(minutes: 30)),
-    ),
-    ChatMessage(
-      id: '2',
-      text: 'Same! Should we sort accommodation first?',
-      isMe: true,
-      timestamp: DateTime.now().subtract(const Duration(minutes: 28)),
-    ),
-    ChatMessage(
-      id: '3',
-      text: 'Yeah for sure. I was thinking Anjuna or Vagator.',
-      isMe: false,
-      timestamp: DateTime.now().subtract(const Duration(minutes: 25)),
-    ),
-  ];
-
-  void send(String text) {
-    state = [
-      ...state,
-      ChatMessage(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        text: text,
-        isMe: true,
-        timestamp: DateTime.now(),
-      ),
-    ];
-  }
-
-  void addPlanCard(PlanCardData card) {
-    state = [
-      ...state,
-      ChatMessage(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        text: '📍 ${card.placeName}',
-        isMe: true,
-        timestamp: DateTime.now(),
-        type: MessageType.planCard,
-        planCard: card,
-      ),
-    ];
-  }
-
-  void markAdded(String messageId) {
-    state = state.map((m) {
-      if (m.id == messageId && m.planCard != null) {
-        return m.copyWith(
-          planCard: m.planCard!..addedToItinerary = true,
-        );
-      }
-      return m;
-    }).toList();
-  }
-}
-
-final messagesProvider =
-StateNotifierProvider<MessagesNotifier, List<ChatMessage>>(
-      (_) => MessagesNotifier(),
-);
 
 // ── AI Spark chip state ────────────────────────────────────────────────────────
 // Holds a PlanCardData suggestion when a place is detected in typed text.
@@ -179,68 +118,126 @@ class ItineraryNotifier extends StateNotifier<List<ItineraryItem>> {
 }
 
 final itineraryProvider =
-StateNotifierProvider<ItineraryNotifier, List<ItineraryItem>>(
-      (_) => ItineraryNotifier(),
+    StateNotifierProvider<ItineraryNotifier, List<ItineraryItem>>(
+  (_) => ItineraryNotifier(),
 );
 
-// ── Place intent detection helpers ────────────────────────────────────────────
-// Scans typed text for place-like keywords and returns a suggested PlanCardData.
+// ── Destination-aware place intent detection ──────────────────────────────────
+// Scans typed text for generic place-like keywords. Destination-specific
+// keywords are injected at the call site from the trip context.
 
-bool detectPlaceIntent(String text) {
+bool detectPlaceIntent(String text, {List<String> extraKeywords = const []}) {
   final lower = text.toLowerCase();
-  final keywords = [
-    'curlies', 'tito', 'baga', 'anjuna', 'vagator', 'calangute',
-    'cafe', 'beach', 'shack', 'bar', 'restaurant', 'hotel',
-    'museum', 'fort', 'church', 'market', 'mall', 'club',
+  const genericKeywords = [
+    'cafe', 'beach', 'bar', 'restaurant', 'hotel', 'hostel', 'club',
+    'museum', 'fort', 'church', 'temple', 'market', 'mall', 'park',
+    'waterfall', 'island', 'resort', 'rooftop', 'lounge', 'shack',
+    'street food', 'night market', 'viewpoint', 'hiking', 'trail',
   ];
-  return keywords.any((k) => lower.contains(k));
+  final all = [...genericKeywords, ...extraKeywords.map((k) => k.toLowerCase())];
+  return all.any((k) => lower.contains(k));
 }
 
-PlanCardData? suggestCardFromText(String text) {
+/// Builds a PlanCardData suggestion from typed text.
+/// [tripDestination] and [tripStartDate] are used to fill in context-aware
+/// defaults instead of hardcoded Goa / May 12 values.
+PlanCardData? suggestCardFromText(
+  String text, {
+  String tripDestination = '',
+  DateTime? tripStartDate,
+}) {
   final lower = text.toLowerCase();
 
-  if (lower.contains('curlies')) {
+  // Format a readable date from the trip start date, or fall back to 'Day 1'
+  String dateLabel(int offsetDays) {
+    if (tripStartDate == null) return 'Day ${offsetDays + 1}';
+    final d = tripStartDate.add(Duration(days: offsetDays));
+    const months = [
+      '', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+    return '${months[d.month]} ${d.day}';
+  }
+
+  // Keyword → suggestion map (generic; works for any destination)
+  if (lower.contains('beach')) {
     return PlanCardData(
-      placeName: "Curlies Beach Shack",
-      category:  "Beach Bar",
-      date:      "May 12",
-      time:      "8:00 PM",
-      emoji:     "🍹",
+      placeName: tripDestination.isNotEmpty ? '$tripDestination Beach' : 'Local Beach',
+      category: 'Beach',
+      date: dateLabel(0),
+      time: '10:00 AM',
+      emoji: '🏖',
     );
   }
-  if (lower.contains('tito')) {
+  if (lower.contains('cafe') || lower.contains('coffee')) {
     return PlanCardData(
-      placeName: "Tito's Club",
-      category:  "Nightclub",
-      date:      "May 12",
-      time:      "10:00 PM",
-      emoji:     "🎉",
+      placeName: 'Local Cafe',
+      category: 'Cafe',
+      date: dateLabel(0),
+      time: '9:00 AM',
+      emoji: '☕',
     );
   }
-  if (lower.contains('vagator') || lower.contains('anjuna')) {
+  if (lower.contains('bar') || lower.contains('club') || lower.contains('lounge')) {
     return PlanCardData(
-      placeName: lower.contains('vagator') ? "Vagator Beach" : "Anjuna Beach",
-      category:  "Beach",
-      date:      "May 13",
-      time:      "10:00 AM",
-      emoji:     "🏖",
+      placeName: 'Night Out',
+      category: lower.contains('club') ? 'Nightclub' : 'Bar',
+      date: dateLabel(1),
+      time: '9:00 PM',
+      emoji: '🍹',
     );
   }
-  if (lower.contains('cafe')) {
+  if (lower.contains('restaurant') || lower.contains('food') || lower.contains('eat')) {
     return PlanCardData(
-      placeName: "Local Cafe",
-      category:  "Cafe",
-      date:      "May 12",
-      time:      "9:00 AM",
-      emoji:     "☕",
+      placeName: 'Local Restaurant',
+      category: 'Food',
+      date: dateLabel(0),
+      time: '7:00 PM',
+      emoji: '🍽',
+    );
+  }
+  if (lower.contains('museum') || lower.contains('gallery')) {
+    return PlanCardData(
+      placeName: 'City Museum',
+      category: 'Culture',
+      date: dateLabel(0),
+      time: '11:00 AM',
+      emoji: '🏛',
+    );
+  }
+  if (lower.contains('hik') || lower.contains('trail') || lower.contains('trek')) {
+    return PlanCardData(
+      placeName: 'Hiking Trail',
+      category: 'Outdoors',
+      date: dateLabel(1),
+      time: '7:00 AM',
+      emoji: '🥾',
+    );
+  }
+  if (lower.contains('market') || lower.contains('shop')) {
+    return PlanCardData(
+      placeName: 'Local Market',
+      category: 'Shopping',
+      date: dateLabel(0),
+      time: '10:00 AM',
+      emoji: '🛍',
+    );
+  }
+  if (lower.contains('hotel') || lower.contains('hostel') || lower.contains('resort')) {
+    return PlanCardData(
+      placeName: 'Accommodation',
+      category: lower.contains('hostel') ? 'Hostel' : 'Hotel',
+      date: dateLabel(0),
+      time: '3:00 PM',
+      emoji: '🏨',
     );
   }
   // Generic fallback
   return PlanCardData(
-    placeName: "Suggested Place",
-    category:  "Place",
-    date:      "May 12",
-    time:      "12:00 PM",
-    emoji:     "📍",
+    placeName: 'Suggested Place',
+    category: 'Place',
+    date: dateLabel(0),
+    time: '12:00 PM',
+    emoji: '📍',
   );
 }

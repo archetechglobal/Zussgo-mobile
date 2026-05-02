@@ -18,12 +18,17 @@ class ChatScreen extends ConsumerStatefulWidget {
   final String peerId;
   final String peerName;
   final String tripLabel;
+  // Optional: pass the trip's destination and start date for context-aware AI spark
+  final String tripDestination;
+  final DateTime? tripStartDate;
 
   const ChatScreen({
     super.key,
-    this.peerId    = '',
-    this.peerName  = 'Traveller',
-    this.tripLabel = 'Trip',
+    this.peerId          = '',
+    this.peerName        = 'Traveller',
+    this.tripLabel       = 'Trip',
+    this.tripDestination = '',
+    this.tripStartDate,
   });
 
   @override
@@ -42,7 +47,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   static const _muted = Color(0xFFA8C4BF);
   static const _faint = Color(0xFF6A8882);
 
-  // Build a local UI ChatMessage from a live MessageModel
   ChatMessage _toLocal(dynamic m, String myId) {
     return ChatMessage(
       id:        m.id as String,
@@ -69,15 +73,25 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   void _onTextChanged(String val) {
-    if (detectPlaceIntent(val)) {
-      final suggestion = suggestCardFromText(val);
+    // Destination-specific keywords extracted from the trip destination string
+    final destinationWords = widget.tripDestination
+        .toLowerCase()
+        .split(RegExp(r'[\s,]+'))
+        .where((w) => w.length > 2)
+        .toList();
+
+    if (detectPlaceIntent(val, extraKeywords: destinationWords)) {
+      final suggestion = suggestCardFromText(
+        val,
+        tripDestination: widget.tripDestination,
+        tripStartDate:   widget.tripStartDate,
+      );
       ref.read(aiSparkProvider.notifier).state = suggestion;
     } else {
       ref.read(aiSparkProvider.notifier).state = null;
     }
   }
 
-  // chatNotifierProvider is a StateNotifierProvider — read the notifier directly
   void _sendText(String connectionId) {
     final text = _controller.text.trim();
     if (text.isEmpty) return;
@@ -169,7 +183,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final aiSpark   = ref.watch(aiSparkProvider);
     final itinerary = ref.watch(itineraryProvider);
 
-    // Resolve connection id first
     final connAsync = ref.watch(connectionIdProvider(widget.peerId));
 
     return Scaffold(
@@ -225,6 +238,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               onBack: () => context.go('/chat'),
             );
           }
+
+          // Mark messages as read when the chat is opened
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            ref.read(chatNotifierProvider(connectionId).notifier).markRead();
+          });
 
           final msgsAsync =
               ref.watch(messagesStreamProvider(connectionId));
@@ -312,10 +330,24 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                         padding: const EdgeInsets.fromLTRB(
                             16, 8, 16, 12),
                         itemCount: uiMessages.length,
-                        itemBuilder: (_, i) => MessageBubble(
-                          message: uiMessages[i],
-                          onAddToItinerary: null,
-                        ),
+                        itemBuilder: (_, i) {
+                          final msg = uiMessages[i];
+                          return MessageBubble(
+                            message: msg,
+                            // Wire up "Add to Plan" for plan card messages
+                            onAddToItinerary: msg.type == MessageType.planCard &&
+                                    msg.planCard != null &&
+                                    !msg.planCard!.addedToItinerary
+                                ? () {
+                                    ref
+                                        .read(itineraryProvider.notifier)
+                                        .addFromCard(msg.planCard!);
+                                    // Mark as added to prevent duplicate taps
+                                    msg.planCard!.addedToItinerary = true;
+                                  }
+                                : null,
+                          );
+                        },
                       );
                     },
                   ),
