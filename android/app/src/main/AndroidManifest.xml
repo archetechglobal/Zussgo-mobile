@@ -1,9 +1,20 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.zussgo.app">
+
+    <!-- Internet permission (already needed for Supabase) -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- Required for Android 13+ push notification permission prompt -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- Required for showing notifications when app is in foreground -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
     <application
         android:label="ZussGo"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -28,10 +39,26 @@
                 <data android:scheme="zussgo" android:host="auth" />
             </intent-filter>
         </activity>
+
+        <!-- FCM default notification channel -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="zussgo_matches" />
+
+        <!-- FCM notification icon + color -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@mipmap/ic_launcher" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_color"
+            android:resource="@color/notification_color" />
+
+        <!-- Flutter embedding -->
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
     </application>
+
     <queries>
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
