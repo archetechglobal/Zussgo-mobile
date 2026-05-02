@@ -42,20 +42,20 @@ class FcmService {
       onDidReceiveNotificationResponse: _onNotificationTap,
     );
 
-    // Token refresh listener — always active
+    // Token refresh — keeps token fresh when FCM rotates it
     _messaging.onTokenRefresh.listen(_saveToken);
 
     // Foreground message handler
     FirebaseMessaging.onMessage.listen(_onForegroundMessage);
 
-    // Background tap handler
+    // Background tap (app was in background, user tapped notification)
     FirebaseMessaging.onMessageOpenedApp.listen(_onMessageOpenedApp);
 
-    // Terminated state tap handler
+    // Terminated tap (app was fully closed, user tapped notification)
     final initial = await _messaging.getInitialMessage();
     if (initial != null) _handleNavigation(initial.data);
 
-    // Try saving token now in case user is already logged in (e.g. persisted session)
+    // Try saving token now (persisted session on cold start)
     await _registerToken();
   }
 
@@ -68,7 +68,7 @@ class FcmService {
 
   Future<void> _registerToken() async {
     final userId = Supabase.instance.client.auth.currentUser?.id;
-    if (userId == null) return; // Not logged in yet, skip
+    if (userId == null) return;
     try {
       final token = await _messaging.getToken();
       if (token != null) await _saveToken(token);
@@ -93,6 +93,12 @@ class FcmService {
     final android = message.notification?.android;
     if (notification == null) return;
 
+    // Store trip_id + match_score as pipe-separated payload for tap handler
+    final tripId     = message.data['trip_id'] ?? '';
+    final matchScore = message.data['match_score'] ?? '';
+    final destination = message.data['destination'] ?? '';
+    final payload = '$tripId|$matchScore|$destination';
+
     await _localNotifications.show(
       notification.hashCode,
       notification.title,
@@ -107,28 +113,43 @@ class FcmService {
           icon: android?.smallIcon ?? '@mipmap/ic_launcher',
         ),
       ),
-      payload: message.data['trip_id'],
+      payload: payload,
     );
   }
 
   // ── Navigation Handling ───────────────────────────────────────────────────
 
+  // Tapped a local notification (foreground)
   void _onNotificationTap(NotificationResponse response) {
-    final tripId = response.payload;
-    if (tripId != null && tripId.isNotEmpty) _navigateToDiscover();
+    final payload = response.payload ?? '';
+    final parts   = payload.split('|');
+    final tripId  = parts.isNotEmpty ? parts[0] : '';
+    _handleNavigation({'type': 'trip_match', 'trip_id': tripId});
   }
 
+  // Tapped FCM notification while app was in background
   void _onMessageOpenedApp(RemoteMessage message) {
     _handleNavigation(message.data);
   }
 
+  // Core navigation dispatcher
   void _handleNavigation(Map<String, dynamic> data) {
-    if (data['type'] == 'trip_match') _navigateToDiscover();
-  }
+    if (data['type'] != 'trip_match') return;
 
-  void _navigateToDiscover() {
+    final tripId = (data['trip_id'] as String? ?? '').trim();
+
     try {
-      goRouter.go('/match');
+      if (tripId.isNotEmpty) {
+        // Deep link → Discover tab, pre-scrolled to the specific trip
+        goRouter.go('/match', extra: 'discover');
+        // Small delay so MatchScreen mounts before we push the trip detail
+        Future.delayed(const Duration(milliseconds: 350), () {
+          goRouter.push('/trip/$tripId');
+        });
+      } else {
+        // No trip id — fall back to Discover tab
+        goRouter.go('/match', extra: 'discover');
+      }
     } catch (_) {}
   }
 }

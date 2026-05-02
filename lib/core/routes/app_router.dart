@@ -9,6 +9,7 @@ import '../../features/auth/screens/phone_otp_screen.dart';
 import '../../features/auth/screens/email_verify_screen.dart';
 import '../../features/home/screens/home_screen.dart';
 import '../../features/match/screens/match_screen.dart';
+import '../../features/match/screens/trip_detail_screen.dart';
 import '../../features/chat/screens/chat_list_screen.dart';
 import '../../features/chat/screens/chat_screen.dart';
 import '../../features/profile/screens/my_profile_screen.dart';
@@ -36,6 +37,16 @@ final goRouter = GoRouter(
       name: 'match',
       builder: (c, s) => MatchScreen(initialTab: (s.extra as String?) ?? 'discover'),
     ),
+
+    // ── Deep link route: notification tap → specific trip ──────────────────
+    GoRoute(
+      path: '/trip/:tripId',
+      name: 'trip-detail',
+      builder: (c, s) => TripDetailScreen(
+        tripId: s.pathParameters['tripId'] ?? '',
+      ),
+    ),
+
     GoRoute(
       path: '/chat',
       name: 'chats',
