@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "438683605771",
+    "project_id": "zussgo",
+    "storage_bucket": "zussgo.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:438683605771:android:78fd63f59ad99c6de7e00e",
+        "android_client_info": {
+          "package_name": "com.zussgo.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCAZ2wUCL1oQnFr6FY9NDgmA-3GfRJZmO4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
