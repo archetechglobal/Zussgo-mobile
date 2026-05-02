@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../trips/providers/trips_provider.dart';
 import '../data/home_mock_data.dart';
+import '../providers/home_provider.dart';
 import 'hero_match_card.dart';
 
 class HeroMatchPager extends ConsumerWidget {
@@ -22,29 +23,39 @@ class HeroMatchPager extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final tripsAsync = ref.watch(activeTripsProvider);
+    // Watch the live search query — empty means "no filter" (default home view)
+    final searchQuery = ref.watch(homeSearchQueryProvider);
 
-    return tripsAsync.when(
+    // aiRankedTravelersProvider handles both states:
+    //   empty query  → falls back to activeTripsProvider ordering (existing UX)
+    //   non-empty    → AI-ranked profiles for the searched destination
+    final rankedAsync = ref.watch(aiRankedTravelersProvider(searchQuery));
+
+    return rankedAsync.when(
       loading: () => _ShimmerHero(height: height),
-      error: (_, __) => _EmptyHero(height: height),
-      data: (trips) {
-        if (trips.isEmpty) return _EmptyHero(height: height);
+      error:   (_, __) => _EmptyHero(height: height),
+      data: (result) {
+        final profiles = result.topMatches;
+        if (profiles.isEmpty) return _EmptyHero(height: height);
 
-        final matches = trips.map((t) => HomeMatch.fromTrip(
-          tripId:      t.id,
-          creatorName: t.creator?.name ?? 'Traveler',
-          creatorAge:  t.creator?.age ?? 0,
-          destination: t.destination,
-          dates:       t.dates,
-          avatarUrl:   t.creator?.avatarUrl,
-          vibe:        t.vibe,
-          rating:      t.creator?.rating ?? 0,
-          buddyCount:  t.creator?.buddyCount ?? 0,
+        // Build HomeMatch from ranked ProfileModel.
+        // For the no-query path the provider embeds trip fields (destination,
+        // dates, vibe) into the profile wrapper so fromTrip still works cleanly.
+        final matches = profiles.map((p) => HomeMatch.fromTrip(
+          tripId:      p.id,
+          creatorName: p.name ?? 'Traveler',
+          creatorAge:  p.age ?? 0,
+          destination: searchQuery.isNotEmpty ? searchQuery : (p.baseCity ?? 'Exploring'),
+          dates:       '',
+          avatarUrl:   p.avatarUrl,
+          vibe:        p.vibes.isNotEmpty ? p.vibes.first : null,
+          rating:      p.rating,
+          buddyCount:  p.buddyCount,
         )).toList();
 
         return PageView.builder(
           controller: controller,
-          itemCount: matches.length,
+          itemCount:  matches.length,
           onPageChanged: onPageChanged,
           itemBuilder: (_, index) {
             final match = matches[index];
@@ -69,7 +80,8 @@ class _ShimmerHero extends StatelessWidget {
       height: height,
       color: const Color(0xFF0D1819),
       child: const Center(
-        child: CircularProgressIndicator(color: Color(0xFF1EC9B8), strokeWidth: 2),
+        child: CircularProgressIndicator(
+            color: Color(0xFF1EC9B8), strokeWidth: 2),
       ),
     );
   }
@@ -88,7 +100,7 @@ class _EmptyHero extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('✈️', style: TextStyle(fontSize: 40)),
+            Text('\u2708\uFE0F', style: TextStyle(fontSize: 40)),
             SizedBox(height: 12),
             Text(
               'No trips posted yet.\nBe the first to plan one!',

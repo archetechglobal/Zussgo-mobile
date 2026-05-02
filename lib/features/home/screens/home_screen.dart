@@ -83,11 +83,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           : 'Be the first to plan a trip';
     }
 
-    // "See all" tap: pass destination query to match screen so it pre-filters
+    // ── "See all" handler ─────────────────────────────────────────────────────
+    // Reads the already-computed AI-ranked list and passes it to the discover
+    // tab via route extra — no second fetch needed on the other side.
     void onSeeAll() {
       ref.read(bottomNavIndexProvider.notifier).setIndex(2);
+
       if (hasQuery) {
-        context.go('/match', extra: {'tab': 'discover', 'destination': searchQuery});
+        // Grab the full ranked list if already resolved (non-blocking read)
+        final rankedResult =
+            ref.read(aiRankedTravelersProvider(searchQuery)).asData?.value;
+
+        context.go('/match', extra: {
+          'tab':            'discover',
+          'destination':    searchQuery,
+          'rankedProfiles': rankedResult?.allMatches, // may be null; discover handles gracefully
+        });
       } else {
         context.go('/match', extra: 'discover');
       }
@@ -246,7 +257,7 @@ class _TravelersRow extends StatelessWidget {
           ),
           if (showSeeAll)
             const Text(
-              'See all →',
+              'See all \u2192',
               style: TextStyle(
                 color: Color(0xFF58DAD0),
                 fontSize: 13,
