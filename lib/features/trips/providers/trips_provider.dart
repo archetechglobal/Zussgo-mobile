@@ -106,20 +106,23 @@ class CreateTripNotifier extends StateNotifier<AsyncValue<TripModel?>> {
       _ref.invalidate(myTripsProvider);
 
       // Fire-and-forget: AI scoring + FCM push notifications.
-      // Never blocks or surfaces an error to the user — core trip
-      // creation must always succeed from the UI's perspective.
-      Supabase.instance.client.functions
-          .invoke(
-            'notify-trip-matches',
-            body: {
-              'trip_id':     trip.id,
-              'destination': destination,
-              'vibe':        vibe ?? '',
-              'budget':      budget ?? '',
-              'intent':      intent ?? '',
-            },
-          )
-          .catchError((_) {});
+      // unawaited detaches the future entirely — the UI never waits on this
+      // and any failure is silently swallowed via catchError.
+      // Core trip creation always succeeds from the user's perspective.
+      unawaited(
+        Supabase.instance.client.functions
+            .invoke(
+              'notify-trip-matches',
+              body: {
+                'trip_id':     trip.id,
+                'destination': destination,
+                'vibe':        vibe ?? '',
+                'budget':      budget ?? '',
+                'intent':      intent ?? '',
+              },
+            )
+            .catchError((_) {}),
+      );
 
       return trip;
     } catch (e, st) {
