@@ -1,13 +1,8 @@
 // lib/core/services/fcm_service.dart
-//
-// Handles FCM token registration, foreground notifications,
-// and deep-link routing when a notification is tapped.
 
-import 'dart:io';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:go_router/go_router.dart';
 import '../routes/app_router.dart';
 
 class FcmService {
@@ -17,7 +12,6 @@ class FcmService {
   final _messaging = FirebaseMessaging.instance;
   final _localNotifications = FlutterLocalNotificationsPlugin();
 
-  // Android notification channel for high-priority FCM messages
   static const _channel = AndroidNotificationChannel(
     'zussgo_matches',
     'Match Notifications',
@@ -25,8 +19,8 @@ class FcmService {
     importance: Importance.high,
   );
 
+  // Called once at app start — sets up listeners + channels
   Future<void> init() async {
-    // Request permission (Android 13+, iOS)
     final settings = await _messaging.requestPermission(
       alert: true,
       badge: true,
@@ -35,13 +29,11 @@ class FcmService {
 
     if (settings.authorizationStatus == AuthorizationStatus.denied) return;
 
-    // Create Android notification channel
     await _localNotifications
         .resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin>()
         ?.createNotificationChannel(_channel);
 
-    // Init local notifications (for foreground display)
     const initSettings = InitializationSettings(
       android: AndroidInitializationSettings('@mipmap/ic_launcher'),
     );
@@ -50,32 +42,37 @@ class FcmService {
       onDidReceiveNotificationResponse: _onNotificationTap,
     );
 
-    // Get + save FCM token
-    await _registerToken();
-
-    // Token refresh listener
+    // Token refresh listener — always active
     _messaging.onTokenRefresh.listen(_saveToken);
 
-    // Foreground message handler — show local notification
+    // Foreground message handler
     FirebaseMessaging.onMessage.listen(_onForegroundMessage);
 
-    // Notification tap handler — app in background
+    // Background tap handler
     FirebaseMessaging.onMessageOpenedApp.listen(_onMessageOpenedApp);
 
-    // Check if app was opened from a terminated state via notification
+    // Terminated state tap handler
     final initial = await _messaging.getInitialMessage();
     if (initial != null) _handleNavigation(initial.data);
+
+    // Try saving token now in case user is already logged in (e.g. persisted session)
+    await _registerToken();
+  }
+
+  // Called explicitly after a successful login
+  Future<void> onUserLoggedIn() async {
+    await _registerToken();
   }
 
   // ── Token Registration ────────────────────────────────────────────────────
 
   Future<void> _registerToken() async {
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId == null) return; // Not logged in yet, skip
     try {
       final token = await _messaging.getToken();
       if (token != null) await _saveToken(token);
-    } catch (_) {
-      // Silently fail — non-critical, will retry on next launch
-    }
+    } catch (_) {}
   }
 
   Future<void> _saveToken(String token) async {
@@ -86,9 +83,7 @@ class FcmService {
           .from('profiles')
           .update({'fcm_token': token})
           .eq('id', userId);
-    } catch (_) {
-      // Silently fail
-    }
+    } catch (_) {}
   }
 
   // ── Foreground Notifications ──────────────────────────────────────────────
@@ -120,9 +115,7 @@ class FcmService {
 
   void _onNotificationTap(NotificationResponse response) {
     final tripId = response.payload;
-    if (tripId != null && tripId.isNotEmpty) {
-      _navigateToDiscover();
-    }
+    if (tripId != null && tripId.isNotEmpty) _navigateToDiscover();
   }
 
   void _onMessageOpenedApp(RemoteMessage message) {
@@ -130,14 +123,10 @@ class FcmService {
   }
 
   void _handleNavigation(Map<String, dynamic> data) {
-    final type = data['type'] as String?;
-    if (type == 'trip_match') {
-      _navigateToDiscover();
-    }
+    if (data['type'] == 'trip_match') _navigateToDiscover();
   }
 
   void _navigateToDiscover() {
-    // Navigate to the Discover/Match screen
     try {
       goRouter.go('/match');
     } catch (_) {}
