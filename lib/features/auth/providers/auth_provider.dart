@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/app_auth_state.dart';
 import '../data/auth_repository.dart';
 import '../../../core/services/fcm_service.dart';
+import '../../../core/supabase/supabase_client.dart';
 
 final authRepositoryProvider = Provider<AuthRepository>((ref) {
   return AuthRepository();
@@ -16,8 +17,9 @@ class AuthNotifier extends StateNotifier<AppAuthState> {
   AuthNotifier(this._repo) : super(AppAuthInitial());
 
   // ── Email signup ─────────────────────────────────────────────────────────────
-  // Confirm email is DISABLED in Supabase — user is always immediately active.
-  // We check emailConfirmedAt defensively but route to /setup on success either way.
+  // Confirm email is ENABLED in Supabase.
+  // If the user has not confirmed yet, we emit AppAuthAwaitingVerification
+  // so the UI routes to /verify-email.
   Future<void> signUpWithEmail({
     required String email,
     required String password,
@@ -26,9 +28,14 @@ class AuthNotifier extends StateNotifier<AppAuthState> {
     try {
       final res = await _repo.signUpWithEmail(email: email, password: password);
       if (res.user != null) {
-        // Confirm email disabled — go straight to onboarding setup
-        state = AppAuthSuccess(res.user!);
-        await FcmService.instance.onUserLoggedIn();
+        if (res.user!.emailConfirmedAt != null) {
+          // Already confirmed (rare edge-case: re-signup after confirmation)
+          state = AppAuthSuccess(res.user!);
+          await FcmService.instance.onUserLoggedIn();
+        } else {
+          // Normal path: user must verify email before they can log in
+          state = AppAuthAwaitingVerification(email);
+        }
       } else {
         state = AppAuthError('Signup failed. Please try again.');
       }
@@ -104,6 +111,23 @@ class AuthNotifier extends StateNotifier<AppAuthState> {
       }
     } catch (e) {
       state = AppAuthError(_parseError(e));
+    }
+  }
+
+  // ── Email verification check ─────────────────────────────────────────────────
+  // Called from EmailVerifyScreen when the user taps "I've verified — Continue".
+  // Refreshes the session and returns true if the email is now confirmed.
+  Future<bool> checkEmailVerified() async {
+    try {
+      final res = await supabase.auth.refreshSession();
+      if (res.user != null && res.user!.emailConfirmedAt != null) {
+        state = AppAuthSuccess(res.user!);
+        await FcmService.instance.onUserLoggedIn();
+        return true;
+      }
+      return false;
+    } catch (_) {
+      return false;
     }
   }
 

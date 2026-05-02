@@ -279,10 +279,13 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
   Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
 
-    // Confirm email disabled — signup goes straight to /setup
     ref.listen<AppAuthState>(authProvider, (_, next) {
       if (next is AppAuthSuccess) {
+        // Google sign-in or already-confirmed re-signup → straight to setup
         context.go('/setup');
+      } else if (next is AppAuthAwaitingVerification) {
+        // Email signup with confirmation required → verify screen
+        context.go('/verify-email', extra: next.email);
       } else if (next is AppAuthError) {
         _showSnack(next.message);
         ref.read(authProvider.notifier).reset();
@@ -498,7 +501,6 @@ class _GoogleButton extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Google G logo — inline SVG via custom painter
             _GoogleLogo(),
             const SizedBox(width: 10),
             Text(
@@ -535,76 +537,51 @@ class _GoogleLogoPainter extends CustomPainter {
     final cy = h / 2;
     final r  = w / 2;
 
-    // White circle background
     canvas.drawCircle(
       Offset(cx, cy), r,
       Paint()..color = Colors.white,
     );
 
-    // Blue right arc (simplified Google G shape)
-    final paintBlue = Paint()
-      ..color = const Color(0xFF4285F4)
-      ..style = PaintingStyle.fill;
-    final paintRed = Paint()
-      ..color = const Color(0xFFEA4335)
-      ..style = PaintingStyle.fill;
-    final paintYellow = Paint()
-      ..color = const Color(0xFFFBBC05)
-      ..style = PaintingStyle.fill;
-    final paintGreen = Paint()
-      ..color = const Color(0xFF34A853)
-      ..style = PaintingStyle.fill;
+    final paintBlue   = Paint()..color = const Color(0xFF4285F4)..style = PaintingStyle.fill;
+    final paintRed    = Paint()..color = const Color(0xFFEA4335)..style = PaintingStyle.fill;
+    final paintYellow = Paint()..color = const Color(0xFFFBBC05)..style = PaintingStyle.fill;
+    final paintGreen  = Paint()..color = const Color(0xFF34A853)..style = PaintingStyle.fill;
 
     final scale = w / 20.0;
     canvas.save();
     canvas.translate(cx - 10 * scale, cy - 10 * scale);
     canvas.scale(scale);
 
-    // Red top-left
     final pathRed = Path()
       ..moveTo(10, 10)
       ..lineTo(3.4, 2.4)
-      ..arcTo(Rect.fromCircle(center: const Offset(10, 10), radius: 8),
-          -2.21, 1.40, false)
+      ..arcTo(Rect.fromCircle(center: const Offset(10, 10), radius: 8), -2.21, 1.40, false)
       ..close();
     canvas.drawPath(pathRed, paintRed);
 
-    // Green bottom-left
     final pathGreen = Path()
       ..moveTo(10, 10)
       ..lineTo(2, 10)
-      ..arcTo(Rect.fromCircle(center: const Offset(10, 10), radius: 8),
-          3.14, 1.57, false)
+      ..arcTo(Rect.fromCircle(center: const Offset(10, 10), radius: 8), 3.14, 1.57, false)
       ..close();
     canvas.drawPath(pathGreen, paintGreen);
 
-    // Yellow bottom-right
     final pathYellow = Path()
       ..moveTo(10, 10)
       ..lineTo(16.6, 17.6)
-      ..arcTo(Rect.fromCircle(center: const Offset(10, 10), radius: 8),
-          0.93, 1.25, false)
+      ..arcTo(Rect.fromCircle(center: const Offset(10, 10), radius: 8), 0.93, 1.25, false)
       ..close();
     canvas.drawPath(pathYellow, paintYellow);
 
-    // Blue right (main)
     final pathBlue = Path()
       ..moveTo(10, 10)
       ..lineTo(18, 10)
-      ..arcTo(Rect.fromCircle(center: const Offset(10, 10), radius: 8),
-          0, 0.93, false)
+      ..arcTo(Rect.fromCircle(center: const Offset(10, 10), radius: 8), 0, 0.93, false)
       ..lineTo(10, 10);
     canvas.drawPath(pathBlue, paintBlue);
 
-    // White cutout for the G bar
-    canvas.drawRect(
-      Rect.fromLTWH(10, 8.5, 8, 3),
-      Paint()..color = Colors.white,
-    );
-    canvas.drawCircle(
-      const Offset(10, 10), 4,
-      Paint()..color = Colors.white,
-    );
+    canvas.drawRect(Rect.fromLTWH(10, 8.5, 8, 3), Paint()..color = Colors.white);
+    canvas.drawCircle(const Offset(10, 10), 4, Paint()..color = Colors.white);
 
     canvas.restore();
   }
@@ -619,29 +596,14 @@ class _OrDivider extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Expanded(
-          child: Container(
-            height: 1,
-            color: Colors.white.withOpacity(.08),
-          ),
-        ),
+        Expanded(child: Container(height: 1, color: Colors.white.withOpacity(.08))),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: Text(
-            'or',
-            style: TextStyle(
-              color: _kFaint,
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
+          child: Text('or', style: TextStyle(
+            color: _kFaint, fontSize: 12, fontWeight: FontWeight.w500,
+          )),
         ),
-        Expanded(
-          child: Container(
-            height: 1,
-            color: Colors.white.withOpacity(.08),
-          ),
-        ),
+        Expanded(child: Container(height: 1, color: Colors.white.withOpacity(.08))),
       ],
     );
   }
@@ -675,30 +637,19 @@ class _PrimaryButton extends StatelessWidget {
           color: active ? null : Colors.white.withOpacity(.05),
           borderRadius: BorderRadius.circular(18),
           boxShadow: active
-              ? [
-            BoxShadow(
-              color: _kTeal.withOpacity(.28),
-              blurRadius: 24,
-              offset: const Offset(0, 10),
-            ),
-          ]
+              ? [BoxShadow(color: _kTeal.withOpacity(.28), blurRadius: 24, offset: const Offset(0, 10))]
               : [],
         ),
         child: Center(
           child: isLoading
               ? const SizedBox(
-            width: 20, height: 20,
-            child: CircularProgressIndicator(
-                color: Color(0xFF041818), strokeWidth: 2),
-          )
-              : Text(label,
-              style: TextStyle(
-                color: active
-                    ? const Color(0xFF041818)
-                    : _kFaint,
-                fontSize: 15,
-                fontWeight: FontWeight.w800,
-              )),
+                  width: 20, height: 20,
+                  child: CircularProgressIndicator(color: Color(0xFF041818), strokeWidth: 2),
+                )
+              : Text(label, style: TextStyle(
+                  color: active ? const Color(0xFF041818) : _kFaint,
+                  fontSize: 15, fontWeight: FontWeight.w800,
+                )),
         ),
       ),
     );
@@ -745,8 +696,7 @@ class _InputField extends StatelessWidget {
           hintText: hint,
           hintStyle: const TextStyle(color: _kFaint, fontSize: 15),
           border: InputBorder.none,
-          contentPadding:
-          const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
           suffixIcon: suffix,
         ),
       ),
