@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/app_auth_state.dart';
 import '../data/auth_repository.dart';
+import '../../../core/services/fcm_service.dart';
 
 final authRepositoryProvider = Provider<AuthRepository>((ref) {
   return AuthRepository();
@@ -26,6 +27,7 @@ class AuthNotifier extends StateNotifier<AppAuthState> {
           state = AppAuthAwaitingVerification(email);
         } else {
           state = AppAuthSuccess(res.user!);
+          await FcmService.instance.onUserLoggedIn();
         }
       } else {
         state = AppAuthError('Signup failed. Please try again.');
@@ -44,6 +46,7 @@ class AuthNotifier extends StateNotifier<AppAuthState> {
       final res = await _repo.signInWithEmail(email: email, password: password);
       if (res.user != null) {
         state = AppAuthSuccess(res.user!);
+        await FcmService.instance.onUserLoggedIn(); // ← register FCM token
       } else {
         state = AppAuthError('Login failed. Please try again.');
       }
@@ -71,6 +74,7 @@ class AuthNotifier extends StateNotifier<AppAuthState> {
       final res = await _repo.verifyPhoneOtp(phone: phone, token: token);
       if (res.user != null) {
         state = AppAuthSuccess(res.user!);
+        await FcmService.instance.onUserLoggedIn(); // ← register FCM token
       } else {
         state = AppAuthError('Invalid OTP. Please try again.');
       }
