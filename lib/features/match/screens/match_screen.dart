@@ -799,7 +799,8 @@ class _DiscoverView extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final tripsAsync   = ref.watch(activeTripsProvider);
-    final profileAsync = ref.watch(profileProvider);
+    // FIX: use myProfileProvider — profileProvider is not defined in this scope
+    final profileAsync = ref.watch(myProfileProvider);
     final viewer       = profileAsync.asData?.value;
 
     return tripsAsync.when(
@@ -1334,12 +1335,9 @@ class _CreateTripFab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return GestureDetector(
-      onTap: () => showModalBottomSheet(
-        context: context,
-        isScrollControlled: true,
-        backgroundColor: Colors.transparent,
-        builder: (_) => const CreateTripSheet(),
-      ),
+      // FIX: CreateTripSheet is a static helper class, not a Widget.
+      // Use CreateTripSheet.show(context) instead of const CreateTripSheet() in a builder.
+      onTap: () => CreateTripSheet.show(context),
       child: Container(
         width: 52,
         height: 52,
