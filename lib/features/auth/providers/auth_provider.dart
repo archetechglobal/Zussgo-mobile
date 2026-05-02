@@ -17,23 +17,27 @@ class AuthNotifier extends StateNotifier<AppAuthState> {
   AuthNotifier(this._repo) : super(AppAuthInitial());
 
   // ── Email signup ─────────────────────────────────────────────────────────────
-  // Confirm email is ENABLED in Supabase.
-  // If the user has not confirmed yet, we emit AppAuthAwaitingVerification
-  // so the UI routes to /verify-email.
   Future<void> signUpWithEmail({
     required String email,
     required String password,
+    required String name,
+    required String phone,
+    required int age,
   }) async {
     state = AppAuthLoading();
     try {
-      final res = await _repo.signUpWithEmail(email: email, password: password);
+      final res = await _repo.signUpWithEmail(
+        email: email,
+        password: password,
+        name: name,
+        phone: phone,
+        age: age,
+      );
       if (res.user != null) {
         if (res.user!.emailConfirmedAt != null) {
-          // Already confirmed (rare edge-case: re-signup after confirmation)
           state = AppAuthSuccess(res.user!);
           await FcmService.instance.onUserLoggedIn();
         } else {
-          // Normal path: user must verify email before they can log in
           state = AppAuthAwaitingVerification(email);
         }
       } else {
@@ -59,7 +63,13 @@ class AuthNotifier extends StateNotifier<AppAuthState> {
         state = AppAuthError('Login failed. Please try again.');
       }
     } catch (e) {
-      state = AppAuthError(_parseError(e));
+      final msg = _parseError(e);
+      // Guide unconfirmed users back to verify screen
+      if (msg.toLowerCase().contains('email not confirmed')) {
+        state = AppAuthAwaitingVerification(email);
+      } else {
+        state = AppAuthError(msg);
+      }
     }
   }
 
@@ -76,7 +86,6 @@ class AuthNotifier extends StateNotifier<AppAuthState> {
       }
     } catch (e) {
       final msg = e.toString();
-      // User cancelled the Google picker — don't show an error snack
       if (msg.contains('cancelled') || msg.contains('cancel')) {
         state = AppAuthInitial();
       } else {
@@ -115,8 +124,6 @@ class AuthNotifier extends StateNotifier<AppAuthState> {
   }
 
   // ── Email verification check ─────────────────────────────────────────────────
-  // Called from EmailVerifyScreen when the user taps "I've verified — Continue".
-  // Refreshes the session and returns true if the email is now confirmed.
   Future<bool> checkEmailVerified() async {
     try {
       final res = await supabase.auth.refreshSession();

@@ -1,6 +1,7 @@
 // lib/features/auth/screens/login_screen.dart
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../providers/auth_provider.dart';
@@ -13,6 +14,10 @@ const _kTeal2 = Color(0xFF58DAD0);
 const _kText  = Color(0xFFEDF7F4);
 const _kMuted = Color(0xFFA8C4BF);
 const _kFaint = Color(0xFF6A8882);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Login Screen
+// ─────────────────────────────────────────────────────────────────────────────
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -66,6 +71,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     ref.listen<AppAuthState>(authProvider, (_, next) {
       if (next is AppAuthSuccess) {
         context.go('/home');
+      } else if (next is AppAuthAwaitingVerification) {
+        // Unconfirmed email — send them to verify screen
+        context.go('/verify-email', extra: next.email);
       } else if (next is AppAuthError) {
         _showSnack(next.message);
         ref.read(authProvider.notifier).reset();
@@ -80,7 +88,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       resizeToAvoidBottomInset: true,
       body: Stack(
         children: [
-          // Teal glow top
           Positioned(
             top: -60, left: 0, right: 0,
             child: Container(
@@ -99,7 +106,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Back button
                   GestureDetector(
                     onTap: () => context.pop(),
                     child: Container(
@@ -113,8 +119,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     ),
                   ),
                   const SizedBox(height: 32),
-
-                  // Heading
                   const Text('Welcome back', style: TextStyle(
                     color: _kText, fontSize: 30,
                     fontWeight: FontWeight.w800, letterSpacing: -.5,
@@ -123,19 +127,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   const Text("Let's get you back on the road",
                       style: TextStyle(color: _kMuted, fontSize: 14)),
                   const SizedBox(height: 36),
-
-                  // Google Sign-In button
                   _GoogleButton(
                     onTap: isLoading ? null : _googleSignIn,
                     isLoading: isLoading,
                   ),
                   const SizedBox(height: 20),
-
-                  // Divider
                   const _OrDivider(),
                   const SizedBox(height: 20),
-
-                  // Email
                   const _Label('EMAIL'),
                   const SizedBox(height: 8),
                   _InputField(
@@ -144,8 +142,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     keyboardType: TextInputType.emailAddress,
                   ),
                   const SizedBox(height: 20),
-
-                  // Password
                   const _Label('PASSWORD'),
                   const SizedBox(height: 8),
                   _InputField(
@@ -163,16 +159,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     ),
                   ),
                   const SizedBox(height: 32),
-
-                  // Login CTA
                   _PrimaryButton(
                     label: 'Log In',
                     isLoading: isLoading,
                     onTap: isLoading ? null : _submit,
                   ),
                   const SizedBox(height: 20),
-
-                  // Phone option
                   GestureDetector(
                     onTap: () => context.go('/phone-verify'),
                     child: Container(
@@ -193,8 +185,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     ),
                   ),
                   const SizedBox(height: 24),
-
-                  // Sign up redirect
                   Center(
                     child: GestureDetector(
                       onTap: () => context.go('/signup'),
@@ -233,6 +223,9 @@ class SignupScreen extends ConsumerStatefulWidget {
 }
 
 class _SignupScreenState extends ConsumerState<SignupScreen> {
+  final _nameCtrl     = TextEditingController();
+  final _phoneCtrl    = TextEditingController();
+  final _ageCtrl      = TextEditingController();
   final _emailCtrl    = TextEditingController();
   final _passwordCtrl = TextEditingController();
   bool _obscure = true;
@@ -240,6 +233,9 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
 
   @override
   void dispose() {
+    _nameCtrl.dispose();
+    _phoneCtrl.dispose();
+    _ageCtrl.dispose();
     _emailCtrl.dispose();
     _passwordCtrl.dispose();
     super.dispose();
@@ -247,10 +243,20 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
 
   Future<void> _submit() async {
     if (!_agreed) { _showSnack('Please accept the terms to continue'); return; }
+    final name     = _nameCtrl.text.trim();
+    final phone    = _phoneCtrl.text.trim();
+    final ageText  = _ageCtrl.text.trim();
     final email    = _emailCtrl.text.trim();
     final password = _passwordCtrl.text.trim();
-    if (email.isEmpty || password.isEmpty) {
+
+    if (name.isEmpty || phone.isEmpty || ageText.isEmpty ||
+        email.isEmpty || password.isEmpty) {
       _showSnack('Please fill in all fields');
+      return;
+    }
+    final age = int.tryParse(ageText);
+    if (age == null || age < 18 || age > 99) {
+      _showSnack('Please enter a valid age (18+)');
       return;
     }
     if (password.length < 6) {
@@ -258,7 +264,11 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
       return;
     }
     await ref.read(authProvider.notifier).signUpWithEmail(
-      email: email, password: password,
+      email: email,
+      password: password,
+      name: name,
+      phone: phone,
+      age: age,
     );
   }
 
@@ -281,10 +291,8 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
 
     ref.listen<AppAuthState>(authProvider, (_, next) {
       if (next is AppAuthSuccess) {
-        // Google sign-in or already-confirmed re-signup → straight to setup
         context.go('/setup');
       } else if (next is AppAuthAwaitingVerification) {
-        // Email signup with confirmation required → verify screen
         context.go('/verify-email', extra: next.email);
       } else if (next is AppAuthError) {
         _showSnack(next.message);
@@ -347,10 +355,64 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                     label: 'Continue with Google',
                   ),
                   const SizedBox(height: 20),
-
                   const _OrDivider(),
                   const SizedBox(height: 20),
 
+                  // ── Full name ──────────────────────────────────────────────
+                  const _Label('FULL NAME'),
+                  const SizedBox(height: 8),
+                  _InputField(
+                    ctrl: _nameCtrl,
+                    hint: 'Your full name',
+                    keyboardType: TextInputType.name,
+                    textCapitalization: TextCapitalization.words,
+                  ),
+                  const SizedBox(height: 20),
+
+                  // ── Phone + Age row ────────────────────────────────────────
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        flex: 3,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const _Label('PHONE'),
+                            const SizedBox(height: 8),
+                            _InputField(
+                              ctrl: _phoneCtrl,
+                              hint: '+1 555 000 0000',
+                              keyboardType: TextInputType.phone,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        flex: 1,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const _Label('AGE'),
+                            const SizedBox(height: 8),
+                            _InputField(
+                              ctrl: _ageCtrl,
+                              hint: '18',
+                              keyboardType: TextInputType.number,
+                              inputFormatters: [
+                                FilteringTextInputFormatter.digitsOnly,
+                                LengthLimitingTextInputFormatter(2),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+
+                  // ── Email ──────────────────────────────────────────────────
                   const _Label('EMAIL'),
                   const SizedBox(height: 8),
                   _InputField(
@@ -360,6 +422,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                   ),
                   const SizedBox(height: 20),
 
+                  // ── Password ───────────────────────────────────────────────
                   const _Label('PASSWORD'),
                   const SizedBox(height: 8),
                   _InputField(
@@ -378,7 +441,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                   ),
                   const SizedBox(height: 24),
 
-                  // Terms
+                  // ── Terms checkbox ─────────────────────────────────────────
                   GestureDetector(
                     onTap: () => setState(() => _agreed = !_agreed),
                     child: Row(
@@ -673,10 +736,17 @@ class _InputField extends StatelessWidget {
   final bool obscure;
   final TextInputType? keyboardType;
   final Widget? suffix;
+  final TextCapitalization textCapitalization;
+  final List<TextInputFormatter>? inputFormatters;
 
   const _InputField({
-    required this.ctrl, required this.hint,
-    this.obscure = false, this.keyboardType, this.suffix,
+    required this.ctrl,
+    required this.hint,
+    this.obscure = false,
+    this.keyboardType,
+    this.suffix,
+    this.textCapitalization = TextCapitalization.none,
+    this.inputFormatters,
   });
 
   @override
@@ -691,6 +761,8 @@ class _InputField extends StatelessWidget {
         controller: ctrl,
         obscureText: obscure,
         keyboardType: keyboardType,
+        textCapitalization: textCapitalization,
+        inputFormatters: inputFormatters,
         style: const TextStyle(color: _kText, fontSize: 15),
         decoration: InputDecoration(
           hintText: hint,

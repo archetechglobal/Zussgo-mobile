@@ -8,11 +8,19 @@ class AuthRepository {
   Future<AuthResponse> signUpWithEmail({
     required String email,
     required String password,
+    required String name,
+    required String phone,
+    required int age,
   }) async {
     return await supabase.auth.signUp(
       email: email,
       password: password,
       emailRedirectTo: 'zussgo://auth/callback',
+      data: {
+        'full_name': name,
+        'phone': phone,
+        'age': age,
+      },
     );
   }
 
