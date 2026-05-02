@@ -5,6 +5,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/supabase/supabase_client.dart';
 import '../../../core/constants/app_constants.dart';
 import '../models/message_model.dart';
+import '../models/chat_message.dart';
+import '../providers/chat_provider.dart' show ItineraryItem;
 
 class ChatRepository {
   // ── Resolve connection ID between current user and a peer ──────────────────
@@ -39,23 +41,24 @@ class ChatRepository {
   }
 
   // ── Send a message ─────────────────────────────────────────────────────────
-  // After inserting the message, fire-and-forget the chat push notification
-  // edge function so the recipient gets an FCM push.
   Future<void> sendMessage({
     required String connectionId,
     required String senderId,
     required String content,
     String type = 'text',
   }) async {
+    // Detect plan card type from content prefix
+    final resolvedType =
+        content.startsWith('\u{1F4CD} ') ? 'plan_card' : type;
+
     await supabase.from(AppConstants.messagesTable).insert({
       'connection_id': connectionId,
       'sender_id':     senderId,
       'content':       content,
-      'type':          type,
+      'type':          resolvedType,
     });
 
-    // Fire-and-forget push notification to the other participant.
-    // Never awaited — a notification failure must never break sending.
+    // Fire-and-forget push notification — never awaited.
     supabase.functions
         .invoke(
           'send-chat-notification',
@@ -69,17 +72,19 @@ class ChatRepository {
   }
 
   // ── Real-time message stream ───────────────────────────────────────────────
-  Stream<List<MessageModel>> messagesStream({required String connectionId}) {
+  Stream<List<MessageModel>> messagesStream({
+    required String connectionId,
+  }) {
     return supabase
         .from(AppConstants.messagesTable)
         .stream(primaryKey: ['id'])
         .eq('connection_id', connectionId)
         .order('created_at', ascending: true)
-        .map((rows) => rows.map((e) => MessageModel.fromJson(e)).toList());
+        .map((rows) =>
+            rows.map((e) => MessageModel.fromJson(e)).toList());
   }
 
   // ── Mark messages as read ─────────────────────────────────────────────────
-  // Sets read_at on all unread messages in this connection sent by the OTHER user.
   Future<void> markMessagesRead({
     required String connectionId,
     required String userId,
@@ -92,14 +97,50 @@ class ChatRepository {
         .isFilter('read_at', null);
   }
 
+  // ── Itinerary CRUD ────────────────────────────────────────────────────────
+
+  /// Add an itinerary item to Supabase and return the persisted [ItineraryItem].
+  Future<ItineraryItem?> addItineraryItem({
+    required String       connectionId,
+    required String       userId,
+    required PlanCardData card,
+  }) async {
+    final row = await supabase
+        .from('itinerary_items')
+        .insert({
+          'connection_id': connectionId,
+          'user_id':       userId,
+          'place_name':    card.placeName,
+          'category':      card.category,
+          'date_label':    card.date,
+          'time_label':    card.time,
+          'emoji':         card.emoji,
+        })
+        .select()
+        .single();
+    return ItineraryItem.fromJson(row);
+  }
+
+  /// Delete an itinerary item by its Supabase row id.
+  Future<void> deleteItineraryItem(String id) async {
+    await supabase.from('itinerary_items').delete().eq('id', id);
+  }
+
+  /// Real-time stream of itinerary items for a connection.
+  Stream<List<ItineraryItem>> itineraryStream({
+    required String connectionId,
+  }) {
+    return supabase
+        .from('itinerary_items')
+        .stream(primaryKey: ['id'])
+        .eq('connection_id', connectionId)
+        .order('created_at', ascending: true)
+        .map((rows) =>
+            rows.map((e) => ItineraryItem.fromJson(e)).toList());
+  }
+
   // ── Realtime chat list with last message + unread count ───────────────────
-  // Returns a Stream that emits whenever messages or connections change.
-  // Each item includes:
-  //   id, requester_id, receiver_id, requester{}, receiver{},
-  //   last_message, last_message_at, unread_count
   Stream<List<Map<String, dynamic>>> realtimeChatPreviews(String userId) {
-    // We use Supabase .stream() on messages, then re-query connections on each tick.
-    // This gives live updates whenever any message in any connection changes.
     return supabase
         .from(AppConstants.messagesTable)
         .stream(primaryKey: ['id'])
@@ -107,8 +148,8 @@ class ChatRepository {
         .asyncMap((_) => _buildChatPreviews(userId));
   }
 
-  Future<List<Map<String, dynamic>>> _buildChatPreviews(String userId) async {
-    // 1. Fetch all accepted connections for this user
+  Future<List<Map<String, dynamic>>> _buildChatPreviews(
+      String userId) async {
     final connections = await supabase
         .from(AppConstants.connectionsTable)
         .select(
@@ -126,7 +167,6 @@ class ChatRepository {
     for (final conn in (connections as List)) {
       final connId = conn['id'] as String;
 
-      // 2. Fetch the latest message for this connection
       final lastMsgRows = await supabase
           .from(AppConstants.messagesTable)
           .select('content, created_at, sender_id')
@@ -134,7 +174,6 @@ class ChatRepository {
           .order('created_at', ascending: false)
           .limit(1);
 
-      // 3. Count unread messages (sent by the other user, not yet read)
       final unreadRes = await supabase
           .from(AppConstants.messagesTable)
           .select('id')
@@ -142,21 +181,28 @@ class ChatRepository {
           .neq('sender_id', userId)
           .isFilter('read_at', null);
 
-      final lastMsg    = (lastMsgRows as List).isNotEmpty ? lastMsgRows[0] : null;
+      final lastMsg     = (lastMsgRows as List).isNotEmpty
+          ? lastMsgRows[0]
+          : null;
       final unreadCount = (unreadRes as List).length;
 
       result.add({
         ...Map<String, dynamic>.from(conn as Map),
-        'last_message':    lastMsg?['content'] as String? ?? '',
-        'last_message_at': lastMsg?['created_at'] as String? ?? conn['updated_at'],
-        'unread_count':    unreadCount,
+        'last_message':
+            lastMsg?['content'] as String? ?? '',
+        'last_message_at':
+            lastMsg?['created_at'] as String? ?? conn['updated_at'],
+        'unread_count': unreadCount,
       });
     }
 
-    // Sort by most recent message
     result.sort((a, b) {
-      final aTime = DateTime.tryParse(a['last_message_at'] as String? ?? '') ?? DateTime(0);
-      final bTime = DateTime.tryParse(b['last_message_at'] as String? ?? '') ?? DateTime(0);
+      final aTime = DateTime.tryParse(
+              a['last_message_at'] as String? ?? '') ??
+          DateTime(0);
+      final bTime = DateTime.tryParse(
+              b['last_message_at'] as String? ?? '') ??
+          DateTime(0);
       return bTime.compareTo(aTime);
     });
 

@@ -18,13 +18,38 @@ class PlanCardData {
     required this.emoji,
     this.addedToItinerary = false,
   });
+
+  /// Encode as a sendable string: "📍 Place • Category • Date Time"
+  String toMessageContent() =>
+      '\u{1F4CD} $placeName \u2022 $category \u2022 $date $time';
+
+  /// Parse back from a message content string produced by [toMessageContent].
+  /// Returns null if the string doesn't match the plan-card format.
+  static PlanCardData? tryParse(String content) {
+    if (!content.startsWith('\u{1F4CD} ')) return null;
+    final body  = content.substring(3); // strip "📍 "
+    final parts = body.split(' \u2022 ');
+    if (parts.length < 3) return null;
+    final dateParts = parts[2].trim().split(' ');
+    final date = dateParts.first;
+    final time = dateParts.length > 1
+        ? dateParts.sublist(1).join(' ')
+        : '';
+    return PlanCardData(
+      placeName: parts[0].trim(),
+      category:  parts[1].trim(),
+      date:      date,
+      time:      time,
+      emoji:     '\u{1F4CD}',
+    );
+  }
 }
 
 class ChatMessage {
-  final String id;
-  final String text;
-  final bool isMe;
-  final DateTime timestamp;
+  final String      id;
+  final String      text;
+  final bool        isMe;
+  final DateTime    timestamp;
   final MessageType type;
   final PlanCardData? planCard;
 
@@ -33,18 +58,18 @@ class ChatMessage {
     required this.text,
     required this.isMe,
     required this.timestamp,
-    this.type = MessageType.text,
+    this.type     = MessageType.text,
     this.planCard,
   });
 
   ChatMessage copyWith({PlanCardData? planCard}) {
     return ChatMessage(
-      id: id,
-      text: text,
-      isMe: isMe,
+      id:        id,
+      text:      text,
+      isMe:      isMe,
       timestamp: timestamp,
-      type: type,
-      planCard: planCard ?? this.planCard,
+      type:      type,
+      planCard:  planCard ?? this.planCard,
     );
   }
 }

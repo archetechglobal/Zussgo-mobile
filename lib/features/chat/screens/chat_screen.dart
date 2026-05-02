@@ -15,11 +15,10 @@ import '../widgets/suggest_place_sheet.dart';
 import '../../trips/screens/active_trip_screen.dart';
 
 class ChatScreen extends ConsumerStatefulWidget {
-  final String peerId;
-  final String peerName;
-  final String tripLabel;
-  // Optional: pass the trip's destination and start date for context-aware AI spark
-  final String tripDestination;
+  final String    peerId;
+  final String    peerName;
+  final String    tripLabel;
+  final String    tripDestination;
   final DateTime? tripStartDate;
 
   const ChatScreen({
@@ -47,12 +46,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   static const _muted = Color(0xFFA8C4BF);
   static const _faint = Color(0xFF6A8882);
 
+  // ── Parse a MessageModel row into a ChatMessage ──────────────────────────
+  // Handles both plain text and plan-card messages correctly.
   ChatMessage _toLocal(dynamic m, String myId) {
+    final content = m.content as String;
+    final card    = PlanCardData.tryParse(content);
     return ChatMessage(
       id:        m.id as String,
-      text:      m.content as String,
+      text:      content,
       isMe:      (m.senderId as String) == myId,
       timestamp: m.createdAt as DateTime,
+      type:      card != null ? MessageType.planCard : MessageType.text,
+      planCard:  card,
     );
   }
 
@@ -60,7 +65,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   void initState() {
     super.initState();
     SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
+      statusBarColor:       Colors.transparent,
       statusBarIconBrightness: Brightness.light,
     ));
   }
@@ -72,8 +77,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     super.dispose();
   }
 
-  void _onTextChanged(String val) {
-    // Destination-specific keywords extracted from the trip destination string
+  // ── AI Spark: debounce + real edge function with keyword fallback ─────────
+  void _onTextChanged(String val, String connectionId) {
     final destinationWords = widget.tripDestination
         .toLowerCase()
         .split(RegExp(r'[\s,]+'))
@@ -81,12 +86,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         .toList();
 
     if (detectPlaceIntent(val, extraKeywords: destinationWords)) {
-      final suggestion = suggestCardFromText(
-        val,
+      triggerAiSpark(
+        text:            val,
+        connectionId:    connectionId,
         tripDestination: widget.tripDestination,
         tripStartDate:   widget.tripStartDate,
+        onResult: (suggestion) {
+          if (mounted) {
+            ref.read(aiSparkProvider.notifier).state = suggestion;
+          }
+        },
       );
-      ref.read(aiSparkProvider.notifier).state = suggestion;
     } else {
       ref.read(aiSparkProvider.notifier).state = null;
     }
@@ -102,9 +112,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   void _sendPlanCard(String connectionId, PlanCardData card) {
-    ref.read(chatNotifierProvider(connectionId).notifier).send(
-      '📍 ${card.placeName} • ${card.category} • ${card.date} ${card.time}',
-    );
+    // Use the canonical encoded format so _toLocal() can parse it back.
+    ref
+        .read(chatNotifierProvider(connectionId).notifier)
+        .send(card.toMessageContent());
     ref.read(aiSparkProvider.notifier).state = null;
     _scrollToBottom();
   }
@@ -135,14 +146,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         ),
         transitionsBuilder: (_, animation, __, child) {
           final curved = CurvedAnimation(
-            parent: animation, curve: Curves.easeOutCubic,
+            parent: animation,
+            curve:  Curves.easeOutCubic,
           );
           return FadeTransition(
             opacity: curved,
             child: SlideTransition(
               position: Tween<Offset>(
                 begin: const Offset(0, 0.04),
-                end: Offset.zero,
+                end:   Offset.zero,
               ).animate(curved),
               child: child,
             ),
@@ -156,20 +168,25 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final now  = DateTime.now();
     final hour = now.hour > 12
         ? now.hour - 12
-        : now.hour == 0 ? 12 : now.hour;
+        : now.hour == 0
+            ? 12
+            : now.hour;
     final min  = now.minute.toString().padLeft(2, '0');
     final ampm = now.hour >= 12 ? 'PM' : 'AM';
     return 'Today, $hour:$min $ampm';
   }
 
-  void _openSuggestSheet(String connectionId, {PlanCardData? prefilled}) {
+  void _openSuggestSheet(
+    String connectionId, {
+    PlanCardData? prefilled,
+  }) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => SuggestPlaceSheet(
         prefilled: prefilled,
-        onSend: (card) => _sendPlanCard(connectionId, card),
+        onSend:    (card) => _sendPlanCard(connectionId, card),
       ),
     );
   }
@@ -178,11 +195,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   Widget build(BuildContext context) {
     final topInset    = MediaQuery.of(context).padding.top;
     final bottomInset = MediaQuery.of(context).padding.bottom;
-    final myId        = Supabase.instance.client.auth.currentUser?.id ?? '';
+    final myId        =
+        Supabase.instance.client.auth.currentUser?.id ?? '';
 
-    final aiSpark   = ref.watch(aiSparkProvider);
-    final itinerary = ref.watch(itineraryProvider);
-
+    final aiSpark  = ref.watch(aiSparkProvider);
     final connAsync = ref.watch(connectionIdProvider(widget.peerId));
 
     return Scaffold(
@@ -215,8 +231,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   decoration: BoxDecoration(
                     color: _teal.withOpacity(.15),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                        color: _teal.withOpacity(.3)),
+                    border:
+                        Border.all(color: _teal.withOpacity(.3)),
                   ),
                   child: const Text(
                     'Retry',
@@ -235,14 +251,21 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           if (connectionId == null) {
             return _NoConnectionView(
               peerName: widget.peerName,
-              onBack: () => context.go('/chat'),
+              onBack:   () => context.go('/chat'),
             );
           }
 
-          // Mark messages as read when the chat is opened
+          // Mark messages as read on open
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            ref.read(chatNotifierProvider(connectionId).notifier).markRead();
+            ref
+                .read(chatNotifierProvider(connectionId).notifier)
+                .markRead();
           });
+
+          // Watch the Supabase-backed itinerary stream for this connection
+          final itineraryAsync =
+              ref.watch(itineraryStreamProvider(connectionId));
+          final itinerary = itineraryAsync.valueOrNull ?? [];
 
           final msgsAsync =
               ref.watch(messagesStreamProvider(connectionId));
@@ -272,7 +295,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   duration: const Duration(milliseconds: 260),
                   curve: Curves.easeOutCubic,
                   child: _showItinerary
-                      ? ItineraryTray(items: itinerary, onExpand: () {})
+                      ? ItineraryTray(
+                          items:     itinerary,
+                          onExpand:  () {},
+                        )
                       : const SizedBox.shrink(),
                 ),
 
@@ -282,7 +308,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   onStart:   _startTrip,
                 ),
 
-                // Message list
+                // ── Message list ──────────────────────────────────────────
                 Expanded(
                   child: msgsAsync.when(
                     loading: () => const Center(
@@ -298,18 +324,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       ),
                     ),
                     data: (liveMessages) {
-                      WidgetsBinding.instance
-                          .addPostFrameCallback(
-                              (_) => _scrollToBottom());
+                      WidgetsBinding.instance.addPostFrameCallback(
+                          (_) => _scrollToBottom());
 
                       if (liveMessages.isEmpty) {
                         return Center(
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Text('👋',
-                                  style:
-                                      TextStyle(fontSize: 40)),
+                              const Text('\u{1F44B}',
+                                  style: TextStyle(fontSize: 40)),
                               const SizedBox(height: 12),
                               Text(
                                 'Say hi to ${widget.peerName}!',
@@ -334,16 +358,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                           final msg = uiMessages[i];
                           return MessageBubble(
                             message: msg,
-                            // Wire up "Add to Plan" for plan card messages
-                            onAddToItinerary: msg.type == MessageType.planCard &&
+                            onAddToItinerary: msg.type ==
+                                        MessageType.planCard &&
                                     msg.planCard != null &&
                                     !msg.planCard!.addedToItinerary
                                 ? () {
                                     ref
-                                        .read(itineraryProvider.notifier)
+                                        .read(itineraryNotifierProvider(
+                                          connectionId,
+                                        ).notifier)
                                         .addFromCard(msg.planCard!);
-                                    // Mark as added to prevent duplicate taps
-                                    msg.planCard!.addedToItinerary = true;
+                                    msg.planCard!
+                                        .addedToItinerary = true;
                                   }
                                 : null,
                           );
@@ -353,7 +379,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   ),
                 ),
 
-                // AI spark chip
+                // ── AI Spark chip ─────────────────────────────────────────
                 AnimatedSize(
                   duration: const Duration(milliseconds: 220),
                   curve: Curves.easeOutCubic,
@@ -361,8 +387,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       ? AiSparkChip(
                           suggestion: aiSpark,
                           onPreview: () => _openSuggestSheet(
-                              connectionId,
-                              prefilled: aiSpark),
+                            connectionId,
+                            prefilled: aiSpark,
+                          ),
                           onDismiss: () => ref
                               .read(aiSparkProvider.notifier)
                               .state = null,
@@ -370,13 +397,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       : const SizedBox.shrink(),
                 ),
 
-                // Input bar
+                // ── Input bar ─────────────────────────────────────────────
                 _InputBar(
                   controller:  _controller,
-                  onChanged:   _onTextChanged,
+                  onChanged:   (val) => _onTextChanged(val, connectionId),
                   onSend:      () => _sendText(connectionId),
-                  onPlustap:   () =>
-                      _openSuggestSheet(connectionId),
+                  onPlustap:   () => _openSuggestSheet(connectionId),
                   bottomInset: bottomInset,
                 ),
               ],
@@ -420,17 +446,17 @@ class _NoConnectionView extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(
                     horizontal: 20, vertical: 10),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF1EC9B8).withOpacity(.15),
+                  color:
+                      const Color(0xFF1EC9B8).withOpacity(.15),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                      color:
-                          const Color(0xFF1EC9B8).withOpacity(.3)),
+                      color: const Color(0xFF1EC9B8).withOpacity(.3)),
                 ),
                 child: const Text(
                   'Back to Chats',
                   style: TextStyle(
-                    color: Color(0xFF58DAD0),
-                    fontSize: 14,
+                    color:      Color(0xFF58DAD0),
+                    fontSize:   14,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -500,10 +526,12 @@ class _ChatAppBar extends StatelessWidget {
             ),
             child: Center(
               child: Text(
-                peerName.isNotEmpty ? peerName[0].toUpperCase() : '?',
+                peerName.isNotEmpty
+                    ? peerName[0].toUpperCase()
+                    : '?',
                 style: const TextStyle(
-                  color: Color(0xFF041818),
-                  fontSize: 16,
+                  color:      Color(0xFF041818),
+                  fontSize:   16,
                   fontWeight: FontWeight.w800,
                 ),
               ),
@@ -518,15 +546,15 @@ class _ChatAppBar extends StatelessWidget {
                 Text(
                   peerName,
                   style: const TextStyle(
-                    color: _text,
-                    fontSize: 16,
+                    color:      _text,
+                    fontSize:   16,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
                 Text(
                   tripLabel,
-                  style:
-                      const TextStyle(color: _muted, fontSize: 11),
+                  style: const TextStyle(
+                      color: _muted, fontSize: 11),
                 ),
               ],
             ),
@@ -540,17 +568,19 @@ class _ChatAppBar extends StatelessWidget {
               decoration: BoxDecoration(
                 color: _teal.withOpacity(.12),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: _teal.withOpacity(.2)),
+                border:
+                    Border.all(color: _teal.withOpacity(.2)),
               ),
               child: Row(
                 children: [
-                  const Text('🗓', style: TextStyle(fontSize: 14)),
+                  const Text('\u{1F5D3}',
+                      style: TextStyle(fontSize: 14)),
                   const SizedBox(width: 4),
                   const Text(
                     'Plan',
                     style: TextStyle(
-                      color: _teal2,
-                      fontSize: 12,
+                      color:      _teal2,
+                      fontSize:   12,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -566,14 +596,82 @@ class _ChatAppBar extends StatelessWidget {
                       child: Text(
                         '$itineraryCount',
                         style: const TextStyle(
-                          color: Color(0xFF041818),
-                          fontSize: 9,
+                          color:      Color(0xFF041818),
+                          fontSize:   9,
                           fontWeight: FontWeight.w900,
                         ),
                       ),
                     ),
                   ],
                 ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Start Trip banner ────────────────────────────────────────────────────────
+
+class _StartTripBanner extends StatelessWidget {
+  final String     peerName;
+  final String     tripLabel;
+  final VoidCallback onStart;
+
+  const _StartTripBanner({
+    required this.peerName,
+    required this.tripLabel,
+    required this.onStart,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1EC9B8).withOpacity(.08),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+            color: const Color(0xFF1EC9B8).withOpacity(.15)),
+      ),
+      child: Row(
+        children: [
+          const Text('\u2708\uFE0F',
+              style: TextStyle(fontSize: 16)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Ready to travel to $tripLabel with $peerName?',
+              style: const TextStyle(
+                color:    Color(0xFFA8C4BF),
+                fontSize: 12,
+              ),
+            ),
+          ),
+          GestureDetector(
+            onTap: onStart,
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [
+                    Color(0xFF1EC9B8),
+                    Color(0xFF0FA896),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Text(
+                'Start Trip',
+                style: TextStyle(
+                  color:      Color(0xFF041818),
+                  fontSize:   12,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ),
           ),
@@ -605,11 +703,13 @@ class _InputBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.fromLTRB(16, 10, 16, 16 + bottomInset),
+      padding:
+          EdgeInsets.fromLTRB(16, 10, 16, 16 + bottomInset),
       decoration: BoxDecoration(
         color: const Color(0xFF0A1516),
         border: Border(
-          top: BorderSide(color: Colors.white.withOpacity(.05)),
+          top: BorderSide(
+              color: Colors.white.withOpacity(.05)),
         ),
       ),
       child: Row(
@@ -618,7 +718,8 @@ class _InputBar extends StatelessWidget {
           GestureDetector(
             onTap: onPlustap,
             child: Container(
-              width: 40, height: 40,
+              width: 40,
+              height: 40,
               decoration: BoxDecoration(
                 color: Colors.white.withOpacity(.05),
                 borderRadius: BorderRadius.circular(12),
@@ -627,62 +728,56 @@ class _InputBar extends StatelessWidget {
               ),
               child: const Icon(
                 Icons.add_rounded,
-                color: Color(0xFF6A8882),
+                color: Color(0xFF58DAD0),
                 size: 20,
               ),
             ),
           ),
           const SizedBox(width: 10),
-
           Expanded(
             child: Container(
-              constraints: const BoxConstraints(maxHeight: 120),
+              constraints:
+                  const BoxConstraints(maxHeight: 120),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(.04),
-                borderRadius: BorderRadius.circular(16),
+                color: Colors.white.withOpacity(.05),
+                borderRadius: BorderRadius.circular(14),
                 border: Border.all(
                     color: Colors.white.withOpacity(.08)),
               ),
               child: TextField(
                 controller: controller,
                 onChanged:  onChanged,
-                onSubmitted: (_) => onSend(),
-                maxLines: null,
+                maxLines:   null,
                 style: const TextStyle(
-                  color: Color(0xFFEDF7F4),
+                  color:    Color(0xFFEDF7F4),
                   fontSize: 14,
                 ),
                 decoration: const InputDecoration(
-                  hintText: 'Message...',
-                  hintStyle: TextStyle(
-                      color: Color(0xFF6A8882), fontSize: 14),
-                  border: InputBorder.none,
+                  hintText: 'Type a message...',
+                  hintStyle:
+                      TextStyle(color: Color(0xFF4A6E6A)),
                   contentPadding: EdgeInsets.symmetric(
                       horizontal: 14, vertical: 10),
+                  border: InputBorder.none,
                 ),
+                onSubmitted: (_) => onSend(),
               ),
             ),
           ),
           const SizedBox(width: 10),
-
           GestureDetector(
             onTap: onSend,
             child: Container(
-              width: 40, height: 40,
+              width: 40,
+              height: 40,
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
-                  colors: [Color(0xFF58DAD0), Color(0xFF1EC9B8)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
+                  colors: [
+                    Color(0xFF1EC9B8),
+                    Color(0xFF0FA896),
+                  ],
                 ),
                 borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: _teal.withOpacity(.3),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
               ),
               child: const Icon(
                 Icons.send_rounded,
@@ -692,156 +787,6 @@ class _InputBar extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-// ─── Start Trip Banner ────────────────────────────────────────────────────────
-
-class _StartTripBanner extends StatefulWidget {
-  final String peerName;
-  final String tripLabel;
-  final VoidCallback onStart;
-
-  const _StartTripBanner({
-    required this.peerName,
-    required this.tripLabel,
-    required this.onStart,
-  });
-
-  @override
-  State<_StartTripBanner> createState() => _StartTripBannerState();
-}
-
-class _StartTripBannerState extends State<_StartTripBanner>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _pulse;
-  late final Animation<double>   _glow;
-
-  static const _teal  = Color(0xFF1EC9B8);
-  static const _teal2 = Color(0xFF58DAD0);
-  static const _faint = Color(0xFF6A8882);
-
-  @override
-  void initState() {
-    super.initState();
-    _pulse = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 2),
-    )..repeat(reverse: true);
-    _glow = Tween(begin: 0.20, end: 0.45).animate(
-      CurvedAnimation(parent: _pulse, curve: Curves.easeInOut),
-    );
-  }
-
-  @override
-  void dispose() {
-    _pulse.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _pulse,
-      builder: (_, __) => Container(
-        margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [_teal.withOpacity(.12), Colors.transparent],
-          ),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-              color: _teal.withOpacity(_glow.value)),
-          boxShadow: [
-            BoxShadow(
-              color: _teal.withOpacity(_glow.value * 0.5),
-              blurRadius: 16,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
-          child: Row(
-            children: [
-              SizedBox(
-                width: 14, height: 14,
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    Container(
-                      width: 14, height: 14,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: _teal.withOpacity(_glow.value * 0.6),
-                      ),
-                    ),
-                    Container(
-                      width: 7, height: 7,
-                      decoration: const BoxDecoration(
-                        color: _teal2,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      widget.tripLabel,
-                      style: const TextStyle(
-                        color: _teal2,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: .02,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    const Text(
-                      'Plans locked in? Start live tracking.',
-                      style: TextStyle(color: _faint, fontSize: 11),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              GestureDetector(
-                onTap: widget.onStart,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 14, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: _teal,
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: _teal.withOpacity(.30),
-                        blurRadius: 12,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: const Text(
-                    'Start Trip',
-                    style: TextStyle(
-                      color: Color(0xFF041818),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }
