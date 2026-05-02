@@ -8,19 +8,44 @@ import '../models/trip_model.dart';
 
 final tripsRepositoryProvider = Provider((_) => TripsRepository());
 
-/// All active trips from other users.
-/// Used in home hero pager and Match → Discover tab.
-/// keepAlive: survives tab switches. Auto-invalidates after 5 min so data
-/// stays fresh without hammering Supabase on every render.
-final activeTripsProvider = FutureProvider<List<TripModel>>((ref) async {
-  final link = ref.keepAlive();
-  Timer(const Duration(minutes: 5), link.close);
-  return ref.read(tripsRepositoryProvider).fetchActiveTrips();
+/// Active trips — StreamProvider backed by Supabase Realtime.
+/// New trips broadcast by other users appear instantly without waiting
+/// for any TTL to expire. Falls back gracefully if the channel errors.
+final activeTripsProvider = StreamProvider<List<TripModel>>((ref) async* {
+  final repo = ref.read(tripsRepositoryProvider);
+
+  // Yield the initial snapshot immediately
+  yield await repo.fetchActiveTrips();
+
+  // Open a Realtime channel: re-fetch on any INSERT to the trips table
+  final controller = StreamController<List<TripModel>>();
+  final channel = Supabase.instance.client
+      .channel('public:trips:active')
+      .onPostgresChanges(
+        event:    PostgresChangeEvent.insert,
+        schema:   'public',
+        table:    'trips',
+        callback: (_) async {
+          if (!controller.isClosed) {
+            try {
+              final fresh = await repo.fetchActiveTrips();
+              controller.add(fresh);
+            } catch (_) {}
+          }
+        },
+      )
+      .subscribe();
+
+  ref.onDispose(() {
+    Supabase.instance.client.removeChannel(channel);
+    controller.close();
+  });
+
+  yield* controller.stream;
 });
 
 /// Trips I created.
-/// keepAlive: session-scoped — only invalidated when user creates/deletes a trip
-/// (CreateTripNotifier calls ref.invalidate after success).
+/// keepAlive: session-scoped — only invalidated when user creates/deletes a trip.
 final myTripsProvider = FutureProvider<List<TripModel>>((ref) async {
   final link = ref.keepAlive();
   Timer(const Duration(minutes: 10), link.close);
@@ -45,8 +70,9 @@ final tripPendingRequestsProvider =
 
 /// Create trip notifier.
 /// After a successful create:
-///   1. Invalidates myTripsProvider + activeTripsProvider so feeds update immediately.
-///   2. Non-blocking invokes the AI match + notification edge function.
+///   1. Invalidates myTripsProvider so the "My Trips" tab updates immediately.
+///   2. activeTripsProvider is Realtime-driven — no manual invalidate needed.
+///   3. Non-blocking invokes the AI match + notification edge function.
 class CreateTripNotifier extends StateNotifier<AsyncValue<TripModel?>> {
   final TripsRepository _repo;
   final Ref _ref;
@@ -76,12 +102,12 @@ class CreateTripNotifier extends StateNotifier<AsyncValue<TripModel?>> {
       );
       state = AsyncValue.data(trip);
 
-      // Bust the cache so home + discover reflect the new trip immediately
+      // Bust the "My Trips" cache — Realtime handles activeTripsProvider
       _ref.invalidate(myTripsProvider);
-      _ref.invalidate(activeTripsProvider);
 
-      // Trigger AI matching + FCM notifications — fire-and-forget, never
-      // blocks or fails the trip creation from the user's perspective.
+      // Fire-and-forget: AI scoring + FCM push notifications.
+      // Never blocks or surfaces an error to the user — core trip
+      // creation must always succeed from the UI's perspective.
       Supabase.instance.client.functions
           .invoke(
             'notify-trip-matches',
@@ -93,7 +119,7 @@ class CreateTripNotifier extends StateNotifier<AsyncValue<TripModel?>> {
               'intent':      intent ?? '',
             },
           )
-          .catchError((_) {}); // silent — core flow must never fail
+          .catchError((_) {});
 
       return trip;
     } catch (e, st) {

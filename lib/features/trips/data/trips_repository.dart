@@ -44,8 +44,8 @@ class TripsRepository {
   }
 
   // ── Active trips (discover / home hero feed) ───────────────────────────────
-  // Selects start_date so the match-screen Next-7-days chip can compare real
-  // dates instead of running a regex on the text `dates` field.
+  // Selects creator fields so the match-screen cards can render without
+  // additional requests.
   Future<List<TripModel>> fetchActiveTrips({int limit = 30}) async {
     final uid = supabase.auth.currentUser?.id;
 
@@ -114,6 +114,8 @@ class TripsRepository {
   }
 
   // ── Pending companion requests on MY trips ─────────────────────────────────
+  // FIXED: single query with inner join filter on trip.creator_id
+  // eliminates the previous double round-trip (fetch all pending → fetch my trip ids → filter in Dart).
   Future<List<Map<String, dynamic>>> fetchPendingRequests() async {
     final uid = supabase.auth.currentUser?.id;
     if (uid == null) return [];
@@ -123,22 +125,13 @@ class TripsRepository {
         .select(
           '*, '
           'requester:requester_id(id, name, avatar_url, base_city, rating), '
-          'trip:trip_id(id, destination, dates)',
+          'trip:trip_id!inner(id, destination, dates, creator_id)',
         )
         .eq('status', 'pending')
+        .eq('trip.creator_id', uid) // join-level filter — no second query needed
         .not('trip_id', 'is', null);
 
-    final myTripIds = await supabase
-        .from('trips')
-        .select('id')
-        .eq('creator_id', uid);
-
-    final myIds = (myTripIds as List).map((e) => e['id'] as String).toSet();
-
-    return (data as List)
-        .where((e) => myIds.contains(e['trip_id'] as String?))
-        .cast<Map<String, dynamic>>()
-        .toList();
+    return (data as List).cast<Map<String, dynamic>>().toList();
   }
 
   // ── End a trip ─────────────────────────────────────────────────────────────
