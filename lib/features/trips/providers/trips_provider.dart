@@ -2,6 +2,7 @@
 
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../data/trips_repository.dart';
 import '../models/trip_model.dart';
 
@@ -43,8 +44,9 @@ final tripPendingRequestsProvider =
 });
 
 /// Create trip notifier.
-/// After a successful create: invalidates myTripsProvider + activeTripsProvider
-/// so both feeds reflect the new trip immediately.
+/// After a successful create:
+///   1. Invalidates myTripsProvider + activeTripsProvider so feeds update immediately.
+///   2. Non-blocking invokes the AI match + notification edge function.
 class CreateTripNotifier extends StateNotifier<AsyncValue<TripModel?>> {
   final TripsRepository _repo;
   final Ref _ref;
@@ -73,9 +75,26 @@ class CreateTripNotifier extends StateNotifier<AsyncValue<TripModel?>> {
         intent:      intent,
       );
       state = AsyncValue.data(trip);
-      // Bust the cache so home + discover reflect the new trip
+
+      // Bust the cache so home + discover reflect the new trip immediately
       _ref.invalidate(myTripsProvider);
       _ref.invalidate(activeTripsProvider);
+
+      // Trigger AI matching + FCM notifications — fire-and-forget, never
+      // blocks or fails the trip creation from the user's perspective.
+      Supabase.instance.client.functions
+          .invoke(
+            'notify-trip-matches',
+            body: {
+              'trip_id':     trip.id,
+              'destination': destination,
+              'vibe':        vibe ?? '',
+              'budget':      budget ?? '',
+              'intent':      intent ?? '',
+            },
+          )
+          .catchError((_) {}); // silent — core flow must never fail
+
       return trip;
     } catch (e, st) {
       state = AsyncValue.error(e, st);
