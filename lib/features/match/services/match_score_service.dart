@@ -18,24 +18,26 @@ class MatchScoreResult {
   final String label;
   final List<String> reasons;
   final String? dealbreaker;
+  final bool notificationSent;
 
   const MatchScoreResult({
     required this.score,
     required this.label,
     required this.reasons,
     this.dealbreaker,
+    this.notificationSent = false,
   });
 
   factory MatchScoreResult.fromMap(Map<String, dynamic> m) {
     return MatchScoreResult(
-      score:       (m['score'] as num).toInt(),
-      label:       m['label'] as String,
-      reasons:     List<String>.from(m['reasons'] ?? []),
-      dealbreaker: m['dealbreaker'] as String?,
+      score:            (m['score'] as num).toInt(),
+      label:            m['label'] as String,
+      reasons:          List<String>.from(m['reasons'] ?? []),
+      dealbreaker:      m['dealbreaker'] as String?,
+      notificationSent: m['notificationSent'] as bool? ?? false,
     );
   }
 
-  /// Teal for high scores, gold for mid, muted for low
   bool get isTopMatch   => score >= 85;
   bool get isGreatMatch => score >= 70 && score < 85;
   bool get isGoodMatch  => score >= 55 && score < 70;
@@ -67,11 +69,12 @@ class MatchScoreService {
       final response = await _client.functions.invoke(
         'match-score',
         body: {
-          'viewer': _profileSnapshot(viewer),
-          'candidate': _profileSnapshot(candidate),
+          'viewer':          _profileSnapshot(viewer),
+          'candidate':       _profileSnapshot(candidate),
           'tripVibe':        trip.vibe,
           'tripBudget':      trip.budget,
           'tripDestination': trip.destination,
+          'tripId':          trip.id,        // ← needed for notification deep-link
         },
       );
 
@@ -118,13 +121,8 @@ final matchScoreServiceProvider = Provider<MatchScoreService>((ref) {
 });
 
 /// Per-trip score provider — keyed by tripId.
-/// Watches the current viewer profile and fetches lazily.
+/// Thin provider — callers use matchScoreService.getScore() directly.
 final matchScoreProvider = FutureProvider.family<MatchScoreResult?, String>(
-  (ref, tripId) async {
-    // This provider is intentionally thin — callers pass viewer + trip
-    // directly to matchScoreService.getScore() for better control.
-    // This family provider exists for cases where only tripId is available.
-    return null;
-  },
+  (ref, tripId) async => null,
   name: 'matchScoreProvider',
 );
