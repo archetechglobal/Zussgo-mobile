@@ -13,6 +13,8 @@ android {
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
+        // Required by flutter_local_notifications
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
@@ -23,7 +25,7 @@ android {
 
     defaultConfig {
         applicationId = "com.zussgo.app"
-        minSdk = flutter.minSdkVersion
+        minSdk = 21
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
@@ -37,6 +39,9 @@ android {
 }
 
 dependencies {
+    // Required for flutter_local_notifications (Java 8+ APIs on older Android)
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+
     // Firebase BoM — manages all Firebase library versions automatically
     implementation(platform("com.google.firebase:firebase-bom:34.12.0"))
 
