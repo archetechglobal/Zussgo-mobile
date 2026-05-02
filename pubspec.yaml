@@ -41,7 +41,7 @@ flutter:
 
   assets:
     - .env
-
+    - assets/images/zussgo_symbol.png
   fonts:
     - family: ClashDisplay
       fonts:
