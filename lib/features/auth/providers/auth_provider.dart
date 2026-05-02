@@ -15,6 +15,9 @@ class AuthNotifier extends StateNotifier<AppAuthState> {
 
   AuthNotifier(this._repo) : super(AppAuthInitial());
 
+  // ── Email signup ─────────────────────────────────────────────────────────────
+  // Confirm email is DISABLED in Supabase — user is always immediately active.
+  // We check emailConfirmedAt defensively but route to /setup on success either way.
   Future<void> signUpWithEmail({
     required String email,
     required String password,
@@ -23,12 +26,9 @@ class AuthNotifier extends StateNotifier<AppAuthState> {
     try {
       final res = await _repo.signUpWithEmail(email: email, password: password);
       if (res.user != null) {
-        if (res.user!.emailConfirmedAt == null) {
-          state = AppAuthAwaitingVerification(email);
-        } else {
-          state = AppAuthSuccess(res.user!);
-          await FcmService.instance.onUserLoggedIn();
-        }
+        // Confirm email disabled — go straight to onboarding setup
+        state = AppAuthSuccess(res.user!);
+        await FcmService.instance.onUserLoggedIn();
       } else {
         state = AppAuthError('Signup failed. Please try again.');
       }
@@ -37,6 +37,7 @@ class AuthNotifier extends StateNotifier<AppAuthState> {
     }
   }
 
+  // ── Email login ──────────────────────────────────────────────────────────────
   Future<void> signInWithEmail({
     required String email,
     required String password,
@@ -46,7 +47,7 @@ class AuthNotifier extends StateNotifier<AppAuthState> {
       final res = await _repo.signInWithEmail(email: email, password: password);
       if (res.user != null) {
         state = AppAuthSuccess(res.user!);
-        await FcmService.instance.onUserLoggedIn(); // ← register FCM token
+        await FcmService.instance.onUserLoggedIn();
       } else {
         state = AppAuthError('Login failed. Please try again.');
       }
@@ -55,6 +56,29 @@ class AuthNotifier extends StateNotifier<AppAuthState> {
     }
   }
 
+  // ── Google Sign-In ───────────────────────────────────────────────────────────
+  Future<void> signInWithGoogle() async {
+    state = AppAuthLoading();
+    try {
+      final res = await _repo.signInWithGoogle();
+      if (res.user != null) {
+        state = AppAuthSuccess(res.user!);
+        await FcmService.instance.onUserLoggedIn();
+      } else {
+        state = AppAuthError('Google sign-in failed. Please try again.');
+      }
+    } catch (e) {
+      final msg = e.toString();
+      // User cancelled the Google picker — don't show an error snack
+      if (msg.contains('cancelled') || msg.contains('cancel')) {
+        state = AppAuthInitial();
+      } else {
+        state = AppAuthError(_parseError(e));
+      }
+    }
+  }
+
+  // ── Phone ────────────────────────────────────────────────────────────────────
   Future<void> signInWithPhone(String phone) async {
     state = AppAuthLoading();
     try {
@@ -74,7 +98,7 @@ class AuthNotifier extends StateNotifier<AppAuthState> {
       final res = await _repo.verifyPhoneOtp(phone: phone, token: token);
       if (res.user != null) {
         state = AppAuthSuccess(res.user!);
-        await FcmService.instance.onUserLoggedIn(); // ← register FCM token
+        await FcmService.instance.onUserLoggedIn();
       } else {
         state = AppAuthError('Invalid OTP. Please try again.');
       }
