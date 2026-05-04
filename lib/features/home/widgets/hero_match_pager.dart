@@ -2,7 +2,6 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../trips/providers/trips_provider.dart';
 import '../data/home_mock_data.dart';
 import '../providers/home_provider.dart';
 import 'hero_match_card.dart';
@@ -23,12 +22,7 @@ class HeroMatchPager extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Watch the live search query — empty means "no filter" (default home view)
     final searchQuery = ref.watch(homeSearchQueryProvider);
-
-    // aiRankedTravelersProvider handles both states:
-    //   empty query  → falls back to activeTripsProvider ordering (existing UX)
-    //   non-empty    → AI-ranked profiles for the searched destination
     final rankedAsync = ref.watch(aiRankedTravelersProvider(searchQuery));
 
     return rankedAsync.when(
@@ -38,9 +32,6 @@ class HeroMatchPager extends ConsumerWidget {
         final profiles = result.topMatches;
         if (profiles.isEmpty) return _EmptyHero(height: height);
 
-        // Build HomeMatch from ranked ProfileModel.
-        // For the no-query path the provider embeds trip fields (destination,
-        // dates, vibe) into the profile wrapper so fromTrip still works cleanly.
         final matches = profiles.map((p) => HomeMatch.fromTrip(
           tripId:      p.id,
           creatorName: p.name ?? 'Traveler',
@@ -103,7 +94,7 @@ class _EmptyHero extends StatelessWidget {
             Text('\u2708\uFE0F', style: TextStyle(fontSize: 40)),
             SizedBox(height: 12),
             Text(
-              'No trips posted yet.\nBe the first to plan one!',
+              'No travelers found yet.\nBe the first to set your vibe!',
               textAlign: TextAlign.center,
               style: TextStyle(color: Color(0xFF6A8882), fontSize: 14),
             ),
