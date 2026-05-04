@@ -1,5 +1,6 @@
 // lib/features/profile/providers/profile_provider.dart
 
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -72,11 +73,24 @@ class ProfileNotifier extends StateNotifier<AsyncValue<ProfileModel?>> {
   Future<void> refresh() => _load();
 }
 
+/// Watches the Supabase auth stream and exposes the current user ID.
+/// When the signed-in user changes (logout, account switch), this
+/// provider emits a new value which causes [myProfileProvider] to
+/// rebuild with the correct user ID — preventing stale profile data.
+final _authUserIdProvider = StreamProvider<String>((ref) {
+  return Supabase.instance.client.auth.onAuthStateChange.map(
+    (data) => data.session?.user.id ?? '',
+  );
+});
+
 /// The single source-of-truth provider for the logged-in user's profile.
-/// StateNotifier holds the value in memory — session-scoped, no TTL needed.
+/// Re-creates the ProfileNotifier whenever the signed-in user changes.
 final myProfileProvider =
     StateNotifierProvider<ProfileNotifier, AsyncValue<ProfileModel?>>((ref) {
-  final userId = Supabase.instance.client.auth.currentUser?.id ?? '';
+  // Watch the live auth stream — rebuilds this provider on user change.
+  final authAsync = ref.watch(_authUserIdProvider);
+  final userId = authAsync.value ?? 
+      Supabase.instance.client.auth.currentUser?.id ?? '';
   return ProfileNotifier(ref.watch(profileRepositoryProvider), userId);
 });
 
