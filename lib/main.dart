@@ -44,10 +44,16 @@ Future<void> main() async {
     ),
   );
 
-  // Deep link handler for email verification / magic links
+  // Deep link handler for email verification / magic links.
+  // getSessionFromUrl must be called for PKCE flow to exchange the code
+  // for a session — this is what fires onAuthStateChange in EmailVerifyScreen.
   final appLinks = AppLinks();
-  appLinks.uriLinkStream.listen((uri) {
-    Supabase.instance.client.auth.getSessionFromUrl(uri);
+  appLinks.uriLinkStream.listen((uri) async {
+    try {
+      await Supabase.instance.client.auth.getSessionFromUrl(uri);
+    } catch (e) {
+      debugPrint('[ZussGo] Deep link auth error: $e');
+    }
   });
 
   runApp(const ProviderScope(child: ZussGoApp()));

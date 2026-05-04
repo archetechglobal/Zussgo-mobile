@@ -35,10 +35,25 @@ class AuthRepository {
   }
 
   // ── Google OAuth ─────────────────────────────────────────────────────────────
+  //
+  // HOW TO GET YOUR WEB CLIENT ID:
+  // 1. Go to https://console.cloud.google.com/apis/credentials
+  // 2. Find the OAuth 2.0 Client ID whose type is "Web application"
+  //    (NOT the Android client — the Web one is what Supabase needs)
+  // 3. Copy the Client ID (ends in .apps.googleusercontent.com)
+  // 4. Paste it below as the value of webClientId
+  // 5. Also make sure your Android SHA-1 fingerprint is registered
+  //    under the Android OAuth client in the same console.
 
   Future<AuthResponse> signInWithGoogle() async {
     const webClientId =
-        ''; // TODO: paste your Web Client ID from Google Cloud Console
+        ''; // TODO: paste Web Client ID from Google Cloud Console
+
+    assert(
+      webClientId.isNotEmpty,
+      'Google sign-in requires a webClientId. '
+      'See the comment above signInWithGoogle() in auth_repository.dart.',
+    );
 
     final googleSignIn = GoogleSignIn(
       serverClientId: webClientId,
@@ -48,8 +63,8 @@ class AuthRepository {
     final googleUser = await googleSignIn.signIn();
     if (googleUser == null) throw Exception('Google sign-in cancelled');
 
-    final googleAuth = await googleUser.authentication;
-    final idToken    = googleAuth.idToken;
+    final googleAuth  = await googleUser.authentication;
+    final idToken     = googleAuth.idToken;
     final accessToken = googleAuth.accessToken;
 
     if (idToken == null) throw Exception('No ID token from Google');

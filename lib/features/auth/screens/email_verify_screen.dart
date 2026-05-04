@@ -1,5 +1,6 @@
 // lib/features/auth/screens/email_verify_screen.dart
 
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -29,6 +30,47 @@ class _EmailVerifyScreenState extends ConsumerState<EmailVerifyScreen> {
   bool _checking   = false;
   String? _checkError;
 
+  StreamSubscription<AuthState>? _authSub;
+
+  @override
+  void initState() {
+    super.initState();
+
+    // Auto-redirect when Supabase processes the email deep-link in the
+    // background (app_links fires → main.dart calls getSessionFromUrl →
+    // Supabase emits signedIn/userUpdated here automatically).
+    _authSub = supabase.auth.onAuthStateChange.listen((data) async {
+      final event = data.event;
+      if (event == AuthChangeEvent.signedIn ||
+          event == AuthChangeEvent.userUpdated) {
+        final user = data.session?.user;
+        if (user?.emailConfirmedAt != null && mounted) {
+          await _navigateAfterVerification(user!.id);
+        }
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _authSub?.cancel();
+    super.dispose();
+  }
+
+  /// Routes to /setup (first-time user) or /home (returning user).
+  Future<void> _navigateAfterVerification(String userId) async {
+    try {
+      final row = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('id', userId)
+          .maybeSingle();
+      if (mounted) context.go(row != null ? '/home' : '/setup');
+    } catch (_) {
+      if (mounted) context.go('/setup');
+    }
+  }
+
   Future<void> _resend() async {
     if (_resending) return;
     setState(() { _resending = true; _resent = false; _checkError = null; });
@@ -38,7 +80,7 @@ class _EmailVerifyScreenState extends ConsumerState<EmailVerifyScreen> {
 
   /// Called when user taps "I've verified — Continue".
   /// Refreshes the Supabase session; if email is now confirmed routes
-  /// to /setup (new user, no profile) or /home (returning user).
+  /// to /setup (new user) or /home (returning user).
   Future<void> _checkVerification() async {
     if (_checking) return;
     setState(() { _checking = true; _checkError = null; });
@@ -48,24 +90,16 @@ class _EmailVerifyScreenState extends ConsumerState<EmailVerifyScreen> {
     if (!mounted) return;
 
     if (confirmed) {
-      // Determine if user has completed onboarding (profile exists)
       final userId = supabase.auth.currentUser?.id;
-      bool hasProfile = false;
       if (userId != null) {
-        final row = await supabase
-            .from('profiles')
-            .select('id')
-            .eq('id', userId)
-            .maybeSingle();
-        hasProfile = row != null;
-      }
-      if (mounted) {
-        context.go(hasProfile ? '/home' : '/setup');
+        await _navigateAfterVerification(userId);
+      } else {
+        if (mounted) context.go('/setup');
       }
     } else {
       setState(() {
         _checking = false;
-        _checkError = "Email not verified yet. Please check your inbox and tap the link, then try again.";
+        _checkError = 'Email not verified yet. Please check your inbox and tap the link, then try again.';
       });
     }
   }
@@ -120,7 +154,7 @@ class _EmailVerifyScreenState extends ConsumerState<EmailVerifyScreen> {
                   border: Border.all(color: _kTeal.withOpacity(.25)),
                 ),
                 child: const Center(
-                  child: Text('✉️', style: TextStyle(fontSize: 32)),
+                  child: Text('\u2709\ufe0f', style: TextStyle(fontSize: 32)),
                 ),
               ),
               const SizedBox(height: 24),
@@ -139,12 +173,39 @@ class _EmailVerifyScreenState extends ConsumerState<EmailVerifyScreen> {
                       text: widget.email.isEmpty ? 'your email' : widget.email,
                       style: const TextStyle(color: _kTeal2, fontWeight: FontWeight.w600),
                     ),
-                    const TextSpan(text: '\n\nTap the link in that email to activate your account, then come back here.'),
+                    const TextSpan(text: '\n\nTap the link in that email to activate your account. The app will redirect you automatically once verified.'),
                   ],
                 ),
               ),
 
               const Spacer(),
+
+              // ── Auto-redirect status indicator ──────────────────────────────
+              Container(
+                margin: const EdgeInsets.only(bottom: 16),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                decoration: BoxDecoration(
+                  color: _kTeal.withOpacity(.06),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: _kTeal.withOpacity(.15)),
+                ),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 14, height: 14,
+                      child: CircularProgressIndicator(
+                        color: _kTeal.withOpacity(.5),
+                        strokeWidth: 1.5,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    const Text(
+                      'Waiting for verification…',
+                      style: TextStyle(color: _kFaint, fontSize: 13),
+                    ),
+                  ],
+                ),
+              ),
 
               // ── Resent confirmation banner ──────────────────────────────────
               if (_resent)
@@ -212,7 +273,7 @@ class _EmailVerifyScreenState extends ConsumerState<EmailVerifyScreen> {
               ),
               const SizedBox(height: 12),
 
-              // ── Primary CTA: check verification ────────────────────────────
+              // ── Primary CTA: manual check ───────────────────────────────────
               GestureDetector(
                 onTap: (_checking || _resending) ? null : _checkVerification,
                 child: AnimatedContainer(
