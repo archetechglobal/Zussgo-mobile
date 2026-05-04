@@ -1,5 +1,7 @@
 // lib/features/profile/screens/my_profile_screen.dart
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -29,6 +31,8 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
   static const _muted   = Color(0xFFA8C4BF);
   static const _faint   = Color(0xFF6A8882);
 
+  StreamSubscription<AuthState>? _authSub;
+
   @override
   void initState() {
     super.initState();
@@ -39,6 +43,27 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(bottomNavIndexProvider.notifier).setIndex(4);
     });
+
+    // React to auth state changes while this screen is active.
+    // - signedIn / userUpdated: refresh profile data.
+    // - signedOut: immediately redirect to login.
+    _authSub = Supabase.instance.client.auth.onAuthStateChange.listen((data) {
+      if (!mounted) return;
+      final event = data.event;
+      if (event == AuthChangeEvent.signedOut) {
+        context.go('/login');
+      } else if (event == AuthChangeEvent.signedIn ||
+          event == AuthChangeEvent.userUpdated ||
+          event == AuthChangeEvent.tokenRefreshed) {
+        ref.read(myProfileProvider.notifier).refresh();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _authSub?.cancel();
+    super.dispose();
   }
 
   Future<void> _openEdit(BuildContext context) async {
@@ -68,7 +93,7 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
 
   Future<void> _signOut(BuildContext context) async {
     await Supabase.instance.client.auth.signOut();
-    if (mounted) context.go('/login');
+    // onAuthStateChange listener above will handle the redirect.
   }
 
   void _showSettings(BuildContext context) {
@@ -499,7 +524,7 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
 
-                            // ── Avatar: UserAvatar widget (Google photo / initials) ──
+                            // ── Avatar ──
                             GestureDetector(
                               onTap: () => _openEdit(context),
                               child: Stack(
