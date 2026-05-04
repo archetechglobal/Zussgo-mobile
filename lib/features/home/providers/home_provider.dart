@@ -5,7 +5,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/supabase/supabase_client.dart';
 import '../../profile/models/profile_model.dart';
 import '../../trips/providers/trips_provider.dart';
-import '../../trips/models/trip_model.dart';
 
 // ─── Pager page index ─────────────────────────────────────────────────────────
 class HomePageIndexNotifier extends Notifier<int> {
@@ -18,13 +17,9 @@ final homePageIndexProvider =
     NotifierProvider<HomePageIndexNotifier, int>(HomePageIndexNotifier.new);
 
 // ─── Home search query ────────────────────────────────────────────────────────
-// Holds the current destination the user typed in the home search bar.
-// Empty string = no filter (show all travelers).
 final homeSearchQueryProvider = StateProvider<String>((ref) => '');
 
 // ─── Travelers for search destination ────────────────────────────────────────
-// When query is non-empty: returns profiles of people with active trips
-// matching that destination. When empty: returns all active-trip profiles.
 final homeSearchTravelersProvider =
     FutureProvider.family<List<ProfileModel>, String>((ref, query) async {
   final uid = supabase.auth.currentUser?.id;
@@ -68,9 +63,6 @@ final homeSearchCountProvider = FutureProvider.family<int, String>(
 );
 
 // ─── AI-ranked travelers result ───────────────────────────────────────────────
-// Holds the split result from aiRankedTravelersProvider:
-//   topMatches  → top 5 AI-ranked profiles shown in the home hero pager
-//   allMatches  → full ranked list passed to Discover tab on "See all"
 class RankedTravelersResult {
   final List<ProfileModel> topMatches;
   final List<ProfileModel> allMatches;
@@ -80,37 +72,84 @@ class RankedTravelersResult {
   });
 }
 
+// ─── Vibe-matched travellers (no destination query) ───────────────────────────
+// Used by the home hero pager when the search bar is empty.
+// Fetches up to 40 other profiles, scores each by vibe overlap with the
+// current user, and returns the top matches first.
+// Falls back to recency order if the current user has no vibes set yet.
+final vibeMatchedTravellersProvider =
+    FutureProvider<RankedTravelersResult>((ref) async {
+  final uid = supabase.auth.currentUser?.id;
+
+  // ── Fetch current user's vibes ─────────────────────────────────────────────
+  List<String> myVibes = [];
+  if (uid != null) {
+    final myRow = await supabase
+        .from('profiles')
+        .select('vibes')
+        .eq('id', uid)
+        .maybeSingle();
+    if (myRow != null && myRow['vibes'] != null) {
+      myVibes = List<String>.from(myRow['vibes'] as List);
+    }
+  }
+
+  // ── Fetch other profiles ───────────────────────────────────────────────────
+  var query = supabase
+      .from('profiles')
+      .select('id, name, age, avatar_url, vibes, rating, base_city, buddy_count')
+      .not('avatar_url', 'is', null)   // prefer profiles with a photo
+      .order('updated_at', ascending: false)
+      .limit(40);
+
+  if (uid != null) query = query.neq('id', uid);
+
+  final rows = await query;
+  final profiles = (rows as List).map((e) => ProfileModel.fromMap(e)).toList();
+
+  if (profiles.isEmpty) {
+    return const RankedTravelersResult(topMatches: [], allMatches: []);
+  }
+
+  // ── Score by vibe overlap ─────────────────────────────────────────────────
+  if (myVibes.isNotEmpty) {
+    final myVibeSet = myVibes.map((v) => v.toLowerCase()).toSet();
+    profiles.sort((a, b) {
+      final aScore = a.vibes
+          .where((v) => myVibeSet.contains(v.toLowerCase()))
+          .length;
+      final bScore = b.vibes
+          .where((v) => myVibeSet.contains(v.toLowerCase()))
+          .length;
+      if (bScore != aScore) return bScore.compareTo(aScore);
+      // Secondary sort: rating descending
+      return (b.rating ?? 0.0).compareTo(a.rating ?? 0.0);
+    });
+  }
+
+  return RankedTravelersResult(
+    topMatches: profiles.take(5).toList(),
+    allMatches: profiles,
+  );
+});
+
 // ─── AI-ranked travelers for a destination ────────────────────────────────────
 // When query is non-empty:
 //   1. Fetches profiles with active trips to that destination.
-//   2. Calls `rank-travelers` edge function (Perplexity sonar) to score them
-//      against the current user's vibes + base city.
+//   2. Calls `rank-travelers` edge function to score them against the
+//      current user's vibes + base city.
 //   3. Re-sorts allMatches by AI score; topMatches = first 5.
 // When query is empty:
-//   Falls back to activeTripsProvider ordering (existing behaviour).
-// On any AI failure: silently returns unranked order — core flow never breaks.
+//   Delegates to vibeMatchedTravellersProvider (vibe overlap, NOT trips).
+// On any AI failure: silently returns unranked order.
 final aiRankedTravelersProvider =
     FutureProvider.family<RankedTravelersResult, String>((ref, query) async {
   final uid = supabase.auth.currentUser?.id;
   final q   = query.trim();
 
-  // ── No search query: use activeTripsProvider (existing home behaviour) ─────
+  // ── No search query: show best vibe matches ────────────────────────────────
   if (q.isEmpty) {
-    final trips = await ref.watch(activeTripsProvider.future);
-    final profiles = trips.map((t) => ProfileModel(
-      id:         t.creator?.id ?? t.creatorId,
-      name:       t.creator?.name,
-      age:        t.creator?.age,
-      avatarUrl:  t.creator?.avatarUrl,
-      vibes:      t.creator?.vibes ?? [],
-      rating:     t.creator?.rating ?? 0.0,
-      baseCity:   t.creator?.baseCity,
-      buddyCount: t.creator?.buddyCount ?? 0,
-    )).toList();
-    return RankedTravelersResult(
-      topMatches: profiles.take(5).toList(),
-      allMatches: profiles,
-    );
+    return ref.watch(vibeMatchedTravellersProvider.future);
   }
 
   // ── With search query: fetch travelers going to that destination ───────────
@@ -127,20 +166,11 @@ final aiRankedTravelersProvider =
     return const RankedTravelersResult(topMatches: [], allMatches: []);
   }
 
-  // Unique creator IDs
   final creatorIds = tripRows
       .map((r) => r['creator_id'] as String)
       .toSet()
       .toList();
 
-  // Build a quick lookup: creatorId → first matching trip row
-  final tripMap = <String, Map<String, dynamic>>{};
-  for (final r in tripRows) {
-    final cid = r['creator_id'] as String;
-    tripMap.putIfAbsent(cid, () => r);
-  }
-
-  // Fetch profiles
   final profileRows = await supabase
       .from('profiles')
       .select('id, name, age, avatar_url, vibes, rating, base_city, bio')
