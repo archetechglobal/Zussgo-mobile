@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/supabase/supabase_client.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -80,14 +81,19 @@ class _SplashScreenState extends State<SplashScreen>
 
     Future.delayed(const Duration(milliseconds: 3200), () async {
       if (!mounted) return;
+      await _navigate();
+    });
+  }
 
-      final session = supabase.auth.currentSession;
+  /// Navigation decision tree:
+  ///  1. Signed-in session  → home (or setup if profile incomplete)
+  ///  2. No session + never seen onboarding → /onboarding (marks seen)
+  ///  3. No session + already seen onboarding → /login
+  Future<void> _navigate() async {
+    final session = supabase.auth.currentSession;
 
-      if (session == null) {
-        context.go('/onboarding');
-        return;
-      }
-
+    if (session != null) {
+      // User is signed in — skip onboarding entirely
       try {
         final data = await supabase
             .from('profiles')
@@ -96,14 +102,20 @@ class _SplashScreenState extends State<SplashScreen>
             .maybeSingle();
 
         final setupDone = data?['is_setup_done'] == true;
-
-        if (mounted) {
-          context.go(setupDone ? '/home' : '/setup');
-        }
+        if (mounted) context.go(setupDone ? '/home' : '/setup');
       } catch (_) {
         if (mounted) context.go('/home');
       }
-    });
+      return;
+    }
+
+    // Not signed in — check if onboarding was already shown
+    final prefs = await SharedPreferences.getInstance();
+    final seen = prefs.getBool('onboarding_seen') ?? false;
+
+    if (mounted) {
+      context.go(seen ? '/login' : '/onboarding');
+    }
   }
 
   @override
