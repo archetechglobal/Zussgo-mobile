@@ -53,6 +53,11 @@ class AuthRepository {
       scopes: ['email', 'profile'],
     );
 
+    // Sign out of Google first so the account picker always appears,
+    // allowing the user to switch accounts instead of auto-selecting
+    // the previously cached account.
+    await googleSignIn.signOut();
+
     final googleUser = await googleSignIn.signIn();
     if (googleUser == null) throw Exception('Google sign-in cancelled');
 
@@ -139,7 +144,12 @@ class AuthRepository {
   // ── Sign out ──────────────────────────────────────────────────────────────
 
   Future<void> signOut() async {
-    await supabase.auth.signOut();
+    // Sign out of both Supabase and Google so the account picker
+    // appears fresh on the next Google sign-in attempt.
+    await Future.wait([
+      supabase.auth.signOut(),
+      GoogleSignIn().signOut(),
+    ]);
   }
 
   // ── Getters ───────────────────────────────────────────────────────────────
