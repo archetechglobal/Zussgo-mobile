@@ -73,15 +73,13 @@ class RankedTravelersResult {
 }
 
 // ─── Vibe-matched travellers (no destination query) ───────────────────────────
-// Used by the home hero pager when the search bar is empty.
-// Fetches up to 40 other profiles, scores each by vibe overlap with the
-// current user, and returns the top matches first.
-// Falls back to recency order if the current user has no vibes set yet.
+// Filters come BEFORE order/limit so the chain stays on
+// PostgrestFilterBuilder, never on PostgrestTransformBuilder.
 final vibeMatchedTravellersProvider =
     FutureProvider<RankedTravelersResult>((ref) async {
   final uid = supabase.auth.currentUser?.id;
 
-  // ── Fetch current user's vibes ─────────────────────────────────────────────
+  // ── Fetch current user's vibes ────────────────────────────────────────────
   List<String> myVibes = [];
   if (uid != null) {
     final myRow = await supabase
@@ -94,17 +92,22 @@ final vibeMatchedTravellersProvider =
     }
   }
 
-  // ── Fetch other profiles ───────────────────────────────────────────────────
-  var query = supabase
+  // ── Build filter query FIRST, then transform ──────────────────────────────
+  // neq / not must come before order / limit.
+  var profileQuery = supabase
       .from('profiles')
       .select('id, name, age, avatar_url, vibes, rating, base_city, buddy_count')
-      .not('avatar_url', 'is', null)   // prefer profiles with a photo
+      .not('avatar_url', 'is', null); // filter: only profiles with a photo
+
+  if (uid != null) {
+    profileQuery = profileQuery.neq('id', uid); // filter: exclude self
+  }
+
+  // Transforms (order + limit) applied last
+  final rows = await profileQuery
       .order('updated_at', ascending: false)
       .limit(40);
 
-  if (uid != null) query = query.neq('id', uid);
-
-  final rows = await query;
   final profiles = (rows as List).map((e) => ProfileModel.fromMap(e)).toList();
 
   if (profiles.isEmpty) {
@@ -122,7 +125,6 @@ final vibeMatchedTravellersProvider =
           .where((v) => myVibeSet.contains(v.toLowerCase()))
           .length;
       if (bScore != aScore) return bScore.compareTo(aScore);
-      // Secondary sort: rating descending
       return (b.rating ?? 0.0).compareTo(a.rating ?? 0.0);
     });
   }
@@ -134,25 +136,17 @@ final vibeMatchedTravellersProvider =
 });
 
 // ─── AI-ranked travelers for a destination ────────────────────────────────────
-// When query is non-empty:
-//   1. Fetches profiles with active trips to that destination.
-//   2. Calls `rank-travelers` edge function to score them against the
-//      current user's vibes + base city.
-//   3. Re-sorts allMatches by AI score; topMatches = first 5.
-// When query is empty:
-//   Delegates to vibeMatchedTravellersProvider (vibe overlap, NOT trips).
-// On any AI failure: silently returns unranked order.
 final aiRankedTravelersProvider =
     FutureProvider.family<RankedTravelersResult, String>((ref, query) async {
   final uid = supabase.auth.currentUser?.id;
   final q   = query.trim();
 
-  // ── No search query: show best vibe matches ────────────────────────────────
+  // ── No search query: show best vibe matches ───────────────────────────────
   if (q.isEmpty) {
     return ref.watch(vibeMatchedTravellersProvider.future);
   }
 
-  // ── With search query: fetch travelers going to that destination ───────────
+  // ── With search query: fetch travelers going to that destination ──────────
   var tripQuery = supabase
       .from('trips')
       .select('creator_id, destination, dates, vibe, id')
