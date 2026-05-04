@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/providers/nav_provider.dart';
+import '../../../shared/widgets/user_avatar.dart';
 import '../../home/widgets/home_bottom_nav.dart';
 import '../providers/profile_provider.dart';
 import 'edit_profile_screen.dart';
@@ -66,7 +67,6 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
   }
 
   Future<void> _signOut(BuildContext context) async {
-    final navigator = Navigator.of(context, rootNavigator: true);
     await Supabase.instance.client.auth.signOut();
     if (mounted) context.go('/login');
   }
@@ -340,7 +340,6 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
     );
   }
 
-  /// Computes trust score from real profile fields (0.0 – 1.0)
   double _computeTrustScore(profile) {
     double score = 0.0;
     if (profile == null) return score;
@@ -361,7 +360,6 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
     final bottomNavHeight = 88.0 + bottomInset;
     final profileAsync    = ref.watch(myProfileProvider);
 
-    // Real auth user for email / phone fallback display
     final authUser = Supabase.instance.client.auth.currentUser;
 
     return Scaffold(
@@ -423,16 +421,13 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
                 ),
               ),
               data: (profile) {
-                // ── Derived display values ──────────────────────────────────
                 final name = (profile?.name ?? '').isNotEmpty
                     ? profile!.name!
                     : (authUser?.email?.split('@').first ?? 'Traveler');
                 final avatarUrl   = profile?.avatarUrl;
-                final initial     = name.isNotEmpty ? name[0].toUpperCase() : 'T';
                 final tripCount   = profile?.tripCount ?? 0;
                 final buddyCount  = profile?.buddyCount ?? 0;
                 final rating      = profile?.rating ?? 0.0;
-                // reviewCount: tripCount is the best proxy until a reviews table exists
                 final reviewCount = (rating > 0 && tripCount > 0) ? tripCount : 0;
                 final trustScore  = _computeTrustScore(profile);
                 final age         = profile?.age;
@@ -443,7 +438,7 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // ── Header row ────────────────────────────────────────
+                      // ── Header row ──────────────────────────────────────
                       Padding(
                         padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
                         child: Row(
@@ -497,32 +492,26 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
                         ),
                       ),
 
-                      // ── User header ───────────────────────────────────────
+                      // ── User header ─────────────────────────────────────
                       Padding(
                         padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // Avatar — real photo or fallback initial
+
+                            // ── Avatar: UserAvatar widget (Google photo / initials) ──
                             GestureDetector(
                               onTap: () => _openEdit(context),
                               child: Stack(
+                                clipBehavior: Clip.none,
                                 children: [
-                                  ClipRRect(
-                                    borderRadius: BorderRadius.circular(22),
-                                    child: avatarUrl != null && avatarUrl.isNotEmpty
-                                        ? Image.network(
-                                            avatarUrl,
-                                            width: 74, height: 74,
-                                            fit: BoxFit.cover,
-                                            errorBuilder: (_, __, ___) =>
-                                                _AvatarFallback(
-                                                    initial: initial, size: 74),
-                                          )
-                                        : _AvatarFallback(
-                                            initial: initial, size: 74),
+                                  UserAvatar(
+                                    size: 74,
+                                    avatarUrl: avatarUrl,
+                                    displayName: name,
+                                    borderRadius: 22,
                                   ),
-                                  // Camera badge overlay
+                                  // Camera badge
                                   Positioned(
                                     bottom: 0, right: 0,
                                     child: Container(
@@ -541,6 +530,7 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
                                 ],
                               ),
                             ),
+
                             const SizedBox(width: 16),
                             Expanded(
                               child: Column(
@@ -589,7 +579,6 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
                                       ),
                                     ),
                                   const SizedBox(height: 8),
-                                  // ── Stat pills ────────────────────────────
                                   Row(
                                     children: [
                                       _StatPill(
@@ -624,7 +613,7 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
                         ),
                       ),
 
-                      // ── Bio ───────────────────────────────────────────────
+                      // ── Bio ─────────────────────────────────────────────
                       if ((profile?.bio ?? '').isNotEmpty)
                         Padding(
                           padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
@@ -649,7 +638,7 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
                           ),
                         ),
 
-                      // ── Vibes chips ───────────────────────────────────────
+                      // ── Vibes chips ──────────────────────────────────────
                       if ((profile?.vibes ?? []).isNotEmpty)
                         Padding(
                           padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
@@ -675,7 +664,7 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
                           ),
                         ),
 
-                      // ── Trust Score card ──────────────────────────────────
+                      // ── Trust Score card ─────────────────────────────────
                       _TrustCard(
                         score: trustScore,
                         onLinkId: () {
@@ -688,7 +677,7 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
 
                       const SizedBox(height: 24),
 
-                      // ── Primary menu group ────────────────────────────────
+                      // ── Primary menu group ───────────────────────────────
                       _MenuGroup(
                         items: [
                           _MenuItem(
@@ -719,7 +708,7 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
 
                       const SizedBox(height: 24),
 
-                      // ── Secondary menu group ──────────────────────────────
+                      // ── Secondary menu group ─────────────────────────────
                       _MenuGroup(
                         items: [
                           _MenuItem(
@@ -800,32 +789,6 @@ class _StatPill extends StatelessWidget {
                   color: Color(0xFF6A8882), fontSize: 11),
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-// ─── Avatar Fallback ──────────────────────────────────────────────────────────
-
-class _AvatarFallback extends StatelessWidget {
-  final String initial;
-  final double size;
-  const _AvatarFallback({required this.initial, required this.size});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: size, height: size,
-      color: const Color(0xFF1EC9B8).withOpacity(.20),
-      child: Center(
-        child: Text(
-          initial,
-          style: TextStyle(
-            color: const Color(0xFF58DAD0),
-            fontSize: size * 0.4,
-            fontWeight: FontWeight.w800,
-          ),
         ),
       ),
     );
