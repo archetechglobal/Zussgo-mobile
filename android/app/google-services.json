@@ -14,7 +14,15 @@
       },
       "oauth_client": [
         {
-          "client_id": "438683605771-m47adu01tf5qq1p1km9utklbam9vgt4q.apps.googleusercontent.com",
+          "client_id": "438683605771-gne8lmgsoe02l53d78roui7lm6vh3tin.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.zussgo.app",
+            "certificate_hash": "acd6a902802d6a1b41acfc634b76aa9d971a4d5c"
+          }
+        },
+        {
+          "client_id": "438683605771-79bjf2fmu12ffl5uti5cind03f4jn1v4.apps.googleusercontent.com",
           "client_type": 3
         }
       ],
@@ -27,7 +35,7 @@
         "appinvite_service": {
           "other_platform_oauth_client": [
             {
-              "client_id": "438683605771-m47adu01tf5qq1p1km9utklbam9vgt4q.apps.googleusercontent.com",
+              "client_id": "438683605771-79bjf2fmu12ffl5uti5cind03f4jn1v4.apps.googleusercontent.com",
               "client_type": 3
             }
           ]
