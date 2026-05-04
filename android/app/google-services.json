@@ -12,7 +12,12 @@
           "package_name": "com.zussgo.app"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "438683605771-m47adu01tf5qq1p1km9utklbam9vgt4q.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyCAZ2wUCL1oQnFr6FY9NDgmA-3GfRJZmO4"
@@ -20,7 +25,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "438683605771-m47adu01tf5qq1p1km9utklbam9vgt4q.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }
