@@ -1,5 +1,6 @@
+import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../features/splash/screens/splash_screen.dart';
 import '../../features/onboarding/screens/onboarding_screen.dart';
@@ -21,6 +22,14 @@ import '../../features/notifications/screens/notification_screen.dart';
 
 final goRouter = GoRouter(
   initialLocation: '/splash',
+
+  // Silently redirect any unknown route (e.g. stray deep links) to splash
+  // instead of throwing a GoException.
+  errorBuilder: (context, state) {
+    debugPrint('[GoRouter] Unknown route: ${state.uri} — redirecting to /splash');
+    return const SplashScreen();
+  },
+
   routes: [
     GoRoute(path: '/splash',       builder: (c, s) => const SplashScreen()),
     GoRoute(path: '/onboarding',   builder: (c, s) => const OnboardingScreen()),
@@ -31,6 +40,26 @@ final goRouter = GoRouter(
       path: '/verify-email',
       builder: (c, s) => EmailVerifyScreen(email: (s.extra as String?) ?? ''),
     ),
+
+    // ── Auth callback deep link: zussgo://auth/callback?code=... ────────────
+    // GoRouter intercepts this before app_links can in some Flutter versions.
+    // We handle the PKCE exchange here and redirect to splash which re-checks
+    // the session via onAuthStateChange in EmailVerifyScreen.
+    GoRoute(
+      path: '/auth/callback',
+      redirect: (context, state) async {
+        final uri = state.uri;
+        try {
+          await Supabase.instance.client.auth.getSessionFromUrl(uri);
+        } catch (e) {
+          debugPrint('[GoRouter] Auth callback error: $e');
+        }
+        // onAuthStateChange in EmailVerifyScreen will handle navigation;
+        // redirect to splash as a safe fallback.
+        return '/splash';
+      },
+    ),
+
     GoRoute(path: '/home',  name: 'home',  builder: (c, s) => const HomeScreen()),
     GoRoute(
       path: '/match',
