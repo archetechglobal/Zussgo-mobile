@@ -47,8 +47,8 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen>
   final _bioCtrl  = TextEditingController();
 
   // Photo state
-  File?   _pickedImage;         // from image_picker
-  String  _googlePhotoUrl = ''; // from Google sign-in
+  File?   _pickedImage;         // from device gallery / camera
+  String  _googlePhotoUrl = ''; // from Google sign-in (fallback)
 
   final Set<String> _vibes = {};
   String _budget = '';
@@ -76,7 +76,7 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen>
         .animate(CurvedAnimation(parent: _progressCtrl, curve: Curves.easeOut));
     _progressCtrl.forward();
 
-    // Prefill from Google — call setState so _canContinue re-evaluates
+    // Prefill Google name — trigger setState so _canContinue re-evaluates
     if (widget.googleName.isNotEmpty) {
       _nameCtrl.text = widget.googleName;
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -94,11 +94,73 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen>
     super.dispose();
   }
 
-  // ── Image picker ──────────────────────────────────────────────────────────
-  Future<void> _pickImage() async {
+  // ── Photo picker bottom sheet ──────────────────────────────────────────
+  Future<void> _showPhotoOptions() async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: const Color(0xFF0D1819),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (_) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Handle bar
+              Container(
+                width: 40, height: 4,
+                margin: const EdgeInsets.only(bottom: 20),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(.15),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const Text(
+                'Choose profile photo',
+                style: TextStyle(
+                  color: _kText,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'Select a photo from your phone',
+                style: TextStyle(color: _kFaint, fontSize: 13),
+              ),
+              const SizedBox(height: 20),
+              // Gallery option
+              _PickerOption(
+                icon: Icons.photo_library_rounded,
+                label: 'Phone Gallery',
+                subtitle: Platform.isIOS ? 'Open iPhone Photos app' : 'Open phone gallery',
+                onTap: () => Navigator.pop(context, ImageSource.gallery),
+              ),
+              const SizedBox(height: 10),
+              // Camera option
+              _PickerOption(
+                icon: Icons.camera_alt_rounded,
+                label: 'Take a Photo',
+                subtitle: 'Use your camera right now',
+                onTap: () => Navigator.pop(context, ImageSource.camera),
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (source == null || !mounted) return;
+    await _pickImage(source);
+  }
+
+  Future<void> _pickImage(ImageSource source) async {
     final picker = ImagePicker();
     final xFile = await picker.pickImage(
-      source: ImageSource.gallery,
+      source: source,
       imageQuality: 85,
       maxWidth: 800,
     );
@@ -168,7 +230,7 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen>
         return _nameCtrl.text.trim().isNotEmpty &&
             _ageCtrl.text.trim().isNotEmpty &&
             _cityCtrl.text.trim().isNotEmpty;
-      case 1: return true;  // photo optional
+      case 1: return true;
       case 2: return _vibes.isNotEmpty;
       case 3: return _budget.isNotEmpty && _pace.isNotEmpty && _accomm.isNotEmpty;
       case 4: return true;
@@ -188,7 +250,6 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen>
       resizeToAvoidBottomInset: true,
       body: Stack(
         children: [
-          // Teal glow top
           Positioned(
             top: -80, left: 0, right: 0,
             child: Container(
@@ -201,12 +262,9 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen>
               ),
             ),
           ),
-
           Column(
             children: [
               SizedBox(height: top + 16),
-
-              // ── Header row ─────────────────────────────────────────────
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Row(
@@ -220,42 +278,31 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen>
                             color: Colors.white.withOpacity(.05),
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          child: const Icon(
-                            Icons.arrow_back_ios_new_rounded,
-                            color: _kText, size: 16,
-                          ),
+                          child: const Icon(Icons.arrow_back_ios_new_rounded,
+                              color: _kText, size: 16),
                         ),
                       )
                     else
                       const SizedBox(width: 36),
-
                     const Spacer(),
-
                     Text(
                       '${_step + 1} of $_totalSteps',
                       style: const TextStyle(
-                        color: _kFaint, fontSize: 12, fontWeight: FontWeight.w700,
-                      ),
+                          color: _kFaint, fontSize: 12, fontWeight: FontWeight.w700),
                     ),
-
                     const Spacer(),
-
                     if (_step == 1 || _step == 4)
                       GestureDetector(
                         onTap: _next,
                         child: const Text('Skip', style: TextStyle(
-                          color: _kFaint, fontSize: 13, fontWeight: FontWeight.w600,
-                        )),
+                            color: _kFaint, fontSize: 13, fontWeight: FontWeight.w600)),
                       )
                     else
                       const SizedBox(width: 36),
                   ],
                 ),
               ),
-
               const SizedBox(height: 14),
-
-              // ── Progress bar ───────────────────────────────────────────
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: ClipRRect(
@@ -270,9 +317,7 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen>
                         widthFactor: _progressCtrl.value,
                         child: Container(
                           decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [_kTeal2, _kTeal],
-                            ),
+                            gradient: const LinearGradient(colors: [_kTeal2, _kTeal]),
                             borderRadius: BorderRadius.circular(3),
                           ),
                         ),
@@ -281,10 +326,7 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen>
                   ),
                 ),
               ),
-
               const SizedBox(height: 32),
-
-              // ── Step content ───────────────────────────────────────────
               Expanded(
                 child: AnimatedSwitcher(
                   duration: const Duration(milliseconds: 300),
@@ -321,7 +363,7 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen>
         pickedImage:    _pickedImage,
         googlePhotoUrl: _googlePhotoUrl,
         bottom:         bottom,
-        onPickImage:    _pickImage,
+        onTap:          _showPhotoOptions,
         onNext:         _next,
       );
       case 2: return _StepVibes(
@@ -347,6 +389,64 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen>
   }
 }
 
+// ─── Picker option tile ───────────────────────────────────────────────────────────
+
+class _PickerOption extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  const _PickerOption({
+    required this.icon,
+    required this.label,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(.04),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white.withOpacity(.08)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 42, height: 42,
+              decoration: BoxDecoration(
+                color: _kTeal.withOpacity(.12),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: _kTeal2, size: 20),
+            ),
+            const SizedBox(width: 14),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: const TextStyle(
+                  color: _kText, fontSize: 14, fontWeight: FontWeight.w700,
+                )),
+                const SizedBox(height: 2),
+                Text(subtitle, style: const TextStyle(
+                  color: _kFaint, fontSize: 12,
+                )),
+              ],
+            ),
+            const Spacer(),
+            const Icon(Icons.arrow_forward_ios_rounded, color: _kFaint, size: 14),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 // ─── Step 1: Basics ───────────────────────────────────────────────────────────
 
 class _StepBasics extends StatelessWidget {
@@ -367,33 +467,16 @@ class _StepBasics extends StatelessWidget {
       emoji: '👋',
       title: "Let's set up\nyour profile",
       subtitle: 'Name, age and home base are required.',
-      bottom: bottom,
-      canContinue: canContinue,
-      onNext: onNext,
-      btnLabel: 'Continue',
+      bottom: bottom, canContinue: canContinue,
+      onNext: onNext, btnLabel: 'Continue',
       child: Column(
         children: [
-          _Field(
-            ctrl: nameCtrl,
-            label: 'Your Name *',
-            hint: 'e.g. Aryan',
-            onChanged: onChanged,
-          ),
+          _Field(ctrl: nameCtrl, label: 'Your Name *', hint: 'e.g. Aryan', onChanged: onChanged),
           const SizedBox(height: 16),
-          _Field(
-            ctrl: ageCtrl,
-            label: 'Age *',
-            hint: 'e.g. 24',
-            keyboardType: TextInputType.number,
-            onChanged: onChanged,
-          ),
+          _Field(ctrl: ageCtrl, label: 'Age *', hint: 'e.g. 24',
+              keyboardType: TextInputType.number, onChanged: onChanged),
           const SizedBox(height: 16),
-          _Field(
-            ctrl: cityCtrl,
-            label: 'Home Base *',
-            hint: 'e.g. Mumbai, India',
-            onChanged: onChanged,
-          ),
+          _Field(ctrl: cityCtrl, label: 'Home Base *', hint: 'e.g. Mumbai, India', onChanged: onChanged),
         ],
       ),
     );
@@ -406,14 +489,14 @@ class _StepPhoto extends StatelessWidget {
   final File?   pickedImage;
   final String  googlePhotoUrl;
   final double  bottom;
-  final VoidCallback onPickImage;
+  final VoidCallback onTap;   // opens bottom sheet
   final VoidCallback onNext;
 
   const _StepPhoto({
     required this.pickedImage,
     required this.googlePhotoUrl,
     required this.bottom,
-    required this.onPickImage,
+    required this.onTap,
     required this.onNext,
   });
 
@@ -427,15 +510,14 @@ class _StepPhoto extends StatelessWidget {
       emoji: '📸',
       title: 'Your profile\nphoto',
       subtitle: _hasGooglePhoto
-          ? 'We grabbed your Google photo — keep it or tap to change.'
-          : 'Profiles with photos get 3× more connections.',
-      bottom: bottom,
-      canContinue: true,
+          ? 'Using your Google photo. Tap to choose from your phone instead.'
+          : 'Choose a photo from your phone gallery or take a new one.',
+      bottom: bottom, canContinue: true,
       onNext: onNext,
       btnLabel: _hasAny ? 'Looks great →' : 'Skip for now',
       child: Center(
         child: GestureDetector(
-          onTap: onPickImage,
+          onTap: onTap,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 250),
             width: 160, height: 160,
@@ -462,7 +544,6 @@ class _StepPhoto extends StatelessWidget {
   }
 
   Widget _buildPhotoContent() {
-    // User picked a new image from gallery — show it
     if (_hasPicked) {
       return Stack(
         fit: StackFit.expand,
@@ -473,56 +554,40 @@ class _StepPhoto extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(vertical: 8),
               color: Colors.black.withOpacity(.45),
-              child: const Text(
-                'Tap to change',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600,
-                ),
-              ),
+              child: const Text('Tap to change',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600)),
             ),
           ),
         ],
       );
     }
-
-    // Google photo available
     if (_hasGooglePhoto) {
       return Stack(
         fit: StackFit.expand,
         children: [
-          Image.network(
-            googlePhotoUrl,
-            fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => const Icon(
-              Icons.person_rounded, color: _kFaint, size: 60,
-            ),
-          ),
+          Image.network(googlePhotoUrl, fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) =>
+                  const Icon(Icons.person_rounded, color: _kFaint, size: 60)),
           Positioned(
             bottom: 0, left: 0, right: 0,
             child: Container(
               padding: const EdgeInsets.symmetric(vertical: 8),
               color: Colors.black.withOpacity(.45),
-              child: const Text(
-                'Tap to change',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600,
-                ),
-              ),
+              child: const Text('Tap to change',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600)),
             ),
           ),
         ],
       );
     }
-
-    // No photo yet
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: const [
         Icon(Icons.add_a_photo_outlined, color: _kFaint, size: 36),
         SizedBox(height: 10),
-        Text('Tap to upload', style: TextStyle(color: _kFaint, fontSize: 13)),
+        Text('Tap to choose photo', style: TextStyle(color: _kFaint, fontSize: 13)),
       ],
     );
   }
@@ -558,8 +623,7 @@ class _StepVibes extends StatelessWidget {
       emoji: '✌️',
       title: 'What\'s your\ntravel vibe?',
       subtitle: 'Pick all that feel like you. This powers your matches.',
-      bottom: bottom,
-      canContinue: selected.isNotEmpty,
+      bottom: bottom, canContinue: selected.isNotEmpty,
       onNext: onNext,
       btnLabel: selected.isEmpty
           ? 'Pick at least one'
@@ -569,22 +633,15 @@ class _StepVibes extends StatelessWidget {
         children: _vibes.map((v) {
           final active = selected.contains(v.label);
           return GestureDetector(
-            onTap: () {
-              HapticFeedback.selectionClick();
-              onToggle(v.label);
-            },
+            onTap: () { HapticFeedback.selectionClick(); onToggle(v.label); },
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 180),
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
-                color: active
-                    ? v.color.withOpacity(.15)
-                    : Colors.white.withOpacity(.03),
+                color: active ? v.color.withOpacity(.15) : Colors.white.withOpacity(.03),
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
-                  color: active
-                      ? v.color.withOpacity(.50)
-                      : Colors.white.withOpacity(.08),
+                  color: active ? v.color.withOpacity(.50) : Colors.white.withOpacity(.08),
                   width: active ? 1.5 : 1,
                 ),
               ),
@@ -678,8 +735,7 @@ class _ChoiceGroup extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(label.toUpperCase(), style: const TextStyle(
-          color: _kFaint, fontSize: 10, fontWeight: FontWeight.w800,
-          letterSpacing: .08,
+          color: _kFaint, fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: .08,
         )),
         const SizedBox(height: 10),
         Wrap(
@@ -687,22 +743,15 @@ class _ChoiceGroup extends StatelessWidget {
           children: options.map((o) {
             final active = selected == o;
             return GestureDetector(
-              onTap: () {
-                HapticFeedback.selectionClick();
-                onSelect(o);
-              },
+              onTap: () { HapticFeedback.selectionClick(); onSelect(o); },
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 160),
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
                 decoration: BoxDecoration(
-                  color: active
-                      ? color.withOpacity(.12)
-                      : Colors.white.withOpacity(.03),
+                  color: active ? color.withOpacity(.12) : Colors.white.withOpacity(.03),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: active
-                        ? color.withOpacity(.45)
-                        : Colors.white.withOpacity(.07),
+                    color: active ? color.withOpacity(.45) : Colors.white.withOpacity(.07),
                     width: active ? 1.5 : 1,
                   ),
                 ),
@@ -755,7 +804,7 @@ class _StepBio extends StatelessWidget {
               maxLines: 5,
               style: const TextStyle(color: _kText, fontSize: 14, height: 1.6),
               decoration: const InputDecoration(
-                hintText: 'e.g. Solo traveler from Mumbai. Mountains & cafes. Looking for low-key adventure partners who don\'t overplan...',
+                hintText: 'e.g. Solo traveler from Mumbai. Mountains & cafes...',
                 hintStyle: TextStyle(color: _kFaint, fontSize: 13),
                 border: InputBorder.none,
                 isDense: true,
@@ -824,8 +873,7 @@ class _StepShell extends StatelessWidget {
                 )),
                 const SizedBox(height: 8),
                 Text(subtitle, style: const TextStyle(
-                  color: _kMuted, fontSize: 14, height: 1.5,
-                )),
+                    color: _kMuted, fontSize: 14, height: 1.5)),
                 const SizedBox(height: 32),
                 child,
               ],
@@ -847,9 +895,7 @@ class _StepShell extends StatelessWidget {
                     : null,
                 color: canContinue ? null : Colors.white.withOpacity(.05),
                 borderRadius: BorderRadius.circular(18),
-                border: canContinue
-                    ? null
-                    : Border.all(color: Colors.white.withOpacity(.08)),
+                border: canContinue ? null : Border.all(color: Colors.white.withOpacity(.08)),
                 boxShadow: canContinue ? [
                   BoxShadow(
                     color: (btnGold ? _kGold : _kTeal).withOpacity(.28),
@@ -905,14 +951,11 @@ class _Field extends StatelessWidget {
             hintText: hint,
             hintStyle: const TextStyle(color: _kFaint, fontSize: 16),
             border: const UnderlineInputBorder(
-              borderSide: BorderSide(color: Color(0x18FFFFFF)),
-            ),
+                borderSide: BorderSide(color: Color(0x18FFFFFF))),
             enabledBorder: const UnderlineInputBorder(
-              borderSide: BorderSide(color: Color(0x18FFFFFF)),
-            ),
+                borderSide: BorderSide(color: Color(0x18FFFFFF))),
             focusedBorder: const UnderlineInputBorder(
-              borderSide: BorderSide(color: _kTeal2, width: 1.5),
-            ),
+                borderSide: BorderSide(color: _kTeal2, width: 1.5)),
             isDense: true,
             contentPadding: const EdgeInsets.symmetric(vertical: 10),
           ),

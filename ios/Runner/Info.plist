@@ -26,11 +26,14 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
-	<!-- Photo library — required for image_picker gallery access -->
+	<!-- Photos app access — required for image_picker -->
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>ZussGo needs access to your photo library so you can set a profile picture.</string>
+	<string>ZussGo would like to access your iPhone Photos app to let you choose a profile picture from your phone.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>ZussGo needs permission to save photos to your library.</string>
+	<string>ZussGo would like to save photos to your iPhone Photos app.</string>
+	<!-- Camera access -->
+	<key>NSCameraUsageDescription</key>
+	<string>ZussGo would like to use your camera so you can take a profile photo directly.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
