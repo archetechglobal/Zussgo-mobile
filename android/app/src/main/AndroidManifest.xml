@@ -10,6 +10,12 @@
     <!-- Required for showing notifications when app is in foreground -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
+    <!-- Photo library access (Android 13+ uses READ_MEDIA_IMAGES; ≤12 uses READ_EXTERNAL_STORAGE) -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+
     <application
         android:label="ZussGo"
         android:name="${applicationName}"
