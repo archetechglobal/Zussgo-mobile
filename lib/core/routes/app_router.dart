@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -21,17 +22,43 @@ import '../../features/trips/screens/trip_rating_screen.dart';
 import '../../features/setup/screens/profile_setup_screen.dart';
 import '../../features/notifications/screens/notification_screen.dart';
 
+// ─── Shell wrapper — intercepts Android back on root tabs ────────────────────
+// When the user is already at a root tab (home / match / chat / profile) and
+// presses back, we minimise the app instead of exiting abruptly.
+class _BackButtonShell extends StatelessWidget {
+  final Widget child;
+  const _BackButtonShell({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return PopScope(
+      // canPop: false means we handle every back event ourselves.
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        // If GoRouter can pop (there IS a previous screen), do it.
+        if (GoRouter.of(context).canPop()) {
+          GoRouter.of(context).pop();
+        } else {
+          // We're at a root screen — send app to background, don't kill it.
+          SystemNavigator.pop();
+        }
+      },
+      child: child,
+    );
+  }
+}
+
 final goRouter = GoRouter(
   initialLocation: '/splash',
 
-  // Silently redirect any unknown route (e.g. stray deep links) to splash
-  // instead of throwing a GoException.
   errorBuilder: (context, state) {
-    debugPrint('[GoRouter] Unknown route: ${state.uri} — redirecting to /splash');
+    debugPrint('[GoRouter] Unknown route: \${state.uri} — redirecting to /splash');
     return const SplashScreen();
   },
 
   routes: [
+    // ── Auth / onboarding (no back needed) ──────────────────────────────────
     GoRoute(path: '/splash',       builder: (c, s) => const SplashScreen()),
     GoRoute(path: '/onboarding',   builder: (c, s) => const OnboardingScreen()),
     GoRoute(path: '/login',        builder: (c, s) => const LoginScreen()),
@@ -42,7 +69,7 @@ final goRouter = GoRouter(
       builder: (c, s) => EmailVerifyScreen(email: (s.extra as String?) ?? ''),
     ),
 
-    // ── Auth callback deep link: zussgo://auth/callback?code=... ────────────
+    // ── Auth callback deep link ──────────────────────────────────────────────
     GoRoute(
       path: '/auth/callback',
       redirect: (context, state) async {
@@ -50,20 +77,38 @@ final goRouter = GoRouter(
         try {
           await Supabase.instance.client.auth.getSessionFromUrl(uri);
         } catch (e) {
-          debugPrint('[GoRouter] Auth callback error: $e');
+          debugPrint('[GoRouter] Auth callback error: \$e');
         }
         return '/splash';
       },
     ),
 
-    GoRoute(path: '/home',  name: 'home',  builder: (c, s) => const HomeScreen()),
+    // ── Root tab screens — wrapped in _BackButtonShell ───────────────────────
+    // These are the "home" destinations of the bottom nav. Back here = minimise.
+    GoRoute(
+      path: '/home',
+      name: 'home',
+      builder: (c, s) => const _BackButtonShell(child: HomeScreen()),
+    ),
     GoRoute(
       path: '/match',
       name: 'match',
-      builder: (c, s) => MatchScreen(initialTab: (s.extra as String?) ?? 'discover'),
+      builder: (c, s) => _BackButtonShell(
+        child: MatchScreen(initialTab: (s.extra as String?) ?? 'discover'),
+      ),
+    ),
+    GoRoute(
+      path: '/chat',
+      name: 'chats',
+      builder: (c, s) => const _BackButtonShell(child: ChatsListScreen()),
+    ),
+    GoRoute(
+      path: '/profile',
+      name: 'profile',
+      builder: (c, s) => const _BackButtonShell(child: MyProfileScreen()),
     ),
 
-    // ── Deep link route: notification tap → specific trip ──────────────────
+    // ── Detail / sub screens — normal push, back returns to previous ─────────
     GoRoute(
       path: '/trip/:tripId',
       name: 'trip-detail',
@@ -71,24 +116,11 @@ final goRouter = GoRouter(
         tripId: s.pathParameters['tripId'] ?? '',
       ),
     ),
-
-    GoRoute(
-      path: '/chat',
-      name: 'chats',
-      builder: (c, s) => const ChatsListScreen(),
-    ),
     GoRoute(
       path: '/chat/:id',
       name: 'chat',
       builder: (c, s) => ChatScreen(peerId: s.pathParameters['id'] ?? ''),
     ),
-    GoRoute(
-      path: '/profile',
-      name: 'profile',
-      builder: (c, s) => const MyProfileScreen(),
-    ),
-
-    // ── View another user's profile by their Supabase UUID ─────────────────
     GoRoute(
       path: '/user/:userId',
       name: 'user-profile',
@@ -96,7 +128,6 @@ final goRouter = GoRouter(
         userId: s.pathParameters['userId'] ?? '',
       ),
     ),
-
     GoRoute(
       path: '/explore',
       name: 'explore',
