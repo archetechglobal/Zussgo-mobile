@@ -163,6 +163,7 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen>
       source: source,
       imageQuality: 85,
       maxWidth: 800,
+      requestFullMetadata: false, // prevents Android routing to Google Photos exclusively
     );
     if (xFile != null && mounted) {
       setState(() => _pickedImage = File(xFile.path));
