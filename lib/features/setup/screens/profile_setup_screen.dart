@@ -1,9 +1,11 @@
 // lib/features/setup/screens/profile_setup_screen.dart
 
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../profile/providers/profile_provider.dart';
 
 // ─── Colours ──────────────────────────────────────────────────────────────────
@@ -43,12 +45,15 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen>
   final _ageCtrl  = TextEditingController();
   final _cityCtrl = TextEditingController();
   final _bioCtrl  = TextEditingController();
-  bool _hasPhoto  = false;
-  String _googlePhotoUrl = '';
-  final Set<String> _vibes   = {};
-  String _budget   = '';
-  String _pace     = '';
-  String _accomm   = '';
+
+  // Photo state
+  File?   _pickedImage;         // from image_picker
+  String  _googlePhotoUrl = ''; // from Google sign-in
+
+  final Set<String> _vibes = {};
+  String _budget = '';
+  String _pace   = '';
+  String _accomm = '';
 
   late final AnimationController _progressCtrl;
   late final AnimationController _stepCtrl;
@@ -71,9 +76,12 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen>
         .animate(CurvedAnimation(parent: _progressCtrl, curve: Curves.easeOut));
     _progressCtrl.forward();
 
-    // Prefill from Google if provided
+    // Prefill from Google — call setState so _canContinue re-evaluates
     if (widget.googleName.isNotEmpty) {
       _nameCtrl.text = widget.googleName;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() {});
+      });
     }
     _googlePhotoUrl = widget.googlePhotoUrl;
   }
@@ -86,6 +94,20 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen>
     super.dispose();
   }
 
+  // ── Image picker ──────────────────────────────────────────────────────────
+  Future<void> _pickImage() async {
+    final picker = ImagePicker();
+    final xFile = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 85,
+      maxWidth: 800,
+    );
+    if (xFile != null && mounted) {
+      setState(() => _pickedImage = File(xFile.path));
+    }
+  }
+
+  // ── Navigation ────────────────────────────────────────────────────────────
   Future<void> _next() async {
     if (_step < _totalSteps - 1) {
       _progressCtrl.animateTo(
@@ -96,7 +118,20 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen>
       _stepCtrl.forward(from: 0);
       setState(() => _step++);
     } else {
-      // Final step — save to Supabase
+      // Final step — upload photo first (if user picked one), then save profile
+      String? uploadedAvatarUrl;
+      if (_pickedImage != null) {
+        try {
+          uploadedAvatarUrl = await ref
+              .read(myProfileProvider.notifier)
+              .uploadAvatar(_pickedImage!);
+        } catch (_) {
+          // Non-fatal — continue without avatar
+        }
+      } else if (_googlePhotoUrl.isNotEmpty) {
+        uploadedAvatarUrl = _googlePhotoUrl;
+      }
+
       try {
         await ref.read(myProfileProvider.notifier).saveSetup(
           name:          _nameCtrl.text.trim(),
@@ -107,8 +142,9 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen>
           budget:        _budget,
           pace:          _pace,
           accommodation: _accomm,
+          avatarUrl:     uploadedAvatarUrl,
         );
-      } catch (e) {
+      } catch (_) {
         // Don't block — still navigate to home
       }
       if (mounted) context.go('/home');
@@ -128,16 +164,19 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen>
 
   bool get _canContinue {
     switch (_step) {
-      case 0: return _nameCtrl.text.trim().isNotEmpty &&
-          _ageCtrl.text.trim().isNotEmpty &&
-          _cityCtrl.text.trim().isNotEmpty;
-      case 1: return true; // photo optional
+      case 0:
+        return _nameCtrl.text.trim().isNotEmpty &&
+            _ageCtrl.text.trim().isNotEmpty &&
+            _cityCtrl.text.trim().isNotEmpty;
+      case 1: return true;  // photo optional
       case 2: return _vibes.isNotEmpty;
       case 3: return _budget.isNotEmpty && _pace.isNotEmpty && _accomm.isNotEmpty;
       case 4: return true;
       default: return true;
     }
   }
+
+  bool get _hasPhoto => _pickedImage != null || _googlePhotoUrl.isNotEmpty;
 
   @override
   Widget build(BuildContext context) {
@@ -192,7 +231,6 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen>
 
                     const Spacer(),
 
-                    // Step counter
                     Text(
                       '${_step + 1} of $_totalSteps',
                       style: const TextStyle(
@@ -202,7 +240,6 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen>
 
                     const Spacer(),
 
-                    // Skip (steps 1, 4)
                     if (_step == 1 || _step == 4)
                       GestureDetector(
                         onTap: _next,
@@ -281,16 +318,16 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen>
         onChanged: () => setState(() {}),
       );
       case 1: return _StepPhoto(
-        hasPhoto: _hasPhoto,
+        pickedImage:    _pickedImage,
         googlePhotoUrl: _googlePhotoUrl,
-        bottom: bottom,
-        onAdd: () => setState(() => _hasPhoto = true),
-        onNext: _next,
+        bottom:         bottom,
+        onPickImage:    _pickImage,
+        onNext:         _next,
       );
       case 2: return _StepVibes(
         selected: _vibes, bottom: bottom,
         onToggle: (v) => setState(() =>
-        _vibes.contains(v) ? _vibes.remove(v) : _vibes.add(v)),
+            _vibes.contains(v) ? _vibes.remove(v) : _vibes.add(v)),
         onNext: _next,
       );
       case 3: return _StepStyle(
@@ -329,19 +366,34 @@ class _StepBasics extends StatelessWidget {
     return _StepShell(
       emoji: '👋',
       title: "Let's set up\nyour profile",
-      subtitle: 'This is what other travelers will see first.',
+      subtitle: 'Name, age and home base are required.',
       bottom: bottom,
       canContinue: canContinue,
       onNext: onNext,
       btnLabel: 'Continue',
       child: Column(
         children: [
-          _Field(ctrl: nameCtrl, label: 'Your Name',  hint: 'e.g. Aryan', onChanged: onChanged),
+          _Field(
+            ctrl: nameCtrl,
+            label: 'Your Name *',
+            hint: 'e.g. Aryan',
+            onChanged: onChanged,
+          ),
           const SizedBox(height: 16),
-          _Field(ctrl: ageCtrl,  label: 'Age', hint: 'e.g. 24',
-              keyboardType: TextInputType.number, onChanged: onChanged),
+          _Field(
+            ctrl: ageCtrl,
+            label: 'Age *',
+            hint: 'e.g. 24',
+            keyboardType: TextInputType.number,
+            onChanged: onChanged,
+          ),
           const SizedBox(height: 16),
-          _Field(ctrl: cityCtrl, label: 'Home Base', hint: 'e.g. Mumbai, India', onChanged: onChanged),
+          _Field(
+            ctrl: cityCtrl,
+            label: 'Home Base *',
+            hint: 'e.g. Mumbai, India',
+            onChanged: onChanged,
+          ),
         ],
       ),
     );
@@ -351,109 +403,127 @@ class _StepBasics extends StatelessWidget {
 // ─── Step 2: Photo ────────────────────────────────────────────────────────────
 
 class _StepPhoto extends StatelessWidget {
-  final bool hasPhoto;
-  final String googlePhotoUrl;
-  final double bottom;
-  final VoidCallback onAdd, onNext;
+  final File?   pickedImage;
+  final String  googlePhotoUrl;
+  final double  bottom;
+  final VoidCallback onPickImage;
+  final VoidCallback onNext;
 
   const _StepPhoto({
-    required this.hasPhoto,
+    required this.pickedImage,
     required this.googlePhotoUrl,
     required this.bottom,
-    required this.onAdd,
+    required this.onPickImage,
     required this.onNext,
   });
 
+  bool get _hasGooglePhoto => googlePhotoUrl.isNotEmpty;
+  bool get _hasPicked      => pickedImage != null;
+  bool get _hasAny         => _hasPicked || _hasGooglePhoto;
+
   @override
   Widget build(BuildContext context) {
-    final hasGooglePhoto = googlePhotoUrl.isNotEmpty;
-
     return _StepShell(
       emoji: '📸',
       title: 'Your profile\nphoto',
-      subtitle: hasGooglePhoto
+      subtitle: _hasGooglePhoto
           ? 'We grabbed your Google photo — keep it or tap to change.'
           : 'Profiles with photos get 3× more connections.',
       bottom: bottom,
       canContinue: true,
       onNext: onNext,
-      btnLabel: (hasPhoto || hasGooglePhoto) ? 'Looks great →' : 'Skip for now',
+      btnLabel: _hasAny ? 'Looks great →' : 'Skip for now',
       child: Center(
         child: GestureDetector(
-          onTap: onAdd,
+          onTap: onPickImage,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 250),
             width: 160, height: 160,
             decoration: BoxDecoration(
-              color: (hasPhoto || hasGooglePhoto)
+              color: _hasAny
                   ? _kTeal.withOpacity(.15)
                   : Colors.white.withOpacity(.03),
               borderRadius: BorderRadius.circular(40),
               border: Border.all(
-                color: (hasPhoto || hasGooglePhoto)
+                color: _hasAny
                     ? _kTeal.withOpacity(.40)
                     : Colors.white.withOpacity(.12),
-                width: (hasPhoto || hasGooglePhoto) ? 2 : 1,
+                width: _hasAny ? 2 : 1,
               ),
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(38),
-              child: hasGooglePhoto && !hasPhoto
-                  ? Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        Image.network(
-                          googlePhotoUrl,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => const Icon(
-                            Icons.person_rounded,
-                            color: _kFaint, size: 60,
-                          ),
-                        ),
-                        Positioned(
-                          bottom: 0, left: 0, right: 0,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                            color: Colors.black.withOpacity(.45),
-                            child: const Text(
-                              'Tap to change',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    )
-                  : hasPhoto
-                      ? Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: const [
-                            Icon(Icons.check_circle_rounded, color: _kTeal2, size: 40),
-                            SizedBox(height: 8),
-                            Text('Photo added!', style: TextStyle(
-                              color: _kTeal2, fontSize: 13, fontWeight: FontWeight.w700,
-                            )),
-                          ],
-                        )
-                      : Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(Icons.add_a_photo_outlined,
-                                color: _kFaint, size: 36),
-                            const SizedBox(height: 10),
-                            const Text('Tap to upload', style: TextStyle(
-                              color: _kFaint, fontSize: 13,
-                            )),
-                          ],
-                        ),
+              child: _buildPhotoContent(),
             ),
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildPhotoContent() {
+    // User picked a new image from gallery — show it
+    if (_hasPicked) {
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          Image.file(pickedImage!, fit: BoxFit.cover),
+          Positioned(
+            bottom: 0, left: 0, right: 0,
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              color: Colors.black.withOpacity(.45),
+              child: const Text(
+                'Tap to change',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    // Google photo available
+    if (_hasGooglePhoto) {
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          Image.network(
+            googlePhotoUrl,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => const Icon(
+              Icons.person_rounded, color: _kFaint, size: 60,
+            ),
+          ),
+          Positioned(
+            bottom: 0, left: 0, right: 0,
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              color: Colors.black.withOpacity(.45),
+              child: const Text(
+                'Tap to change',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    // No photo yet
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: const [
+        Icon(Icons.add_a_photo_outlined, color: _kFaint, size: 36),
+        SizedBox(height: 10),
+        Text('Tap to upload', style: TextStyle(color: _kFaint, fontSize: 13)),
+      ],
     );
   }
 }
@@ -570,25 +640,19 @@ class _StepStyle extends StatelessWidget {
           _ChoiceGroup(
             label: 'Budget',
             options: const ['₹ Budget', '₹₹ Mid-range', '₹₹₹ Comfortable', '💎 Luxury'],
-            selected: budget,
-            onSelect: onBudget,
-            color: _kGold,
+            selected: budget, onSelect: onBudget, color: _kGold,
           ),
           const SizedBox(height: 20),
           _ChoiceGroup(
             label: 'Travel Pace',
             options: const ['🐢 Slow & Easy', '⚡ Fast & Packed', '🎲 Spontaneous'],
-            selected: pace,
-            onSelect: onPace,
-            color: _kTeal2,
+            selected: pace, onSelect: onPace, color: _kTeal2,
           ),
           const SizedBox(height: 20),
           _ChoiceGroup(
             label: 'Accommodation',
             options: const ['🏨 Hotels', '🏠 Airbnb', '🛏 Hostels', '⛺ Camping'],
-            selected: accomm,
-            onSelect: onAccomm,
-            color: _kTeal2,
+            selected: accomm, onSelect: onAccomm, color: _kTeal2,
           ),
         ],
       ),
@@ -778,10 +842,8 @@ class _StepShell extends StatelessWidget {
               decoration: BoxDecoration(
                 gradient: canContinue
                     ? (btnGold
-                    ? const LinearGradient(
-                    colors: [_kGold, Color(0xFFE09620)])
-                    : const LinearGradient(
-                    colors: [_kTeal2, _kTeal]))
+                        ? const LinearGradient(colors: [_kGold, Color(0xFFE09620)])
+                        : const LinearGradient(colors: [_kTeal2, _kTeal]))
                     : null,
                 color: canContinue ? null : Colors.white.withOpacity(.05),
                 borderRadius: BorderRadius.circular(18),

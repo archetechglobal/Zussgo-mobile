@@ -1,6 +1,5 @@
 // lib/features/profile/providers/profile_provider.dart
 
-import 'dart:async';
 import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -16,7 +15,9 @@ class ProfileNotifier extends StateNotifier<AsyncValue<ProfileModel?>> {
   final String _userId;
 
   ProfileNotifier(this._repo, this._userId) : super(const AsyncValue.loading()) {
-    _load();
+    if (_userId.isNotEmpty) _load();
+    // If userId is empty (signed out) set to null immediately
+    else state = const AsyncValue.data(null);
   }
 
   Future<void> _load() async {
@@ -29,6 +30,7 @@ class ProfileNotifier extends StateNotifier<AsyncValue<ProfileModel?>> {
   }
 
   /// Called from ProfileSetupScreen after onboarding steps complete.
+  /// [avatarUrl] is optional — pass the uploaded/Google URL if available.
   Future<void> saveSetup({
     required String name,
     required int age,
@@ -38,7 +40,12 @@ class ProfileNotifier extends StateNotifier<AsyncValue<ProfileModel?>> {
     required String budget,
     required String pace,
     required String accommodation,
+    String? avatarUrl,
   }) async {
+    // Preserve existing avatarUrl if a new one wasn't provided
+    final existing = state.value;
+    final resolvedAvatar = avatarUrl ?? existing?.avatarUrl;
+
     final profile = ProfileModel(
       id:            _userId,
       name:          name,
@@ -49,24 +56,29 @@ class ProfileNotifier extends StateNotifier<AsyncValue<ProfileModel?>> {
       budget:        budget,
       pace:          pace,
       accommodation: accommodation,
+      avatarUrl:     resolvedAvatar,
       isSetupDone:   true,
     );
     await _repo.upsertProfile(profile);
     state = AsyncValue.data(profile);
   }
 
-  /// Called from EditProfileScreen to upload a new avatar.
-  Future<void> uploadAvatar(File file) async {
+  /// Called from PhotoStep and EditProfileScreen to upload a new avatar.
+  /// Returns the public URL on success, null on failure.
+  Future<String?> uploadAvatar(File file) async {
     try {
       final url = await _repo.uploadAvatar(userId: _userId, file: file);
+      // Update in-memory state if we already have a profile loaded
       final current = state.value;
       if (current != null && url != null) {
         final updated = current.copyWith(avatarUrl: url);
         await _repo.upsertProfile(updated);
         state = AsyncValue.data(updated);
       }
+      return url;
     } catch (e, st) {
       state = AsyncValue.error(e, st);
+      return null;
     }
   }
 
@@ -74,22 +86,20 @@ class ProfileNotifier extends StateNotifier<AsyncValue<ProfileModel?>> {
 }
 
 /// Watches the Supabase auth stream and exposes the current user ID.
-/// When the signed-in user changes (logout, account switch), this
-/// provider emits a new value which causes [myProfileProvider] to
-/// rebuild with the correct user ID — preventing stale profile data.
+/// When the signed-in user changes (logout, account switch) this provider
+/// emits a new value which causes [myProfileProvider] to rebuild with the
+/// correct user ID — preventing stale profile data across account switches.
 final _authUserIdProvider = StreamProvider<String>((ref) {
-  return Supabase.instance.client.auth.onAuthStateChange.map(
-    (data) => data.session?.user.id ?? '',
-  );
+  return Supabase.instance.client.auth.onAuthStateChange
+      .map((data) => data.session?.user.id ?? '');
 });
 
 /// The single source-of-truth provider for the logged-in user's profile.
-/// Re-creates the ProfileNotifier whenever the signed-in user changes.
+/// Re-creates ProfileNotifier whenever the signed-in user changes.
 final myProfileProvider =
     StateNotifierProvider<ProfileNotifier, AsyncValue<ProfileModel?>>((ref) {
-  // Watch the live auth stream — rebuilds this provider on user change.
   final authAsync = ref.watch(_authUserIdProvider);
-  final userId = authAsync.value ?? 
+  final userId = authAsync.value ??
       Supabase.instance.client.auth.currentUser?.id ?? '';
   return ProfileNotifier(ref.watch(profileRepositoryProvider), userId);
 });
@@ -99,7 +109,6 @@ final myProfileProvider =
 final userProfileProvider =
     FutureProvider.family<ProfileModel?, String>((ref, userId) async {
   final link = ref.keepAlive();
-  // 15 minutes — profile data is stable within a session
   Future.delayed(const Duration(minutes: 15), link.close);
   return ref.read(profileRepositoryProvider).getProfile(userId);
 });
