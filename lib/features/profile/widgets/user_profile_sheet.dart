@@ -1,261 +1,37 @@
 // lib/features/profile/widgets/user_profile_sheet.dart
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/supabase/supabase_client.dart';
+import '../models/profile_model.dart';
 
-// ─── Data models ──────────────────────────────────────────────────────────────
+// ─── Live trip provider for a user id ───────────────────────────────────────────────
+final _userActiveTripProvider =
+    FutureProvider.family<Map<String, dynamic>?, String>((ref, uid) async {
+  final rows = await supabase
+      .from('trips')
+      .select('id, destination, dates, vibe, spots_left')
+      .eq('creator_id', uid)
+      .eq('status', 'active')
+      .order('created_at', ascending: false)
+      .limit(1);
+  if ((rows as List).isEmpty) return null;
+  return rows.first as Map<String, dynamic>;
+});
 
-class TravelLogEntry {
-  final String destination;
-  final String companions;
-  final String imageUrl;
-  const TravelLogEntry({
-    required this.destination,
-    required this.companions,
-    required this.imageUrl,
-  });
-}
+// ─── Reviews provider for a user id ─────────────────────────────────────────────────
+final _userReviewsProvider =
+    FutureProvider.family<List<Map<String, dynamic>>, String>((ref, uid) async {
+  final rows = await supabase
+      .from('reviews')
+      .select('reviewer_name, reviewer_initial, trip_label, text, stars')
+      .eq('reviewee_id', uid)
+      .order('created_at', ascending: false)
+      .limit(5);
+  return List<Map<String, dynamic>>.from(rows as List);
+});
 
-class TravelReview {
-  final String initial;
-  final String name;
-  final String tripLabel;
-  final String text;
-  final double stars;
-  const TravelReview({
-    required this.initial,
-    required this.name,
-    required this.tripLabel,
-    required this.text,
-    this.stars = 5,
-  });
-}
-
-class UserProfileData {
-  final String name;
-  final int age;
-  final String basedIn;
-  final String avatarInitial;
-  final Color avatarColor;
-  final double rating;
-  final int tripCount;
-  final int buddyCount;
-  final String bio;
-  final List<String> vibes;
-  final String activeTripName;
-  final String activeTripDates;
-  final String activeTripLooking;
-  final String activeTripImageUrl;
-  final List<TravelLogEntry> travelLog;
-  final List<TravelReview> reviews;
-  final String heroImageUrl;
-
-  const UserProfileData({
-    required this.name,
-    required this.age,
-    required this.basedIn,
-    required this.avatarInitial,
-    required this.avatarColor,
-    required this.rating,
-    required this.tripCount,
-    required this.buddyCount,
-    required this.bio,
-    required this.vibes,
-    required this.activeTripName,
-    required this.activeTripDates,
-    required this.activeTripLooking,
-    required this.activeTripImageUrl,
-    required this.travelLog,
-    required this.reviews,
-    required this.heroImageUrl,
-  });
-}
-
-// ─── Mock profiles ────────────────────────────────────────────────────────────
-
-final _mockProfiles = <String, UserProfileData>{
-  'meera': UserProfileData(
-    name: 'Meera', age: 24, basedIn: 'Pune',
-    avatarInitial: 'M', avatarColor: const Color(0xFF58DAD0),
-    rating: 4.9, tripCount: 8, buddyCount: 12,
-    heroImageUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=900&q=80',
-    bio: 'Adventure seeker by default. Mountains, high altitudes, and terrible wifi — that\'s the dream. Always looking for a solid trek partner.',
-    vibes: ['🏔 Adventure', '🎒 Backpacker', '🌄 Sunrise Chaser'],
-    activeTripName: 'Spiti Valley Crew',
-    activeTripDates: 'May 10–18',
-    activeTripLooking: 'Looking for 1–2',
-    activeTripImageUrl: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?auto=format&fit=crop&w=200&q=80',
-    travelLog: [
-      TravelLogEntry(destination: 'Leh Ladakh', companions: 'with Arjun +2', imageUrl: 'https://images.unsplash.com/photo-1626621341517-bbf3d9990a23?auto=format&fit=crop&w=300&q=80'),
-      TravelLogEntry(destination: 'Andaman', companions: 'Solo', imageUrl: 'https://images.unsplash.com/photo-1537996194471-e657df975ab4?auto=format&fit=crop&w=300&q=80'),
-      TravelLogEntry(destination: 'Hampi', companions: 'with Sara', imageUrl: 'https://images.unsplash.com/photo-1581793745862-99fde7fa73d2?auto=format&fit=crop&w=300&q=80'),
-      TravelLogEntry(destination: 'Kasol', companions: 'with 3 others', imageUrl: 'https://images.unsplash.com/photo-1623143521360-1e5ce6c9657b?auto=format&fit=crop&w=300&q=80'),
-    ],
-    reviews: [
-      TravelReview(initial: 'A', name: 'Arjun K.', tripLabel: 'Leh · Aug 2025', stars: 5, text: 'Meera is an incredible travel buddy. Planned every detail, kept spirits high even at 17,000 ft. Would trek again in a heartbeat!'),
-      TravelReview(initial: 'S', name: 'Sara M.', tripLabel: 'Hampi · Feb 2025', stars: 5, text: 'Super organised and so much fun. Never a dull moment. Highly recommend travelling with Meera.'),
-    ],
-  ),
-  'anika': UserProfileData(
-    name: 'Anika', age: 26, basedIn: 'Delhi',
-    avatarInitial: 'A', avatarColor: const Color(0xFFB57BFF),
-    rating: 4.7, tripCount: 6, buddyCount: 9,
-    heroImageUrl: 'https://images.unsplash.com/photo-1488426862026-3ee34a7d66df?auto=format&fit=crop&w=900&q=80',
-    bio: 'History nerd who turned it into travel goals. Heritage sites, local bazaars, and street food — that\'s my kind of trip.',
-    vibes: ['🏛 Culture', '📸 Photographer', '☕ Cafe Hopper'],
-    activeTripName: 'Jaipur Heritage Crew',
-    activeTripDates: 'May 14–17',
-    activeTripLooking: 'Looking for 1',
-    activeTripImageUrl: 'https://images.unsplash.com/photo-1477587458883-47145ed31282?auto=format&fit=crop&w=200&q=80',
-    travelLog: [
-      TravelLogEntry(destination: 'Jaisalmer', companions: 'Solo', imageUrl: 'https://images.unsplash.com/photo-1512343879784-a960bf40e7f2?auto=format&fit=crop&w=300&q=80'),
-      TravelLogEntry(destination: 'Agra', companions: 'with Neha', imageUrl: 'https://images.unsplash.com/photo-1564507592333-c60657eea523?auto=format&fit=crop&w=300&q=80'),
-      TravelLogEntry(destination: 'Pondicherry', companions: 'with 2 others', imageUrl: 'https://images.unsplash.com/photo-1582510003544-4d00b7f74220?auto=format&fit=crop&w=300&q=80'),
-    ],
-    reviews: [
-      TravelReview(initial: 'N', name: 'Neha R.', tripLabel: 'Agra · Jan 2025', stars: 5, text: 'Anika knows every hidden gem in every city. Best travel guide I\'ve ever had. Genuinely fun to be around.'),
-    ],
-  ),
-  'priya': UserProfileData(
-    name: 'Priya', age: 25, basedIn: 'Bangalore',
-    avatarInitial: 'P', avatarColor: const Color(0xFF58DAD0),
-    rating: 4.8, tripCount: 5, buddyCount: 7,
-    heroImageUrl: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=900&q=80',
-    bio: 'Beaches, hammocks and zero agenda. I travel slow. If you\'re rushing, we\'re not a match. Chill-first always.',
-    vibes: ['🌊 Beach Bum', '🧘 Mindful', '🌅 Sunset Hunter'],
-    activeTripName: 'Kerala Backwaters Crew',
-    activeTripDates: 'May 20–25',
-    activeTripLooking: 'Looking for 2',
-    activeTripImageUrl: 'https://images.unsplash.com/photo-1593693397690-362cb9666fc2?auto=format&fit=crop&w=200&q=80',
-    travelLog: [
-      TravelLogEntry(destination: 'Goa', companions: 'with Dev +1', imageUrl: 'https://images.unsplash.com/photo-1512343879784-a960bf40e7f2?auto=format&fit=crop&w=300&q=80'),
-      TravelLogEntry(destination: 'Varkala', companions: 'Solo', imageUrl: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=300&q=80'),
-      TravelLogEntry(destination: 'Coorg', companions: 'with friends', imageUrl: 'https://images.unsplash.com/photo-1518684079-3c830dcef090?auto=format&fit=crop&w=300&q=80'),
-    ],
-    reviews: [
-      TravelReview(initial: 'D', name: 'Dev S.', tripLabel: 'Goa · Mar 2025', stars: 5, text: 'Calmest travel buddy ever. No drama, good vibes only. The kind of person that makes the trip feel effortless.'),
-    ],
-  ),
-  'kabir': UserProfileData(
-    name: 'Kabir', age: 26, basedIn: 'Mumbai',
-    avatarInitial: 'K', avatarColor: const Color(0xFF1EC9B8),
-    rating: 4.6, tripCount: 7, buddyCount: 11,
-    heroImageUrl: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=900&q=80',
-    bio: 'Festival circuits and last-minute flights. If there\'s a lineup, a crowd, and good energy — I\'m already there.',
-    vibes: ['🎉 Festival', '🎸 Live Music', '🌃 Night Owl'],
-    activeTripName: 'Goa Beach Crew',
-    activeTripDates: 'May 12–15',
-    activeTripLooking: 'Looking for 1–2',
-    activeTripImageUrl: 'https://images.unsplash.com/photo-1512343879784-a960bf40e7f2?auto=format&fit=crop&w=200&q=80',
-    travelLog: [
-      TravelLogEntry(destination: 'Bali', companions: 'with Sarah +2', imageUrl: 'https://images.unsplash.com/photo-1537996194471-e657df975ab4?auto=format&fit=crop&w=300&q=80'),
-      TravelLogEntry(destination: 'Manali', companions: 'with Rahul', imageUrl: 'https://images.unsplash.com/photo-1623143521360-1e5ce6c9657b?auto=format&fit=crop&w=300&q=80'),
-      TravelLogEntry(destination: 'Dubai', companions: 'Solo', imageUrl: 'https://images.unsplash.com/photo-1518684079-3c830dcef090?auto=format&fit=crop&w=300&q=80'),
-    ],
-    reviews: [
-      TravelReview(initial: 'S', name: 'Sarah M.', tripLabel: 'Bali · Oct 2025', stars: 5, text: 'Great navigator, always finds the best food spots. 10/10 travel buddy.'),
-    ],
-  ),
-  'dev': UserProfileData(
-    name: 'Dev', age: 25, basedIn: 'Bangalore',
-    avatarInitial: 'D', avatarColor: const Color(0xFFF7B84E),
-    rating: 4.5, tripCount: 4, buddyCount: 6,
-    heroImageUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=900&q=80',
-    bio: 'Trail boots always packed, itinerary always loose. I trek, I eat, I sleep. Repeat.',
-    vibes: ['🥾 Trekking', '🏕 Camping', '🌲 Nature'],
-    activeTripName: 'Coorg Trek',
-    activeTripDates: 'May 18–22',
-    activeTripLooking: 'Looking for 1',
-    activeTripImageUrl: 'https://images.unsplash.com/photo-1483728642387-6c3bdd6c93e5?auto=format&fit=crop&w=200&q=80',
-    travelLog: [
-      TravelLogEntry(destination: 'Coorg', companions: 'with Priya', imageUrl: 'https://images.unsplash.com/photo-1518684079-3c830dcef090?auto=format&fit=crop&w=300&q=80'),
-      TravelLogEntry(destination: 'Munnar', companions: 'Solo', imageUrl: 'https://images.unsplash.com/photo-1593693397690-362cb9666fc2?auto=format&fit=crop&w=300&q=80'),
-    ],
-    reviews: [
-      TravelReview(initial: 'P', name: 'Priya K.', tripLabel: 'Coorg · Mar 2025', stars: 5, text: 'Dev knows every trail. Never gets tired, never complains. Perfect trek partner.'),
-    ],
-  ),
-  'sara': UserProfileData(
-    name: 'Sara', age: 24, basedIn: 'Jaipur',
-    avatarInitial: 'S', avatarColor: const Color(0xFF1EC9B8),
-    rating: 4.6, tripCount: 5, buddyCount: 8,
-    heroImageUrl: 'https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?auto=format&fit=crop&w=900&q=80',
-    bio: 'Architecture, art, and amazing food. I find the best cafes in every city. Culture-first traveller.',
-    vibes: ['🏛 Culture', '📸 Photographer', '🎨 Art'],
-    activeTripName: 'Udaipur Weekend',
-    activeTripDates: 'May 16–18',
-    activeTripLooking: 'Looking for 1',
-    activeTripImageUrl: 'https://images.unsplash.com/photo-1477587458883-47145ed31282?auto=format&fit=crop&w=200&q=80',
-    travelLog: [
-      TravelLogEntry(destination: 'Udaipur', companions: 'Solo', imageUrl: 'https://images.unsplash.com/photo-1477587458883-47145ed31282?auto=format&fit=crop&w=300&q=80'),
-      TravelLogEntry(destination: 'Jodhpur', companions: 'with Anika', imageUrl: 'https://images.unsplash.com/photo-1512343879784-a960bf40e7f2?auto=format&fit=crop&w=300&q=80'),
-    ],
-    reviews: [],
-  ),
-  'rohan': UserProfileData(
-    name: 'Rohan', age: 27, basedIn: 'Hyderabad',
-    avatarInitial: 'R', avatarColor: const Color(0xFFF7B84E),
-    rating: 4.3, tripCount: 3, buddyCount: 5,
-    heroImageUrl: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=900&q=80',
-    bio: 'Spontaneous, loud, and always up for the after-party. Party-first, sleep-optional traveller.',
-    vibes: ['🎸 Party', '🌃 Night Owl', '🍻 Social'],
-    activeTripName: 'Goa Long Weekend',
-    activeTripDates: 'May 12–15',
-    activeTripLooking: 'Looking for 2',
-    activeTripImageUrl: 'https://images.unsplash.com/photo-1512343879784-a960bf40e7f2?auto=format&fit=crop&w=200&q=80',
-    travelLog: [
-      TravelLogEntry(destination: 'Goa', companions: 'with friends', imageUrl: 'https://images.unsplash.com/photo-1512343879784-a960bf40e7f2?auto=format&fit=crop&w=300&q=80'),
-    ],
-    reviews: [],
-  ),
-  'arjun': UserProfileData(
-    name: 'Arjun', age: 28, basedIn: 'Kolkata',
-    avatarInitial: 'A', avatarColor: const Color(0xFFF7B84E),
-    rating: 4.7, tripCount: 9, buddyCount: 14,
-    heroImageUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=900&q=80',
-    bio: 'Everything is a photo opportunity. I carry two cameras and zero plans. Let the city show you what it wants.',
-    vibes: ['📸 Photo', '🏙 Urban', '🎨 Street Art'],
-    activeTripName: 'Kolkata to Darjeeling',
-    activeTripDates: 'May 22–26',
-    activeTripLooking: 'Looking for 1',
-    activeTripImageUrl: 'https://images.unsplash.com/photo-1623143521360-1e5ce6c9657b?auto=format&fit=crop&w=200&q=80',
-    travelLog: [
-      TravelLogEntry(destination: 'Darjeeling', companions: 'Solo', imageUrl: 'https://images.unsplash.com/photo-1623143521360-1e5ce6c9657b?auto=format&fit=crop&w=300&q=80'),
-      TravelLogEntry(destination: 'Varanasi', companions: 'with Meera', imageUrl: 'https://images.unsplash.com/photo-1561361058-c24cecae35ca?auto=format&fit=crop&w=300&q=80'),
-      TravelLogEntry(destination: 'Leh', companions: 'with 3 others', imageUrl: 'https://images.unsplash.com/photo-1626621341517-bbf3d9990a23?auto=format&fit=crop&w=300&q=80'),
-    ],
-    reviews: [
-      TravelReview(initial: 'M', name: 'Meera R.', tripLabel: 'Varanasi · Dec 2025', stars: 5, text: 'Arjun\'s eye for photography made every moment cinematic. Best travel buddy I\'ve had.'),
-    ],
-  ),
-};
-
-UserProfileData _fallbackProfile(String name) => UserProfileData(
-  name: name, age: 24, basedIn: 'India',
-  avatarInitial: name.isNotEmpty ? name[0].toUpperCase() : '?',
-  avatarColor: const Color(0xFF58DAD0),
-  rating: 4.8, tripCount: 6, buddyCount: 10,
-  heroImageUrl: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=900&q=80',
-  bio: 'Travel enthusiast always looking for the next adventure and great company.',
-  vibes: ['🌍 Explorer', '🎒 Backpacker'],
-  activeTripName: 'Upcoming Trip',
-  activeTripDates: 'Coming soon',
-  activeTripLooking: 'Looking for buddies',
-  activeTripImageUrl: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?auto=format&fit=crop&w=200&q=80',
-  travelLog: [
-    TravelLogEntry(destination: 'Past trip', companions: 'Solo', imageUrl: 'https://images.unsplash.com/photo-1537996194471-e657df975ab4?auto=format&fit=crop&w=300&q=80'),
-  ],
-  reviews: [],
-);
-
-UserProfileData profileDataFromName(String rawName) {
-  final key = rawName.toLowerCase().trim();
-  return _mockProfiles[key] ??
-      _mockProfiles[key.split(' ').first] ??
-      _fallbackProfile(rawName.split(' ').first);
-}
-
-// ─── Colours ──────────────────────────────────────────────────────────────────
-
+// ─── Colours ─────────────────────────────────────────────────────────────────────
 const _kBg      = Color(0xFF0B1516);
 const _kSurface = Color(0xFF0D1819);
 const _kTeal    = Color(0xFF1EC9B8);
@@ -265,28 +41,70 @@ const _kText    = Color(0xFFEDF7F4);
 const _kMuted   = Color(0xFFA8C4BF);
 const _kFaint   = Color(0xFF6A8882);
 
-// ─── The Sheet ────────────────────────────────────────────────────────────────
+// ─── Entry point ─────────────────────────────────────────────────────────────────────
 
-class UserProfileSheet extends StatefulWidget {
-  final UserProfileData profile;
+class UserProfileSheet extends StatelessWidget {
+  final ProfileModel profile;
   const UserProfileSheet({super.key, required this.profile});
 
-  static void show(BuildContext context, {required String name}) {
-    final profile = profileDataFromName(name);
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      barrierColor: Colors.black.withOpacity(.65),
-      builder: (_) => UserProfileSheet(profile: profile),
-    );
+  /// Pass the real [ProfileModel] — no name lookup, no mock data.
+  static void show(BuildContext context, {ProfileModel? profile, String? name}) {
+    assert(profile != null || name != null,
+        'Either profile or name must be provided');
+
+    if (profile != null) {
+      showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        barrierColor: Colors.black.withOpacity(.65),
+        builder: (_) => UserProfileSheet(profile: profile),
+      );
+    } else {
+      // Legacy name-only call: fetch from Supabase then show.
+      // This path exists only for backward compatibility.
+      supabase
+          .from('profiles')
+          .select(
+              'id, name, age, avatar_url, vibes, rating, trip_count, buddy_count, base_city, bio')
+          .ilike('name', '%${name!.trim()}%')
+          .limit(1)
+          .maybeSingle()
+          .then((row) {
+        if (row == null) return;
+        final p = ProfileModel.fromMap(row as Map<String, dynamic>);
+        showModalBottomSheet(
+          context: context,
+          isScrollControlled: true,
+          backgroundColor: Colors.transparent,
+          barrierColor: Colors.black.withOpacity(.65),
+          builder: (_) => UserProfileSheet(profile: p),
+        );
+      });
+    }
   }
 
   @override
-  State<UserProfileSheet> createState() => _UserProfileSheetState();
+  Widget build(BuildContext context) {
+    return ProviderScope(
+      child: _UserProfileSheetBody(profile: profile),
+    );
+  }
 }
 
-class _UserProfileSheetState extends State<UserProfileSheet> {
+// ─── Sheet body (consumer for live data) ──────────────────────────────────────────
+
+class _UserProfileSheetBody extends ConsumerStatefulWidget {
+  final ProfileModel profile;
+  const _UserProfileSheetBody({required this.profile});
+
+  @override
+  ConsumerState<_UserProfileSheetBody> createState() =>
+      _UserProfileSheetBodyState();
+}
+
+class _UserProfileSheetBodyState
+    extends ConsumerState<_UserProfileSheetBody> {
   bool _showRequestForm = false;
   final _msgCtrl = TextEditingController();
 
@@ -298,9 +116,11 @@ class _UserProfileSheetState extends State<UserProfileSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final p  = widget.profile;
-    final sh = MediaQuery.of(context).size.height;
-    final bi = MediaQuery.of(context).padding.bottom;
+    final p          = widget.profile;
+    final sh         = MediaQuery.of(context).size.height;
+    final bi         = MediaQuery.of(context).padding.bottom;
+    final tripAsync  = ref.watch(_userActiveTripProvider(p.id));
+    final reviewsAsync = ref.watch(_userReviewsProvider(p.id));
 
     return ClipRRect(
       borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
@@ -309,20 +129,19 @@ class _UserProfileSheetState extends State<UserProfileSheet> {
         color: _kBg,
         child: Stack(
           children: [
-            // ── Scrollable body ─────────────────────────────────────────────
+            // ── Scrollable body ───────────────────────────────────────────────────
             SingleChildScrollView(
               padding: EdgeInsets.only(bottom: 140 + bi),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-
-                  // 1. Hero photo (380px, full bleed)
+                  // 1. Hero photo
                   _ProfileHero(
                     profile: p,
                     onClose: () => Navigator.of(context).pop(),
                   ),
 
-                  // 2. Name + location — overlaps hero bottom by 20px
+                  // 2. Name + location overlapping hero bottom
                   Transform.translate(
                     offset: const Offset(0, -20),
                     child: Column(
@@ -333,14 +152,12 @@ class _UserProfileSheetState extends State<UserProfileSheet> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              // Name row
                               Row(
                                 children: [
                                   Text(
-                                    '${p.name}, ${p.age}',
+                                    '${p.name ?? 'Traveler'}${p.age != null ? ', ${p.age}' : ''}',
                                     style: const TextStyle(
-                                      color: _kText,
-                                      fontSize: 28,
+                                      color: _kText, fontSize: 28,
                                       fontWeight: FontWeight.w700,
                                       letterSpacing: -.3,
                                     ),
@@ -350,17 +167,16 @@ class _UserProfileSheetState extends State<UserProfileSheet> {
                                 ],
                               ),
                               const SizedBox(height: 4),
-                              // Location
-                              Text(
-                                '📍 Based in ${p.basedIn}',
-                                style: const TextStyle(color: _kMuted, fontSize: 14),
-                              ),
+                              if (p.baseCity != null)
+                                Text(
+                                  '\uD83D\uDCCD Based in ${p.baseCity}',
+                                  style: const TextStyle(
+                                      color: _kMuted, fontSize: 14),
+                                ),
                               const SizedBox(height: 20),
-
-                              // 3. Stats row
                               _StatsRow(
-                                trips: p.tripCount,
-                                rating: p.rating,
+                                trips:   p.tripCount,
+                                rating:  p.rating,
                                 buddies: p.buddyCount,
                               ),
                             ],
@@ -368,78 +184,137 @@ class _UserProfileSheetState extends State<UserProfileSheet> {
                         ),
                         const SizedBox(height: 24),
 
-                        // 4. About Me
-                        _SectionTitle(title: 'About Me'),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 20),
-                          child: Text(
-                            p.bio,
-                            style: const TextStyle(
-                              color: _kMuted, fontSize: 14, height: 1.6,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 20),
-                          child: Wrap(
-                            spacing: 8, runSpacing: 8,
-                            children: p.vibes.map((v) => _VibeChip(label: v)).toList(),
-                          ),
-                        ),
-                        const SizedBox(height: 32),
-
-                        // 5. Active Trip
-                        _SectionTitle(title: 'Active Trip'),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 20),
-                          child: _ActiveTripCard(profile: p),
-                        ),
-                        const SizedBox(height: 32),
-
-                        // 6. Travel Log
-                        _SectionTitle(
-                          title: 'Travel Log',
-                          trailing: const Text(
-                            'See All',
-                            style: TextStyle(
-                              color: _kTeal2, fontSize: 12, fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                        SizedBox(
-                          height: 150,
-                          child: ListView.separated(
-                            scrollDirection: Axis.horizontal,
-                            padding: const EdgeInsets.symmetric(horizontal: 20),
-                            itemCount: p.travelLog.length,
-                            separatorBuilder: (_, __) => const SizedBox(width: 12),
-                            itemBuilder: (_, i) => _TravelLogCard(entry: p.travelLog[i]),
-                          ),
-                        ),
-                        const SizedBox(height: 32),
-
-                        // 7. Recent Reviews
-                        if (p.reviews.isNotEmpty) ...[
-                          _SectionTitle(
-                            title: 'Recent Reviews',
-                            trailing: Text(
-                              'View ${p.reviews.length}',
-                              style: const TextStyle(
-                                color: _kTeal2, fontSize: 12, fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
+                        // 3. About Me
+                        if (p.bio != null && p.bio!.isNotEmpty) ...[
+                          _SectionTitle(title: 'About Me'),
                           Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 20),
-                            child: Column(
-                              children: p.reviews.map((r) => Padding(
-                                padding: const EdgeInsets.only(bottom: 12),
-                                child: _ReviewCard(review: r),
-                              )).toList(),
+                            padding:
+                                const EdgeInsets.symmetric(horizontal: 20),
+                            child: Text(
+                              p.bio!,
+                              style: const TextStyle(
+                                  color: _kMuted, fontSize: 14, height: 1.6),
                             ),
                           ),
+                          const SizedBox(height: 16),
                         ],
+
+                        // 4. Vibes
+                        if (p.vibes.isNotEmpty) ...[
+                          Padding(
+                            padding:
+                                const EdgeInsets.symmetric(horizontal: 20),
+                            child: Wrap(
+                              spacing: 8, runSpacing: 8,
+                              children: p.vibes
+                                  .map((v) => _VibeChip(label: v))
+                                  .toList(),
+                            ),
+                          ),
+                          const SizedBox(height: 32),
+                        ],
+
+                        // 5. Active Trip (live)
+                        tripAsync.when(
+                          loading: () => const SizedBox(
+                              height: 80,
+                              child: Center(
+                                  child: CircularProgressIndicator(
+                                      color: _kTeal, strokeWidth: 2))),
+                          error: (_, __) => const SizedBox.shrink(),
+                          data: (trip) => trip != null
+                              ? Padding(
+                                  padding: const EdgeInsets.only(
+                                      left: 20, right: 20, bottom: 32),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      _SectionTitle(title: 'Active Trip'),
+                                      _ActiveTripCard(
+                                        destination: trip['destination']
+                                                as String? ??
+                                            'Trip',
+                                        dates: trip['dates'] as String? ?? '',
+                                        spotsLeft:
+                                            trip['spots_left'] as int? ?? 0,
+                                        vibe: trip['vibe'] as String?,
+                                      ),
+                                    ],
+                                  ),
+                                )
+                              : Padding(
+                                  padding: const EdgeInsets.fromLTRB(
+                                      20, 0, 20, 32),
+                                  child: Container(
+                                    padding: const EdgeInsets.all(16),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withOpacity(.03),
+                                      borderRadius:
+                                          BorderRadius.circular(16),
+                                      border: Border.all(
+                                          color:
+                                              Colors.white.withOpacity(.06)),
+                                    ),
+                                    child: const Center(
+                                      child: Text(
+                                        'No active trip right now',
+                                        style: TextStyle(
+                                            color: _kFaint, fontSize: 14),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                        ),
+
+                        // 6. Reviews (live)
+                        reviewsAsync.when(
+                          loading: () => const SizedBox.shrink(),
+                          error: (_, __) => const SizedBox.shrink(),
+                          data: (reviews) => reviews.isEmpty
+                              ? const SizedBox.shrink()
+                              : Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 20),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      _SectionTitle(
+                                        title: 'Reviews',
+                                        trailing: Text(
+                                          'View ${reviews.length}',
+                                          style: const TextStyle(
+                                            color: _kTeal2,
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ),
+                                      ...reviews.map((r) => Padding(
+                                            padding: const EdgeInsets.only(
+                                                bottom: 12),
+                                            child: _ReviewCard(
+                                              initial: (r['reviewer_initial']
+                                                          as String?) ??
+                                                      '?',
+                                              name: (r['reviewer_name']
+                                                          as String?) ??
+                                                      'Anonymous',
+                                              tripLabel:
+                                                  (r['trip_label'] as String?) ??
+                                                      '',
+                                              text:
+                                                  (r['text'] as String?) ?? '',
+                                              stars: (r['stars'] as num?)
+                                                      ?.toDouble() ??
+                                                  5.0,
+                                            ),
+                                          )),
+                                    ],
+                                  ),
+                                ),
+                        ),
 
                         const SizedBox(height: 12),
                       ],
@@ -449,16 +324,19 @@ class _UserProfileSheetState extends State<UserProfileSheet> {
               ),
             ),
 
-            // ── Fixed bottom CTA ────────────────────────────────────────────
+            // ── Fixed bottom CTA ───────────────────────────────────────────────────
             Positioned(
               left: 0, right: 0, bottom: 0,
               child: _BottomCta(
                 profile: p,
+                activeTrip: tripAsync.asData?.value,
                 showForm: _showRequestForm,
                 msgCtrl: _msgCtrl,
-                onAskToJoin: () => setState(() => _showRequestForm = true),
+                onAskToJoin: () =>
+                    setState(() => _showRequestForm = true),
                 onSend: () => Navigator.of(context).pop(),
-                onDismiss: () => setState(() => _showRequestForm = false),
+                onDismiss: () =>
+                    setState(() => _showRequestForm = false),
                 bottomInset: bi,
               ),
             ),
@@ -469,10 +347,9 @@ class _UserProfileSheetState extends State<UserProfileSheet> {
   }
 }
 
-// ─── Hero ─────────────────────────────────────────────────────────────────────
-
+// ─── Hero ────────────────────────────────────────────────────────────────────────────
 class _ProfileHero extends StatelessWidget {
-  final UserProfileData profile;
+  final ProfileModel profile;
   final VoidCallback onClose;
   const _ProfileHero({required this.profile, required this.onClose});
 
@@ -483,27 +360,21 @@ class _ProfileHero extends StatelessWidget {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          // Photo
-          Image.network(
-            profile.heroImageUrl,
-            fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter, end: Alignment.bottomCenter,
-                  colors: [profile.avatarColor.withOpacity(.7), _kBg],
-                ),
-              ),
-            ),
-          ),
+          // Avatar photo or initial fallback
+          profile.avatarUrl != null
+              ? Image.network(
+                  profile.avatarUrl!,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => _AvatarFallback(profile: profile),
+                )
+              : _AvatarFallback(profile: profile),
 
-          // Gradient: dark 30% top → transparent 40% → solid bg at 100%
+          // Gradient overlay
           Positioned.fill(
             child: DecoratedBox(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
+                  begin: Alignment.topCenter, end: Alignment.bottomCenter,
                   colors: [
                     Colors.black.withOpacity(.30),
                     Colors.transparent,
@@ -529,7 +400,7 @@ class _ProfileHero extends StatelessWidget {
             ),
           ),
 
-          // Back button — top left
+          // Back button
           Positioned(
             top: 36, left: 20,
             child: GestureDetector(
@@ -542,18 +413,17 @@ class _ProfileHero extends StatelessWidget {
                   border: Border.all(color: Colors.white.withOpacity(.10)),
                 ),
                 child: const Icon(
-                  Icons.arrow_back_ios_new_rounded,
-                  color: _kText, size: 16,
-                ),
+                  Icons.arrow_back_ios_new_rounded, color: _kText, size: 16),
               ),
             ),
           ),
 
-          // Rating badge — bottom RIGHT (exactly as in design)
+          // Rating badge
           Positioned(
             bottom: 24, right: 20,
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
                 color: Colors.black.withOpacity(.60),
                 borderRadius: BorderRadius.circular(12),
@@ -565,10 +435,11 @@ class _ProfileHero extends StatelessWidget {
                   const Icon(Icons.star_rounded, color: _kGold, size: 16),
                   const SizedBox(width: 5),
                   Text(
-                    '${profile.rating}',
+                    profile.rating.toStringAsFixed(1),
                     style: const TextStyle(
-                      color: _kText, fontSize: 14, fontWeight: FontWeight.w700,
-                    ),
+                        color: _kText,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700),
                   ),
                 ],
               ),
@@ -580,30 +451,53 @@ class _ProfileHero extends StatelessWidget {
   }
 }
 
-// ─── Verified badge ───────────────────────────────────────────────────────────
+class _AvatarFallback extends StatelessWidget {
+  final ProfileModel profile;
+  const _AvatarFallback({required this.profile});
 
-class _VerifiedBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
+    final initial =
+        (profile.name?.isNotEmpty == true) ? profile.name![0].toUpperCase() : '?';
     return Container(
-      width: 20, height: 20,
-      decoration: const BoxDecoration(color: _kTeal2, shape: BoxShape.circle),
-      child: const Center(
-        child: Text('✓', style: TextStyle(
-          color: Color(0xFF041818), fontSize: 10, fontWeight: FontWeight.w900,
-        )),
+      color: _kSurface,
+      child: Center(
+        child: Text(
+          initial,
+          style: const TextStyle(
+              color: _kTeal2, fontSize: 72, fontWeight: FontWeight.w700),
+        ),
       ),
     );
   }
 }
 
-// ─── Stats row (single bordered container with internal dividers) ──────────────
+// ─── Verified badge ───────────────────────────────────────────────────────────────────
+class _VerifiedBadge extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 20, height: 20,
+      decoration:
+          const BoxDecoration(color: _kTeal2, shape: BoxShape.circle),
+      child: const Center(
+        child: Text('\u2713',
+            style: TextStyle(
+                color: Color(0xFF041818),
+                fontSize: 10,
+                fontWeight: FontWeight.w900)),
+      ),
+    );
+  }
+}
 
+// ─── Stats row ──────────────────────────────────────────────────────────────────────
 class _StatsRow extends StatelessWidget {
   final int trips;
   final double rating;
   final int buddies;
-  const _StatsRow({required this.trips, required this.rating, required this.buddies});
+  const _StatsRow(
+      {required this.trips, required this.rating, required this.buddies});
 
   @override
   Widget build(BuildContext context) {
@@ -617,9 +511,15 @@ class _StatsRow extends StatelessWidget {
       child: Row(
         children: [
           _StatCell(value: '$trips', label: 'TRIPS'),
-          Container(width: 1, height: 36, color: Colors.white.withOpacity(.06)),
-          _StatCell(value: '$rating', label: 'RATING'),
-          Container(width: 1, height: 36, color: Colors.white.withOpacity(.06)),
+          Container(
+              width: 1,
+              height: 36,
+              color: Colors.white.withOpacity(.06)),
+          _StatCell(value: rating.toStringAsFixed(1), label: 'RATING'),
+          Container(
+              width: 1,
+              height: 36,
+              color: Colors.white.withOpacity(.06)),
           _StatCell(value: '$buddies', label: 'BUDDIES'),
         ],
       ),
@@ -637,22 +537,25 @@ class _StatCell extends StatelessWidget {
     return Expanded(
       child: Column(
         children: [
-          Text(value, style: const TextStyle(
-            color: _kText, fontSize: 18, fontWeight: FontWeight.w700,
-          )),
+          Text(value,
+              style: const TextStyle(
+                  color: _kText,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700)),
           const SizedBox(height: 2),
-          Text(label, style: const TextStyle(
-            color: _kFaint, fontSize: 10, fontWeight: FontWeight.w800,
-            letterSpacing: .05,
-          )),
+          Text(label,
+              style: const TextStyle(
+                  color: _kFaint,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: .05)),
         ],
       ),
     );
   }
 }
 
-// ─── Section title ────────────────────────────────────────────────────────────
-
+// ─── Section title ────────────────────────────────────────────────────────────────────
 class _SectionTitle extends StatelessWidget {
   final String title;
   final Widget? trailing;
@@ -665,10 +568,11 @@ class _SectionTitle extends StatelessWidget {
       child: Row(
         children: [
           Expanded(
-            child: Text(title, style: const TextStyle(
-              color: _kText, fontSize: 16, fontWeight: FontWeight.w700,
-            )),
-          ),
+              child: Text(title,
+                  style: const TextStyle(
+                      color: _kText,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700))),
           if (trailing != null) trailing!,
         ],
       ),
@@ -676,8 +580,7 @@ class _SectionTitle extends StatelessWidget {
   }
 }
 
-// ─── Vibe chip (teal bg + border + text) ─────────────────────────────────────
-
+// ─── Vibe chip ─────────────────────────────────────────────────────────────────────────
 class _VibeChip extends StatelessWidget {
   final String label;
   const _VibeChip({required this.label});
@@ -691,18 +594,25 @@ class _VibeChip extends StatelessWidget {
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: _kTeal.withOpacity(.20)),
       ),
-      child: Text(label, style: const TextStyle(
-        color: _kTeal2, fontSize: 12, fontWeight: FontWeight.w600,
-      )),
+      child: Text(label,
+          style: const TextStyle(
+              color: _kTeal2, fontSize: 12, fontWeight: FontWeight.w600)),
     );
   }
 }
 
-// ─── Active trip card ─────────────────────────────────────────────────────────
-
+// ─── Active trip card ──────────────────────────────────────────────────────────────────
 class _ActiveTripCard extends StatelessWidget {
-  final UserProfileData profile;
-  const _ActiveTripCard({required this.profile});
+  final String destination;
+  final String dates;
+  final int spotsLeft;
+  final String? vibe;
+  const _ActiveTripCard({
+    required this.destination,
+    required this.dates,
+    required this.spotsLeft,
+    this.vibe,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -719,18 +629,15 @@ class _ActiveTripCard extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Destination photo thumbnail
-          ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: Image.network(
-              profile.activeTripImageUrl,
-              width: 48, height: 48, fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => Container(
-                width: 48, height: 48,
-                color: _kTeal.withOpacity(.15),
-                child: const Icon(Icons.flight_takeoff_rounded, color: _kTeal2, size: 22),
-              ),
+          // Icon placeholder
+          Container(
+            width: 48, height: 48,
+            decoration: BoxDecoration(
+              color: _kTeal.withOpacity(.15),
+              borderRadius: BorderRadius.circular(12),
             ),
+            child: const Icon(Icons.flight_takeoff_rounded,
+                color: _kTeal2, size: 22),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -740,17 +647,24 @@ class _ActiveTripCard extends StatelessWidget {
                 const Text(
                   'BROADCASTING',
                   style: TextStyle(
-                    color: _kTeal2, fontSize: 10, fontWeight: FontWeight.w800,
-                    letterSpacing: .05,
-                  ),
+                      color: _kTeal2,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: .05),
                 ),
                 const SizedBox(height: 4),
-                Text(profile.activeTripName, style: const TextStyle(
-                  color: _kText, fontSize: 15, fontWeight: FontWeight.w700,
-                )),
+                Text(destination,
+                    style: const TextStyle(
+                        color: _kText,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700)),
                 const SizedBox(height: 4),
                 Text(
-                  '${profile.activeTripDates} · ${profile.activeTripLooking}',
+                  [
+                    if (dates.isNotEmpty) dates,
+                    if (spotsLeft > 0) 'Looking for $spotsLeft',
+                    if (vibe != null) vibe!,
+                  ].join(' · '),
                   style: const TextStyle(color: _kMuted, fontSize: 12),
                 ),
               ],
@@ -762,67 +676,20 @@ class _ActiveTripCard extends StatelessWidget {
   }
 }
 
-// ─── Travel log card (photo card 130×150) ────────────────────────────────────
-
-class _TravelLogCard extends StatelessWidget {
-  final TravelLogEntry entry;
-  const _TravelLogCard({required this.entry});
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(16),
-      child: SizedBox(
-        width: 130, height: 150,
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            Image.network(
-              entry.imageUrl,
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => Container(color: _kSurface),
-            ),
-            // Bottom gradient
-            Positioned.fill(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter, end: Alignment.bottomCenter,
-                    colors: [Colors.transparent, Colors.black.withOpacity(.80)],
-                    stops: const [0.40, 1.0],
-                  ),
-                ),
-              ),
-            ),
-            // Text overlay
-            Positioned(
-              left: 12, right: 12, bottom: 12,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(entry.destination, style: const TextStyle(
-                    color: Colors.white, fontSize: 14, fontWeight: FontWeight.w700,
-                  )),
-                  const SizedBox(height: 2),
-                  Text(entry.companions, style: TextStyle(
-                    color: Colors.white.withOpacity(.70), fontSize: 11,
-                  )),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ─── Review card (with star rating) ──────────────────────────────────────────
-
+// ─── Review card ───────────────────────────────────────────────────────────────────────
 class _ReviewCard extends StatelessWidget {
-  final TravelReview review;
-  const _ReviewCard({required this.review});
+  final String initial;
+  final String name;
+  final String tripLabel;
+  final String text;
+  final double stars;
+  const _ReviewCard({
+    required this.initial,
+    required this.name,
+    required this.tripLabel,
+    required this.text,
+    required this.stars,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -841,7 +708,6 @@ class _ReviewCard extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  // Avatar initial
                   Container(
                     width: 32, height: 32,
                     decoration: BoxDecoration(
@@ -849,47 +715,51 @@ class _ReviewCard extends StatelessWidget {
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Center(
-                      child: Text(review.initial, style: const TextStyle(
-                        color: _kTeal2, fontSize: 14, fontWeight: FontWeight.w700,
-                      )),
-                    ),
+                        child: Text(initial,
+                            style: const TextStyle(
+                                color: _kTeal2,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700))),
                   ),
                   const SizedBox(width: 10),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(review.name, style: const TextStyle(
-                        color: _kText, fontSize: 14, fontWeight: FontWeight.w600,
-                      )),
-                      Text(review.tripLabel, style: const TextStyle(
-                        color: _kMuted, fontSize: 11,
-                      )),
+                      Text(name,
+                          style: const TextStyle(
+                              color: _kText,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600)),
+                      Text(tripLabel,
+                          style: const TextStyle(
+                              color: _kMuted, fontSize: 11)),
                     ],
                   ),
                 ],
               ),
-              // Gold star rating
               Row(
-                children: List.generate(review.stars.round(), (_) =>
-                const Icon(Icons.star_rounded, color: _kGold, size: 13),
+                children: List.generate(
+                  stars.round(),
+                  (_) => const Icon(Icons.star_rounded,
+                      color: _kGold, size: 13),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 12),
-          Text(review.text, style: const TextStyle(
-            color: _kText, fontSize: 13, height: 1.5,
-          )),
+          Text(text,
+              style:
+                  const TextStyle(color: _kText, fontSize: 13, height: 1.5)),
         ],
       ),
     );
   }
 }
 
-// ─── Bottom CTA ───────────────────────────────────────────────────────────────
-
+// ─── Bottom CTA ───────────────────────────────────────────────────────────────────────
 class _BottomCta extends StatelessWidget {
-  final UserProfileData profile;
+  final ProfileModel profile;
+  final Map<String, dynamic>? activeTrip;
   final bool showForm;
   final TextEditingController msgCtrl;
   final VoidCallback onAskToJoin;
@@ -899,6 +769,7 @@ class _BottomCta extends StatelessWidget {
 
   const _BottomCta({
     required this.profile,
+    required this.activeTrip,
     required this.showForm,
     required this.msgCtrl,
     required this.onAskToJoin,
@@ -910,10 +781,12 @@ class _BottomCta extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.fromLTRB(20, 16, 20, 16 + bottomInset),
+      padding:
+          EdgeInsets.fromLTRB(20, 16, 20, 16 + bottomInset),
       decoration: BoxDecoration(
         color: _kBg,
-        border: Border(top: BorderSide(color: Colors.white.withOpacity(.06))),
+        border:
+            Border(top: BorderSide(color: Colors.white.withOpacity(.06))),
         gradient: LinearGradient(
           begin: Alignment.topCenter, end: Alignment.bottomCenter,
           colors: [Colors.transparent, _kBg],
@@ -922,78 +795,98 @@ class _BottomCta extends StatelessWidget {
       ),
       child: showForm
           ? _RequestForm(
-        profile: profile,
-        msgCtrl: msgCtrl,
-        onSend: onSend,
-        onDismiss: onDismiss,
-      )
-          : _JoinCta(profile: profile, onAskToJoin: onAskToJoin),
+              profileName: profile.name ?? 'Traveler',
+              tripName: activeTrip?['destination'] as String? ?? 'their trip',
+              msgCtrl: msgCtrl,
+              onSend: onSend,
+              onDismiss: onDismiss,
+            )
+          : _JoinCta(
+              profileName: profile.name ?? 'Traveler',
+              hasActiveTrip: activeTrip != null,
+              onAskToJoin: onAskToJoin,
+            ),
     );
   }
 }
 
 class _JoinCta extends StatelessWidget {
-  final UserProfileData profile;
+  final String profileName;
+  final bool hasActiveTrip;
   final VoidCallback onAskToJoin;
-  const _JoinCta({required this.profile, required this.onAskToJoin});
+  const _JoinCta({
+    required this.profileName,
+    required this.hasActiveTrip,
+    required this.onAskToJoin,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // White CTA button (design: var(--text) bg, black text)
         GestureDetector(
-          onTap: onAskToJoin,
+          onTap: hasActiveTrip ? onAskToJoin : null,
           child: Container(
             width: double.infinity,
             height: 56,
             decoration: BoxDecoration(
-              color: _kText,
+              color: hasActiveTrip ? _kText : _kText.withOpacity(.3),
               borderRadius: BorderRadius.circular(16),
-              boxShadow: [BoxShadow(
-                color: Colors.white.withOpacity(.10),
-                blurRadius: 24, offset: const Offset(0, 8),
-              )],
+              boxShadow: hasActiveTrip
+                  ? [
+                      BoxShadow(
+                        color: Colors.white.withOpacity(.10),
+                        blurRadius: 24,
+                        offset: const Offset(0, 8),
+                      )
+                    ]
+                  : [],
             ),
-            child: const Center(
+            child: Center(
               child: Text(
-                'Ask to Join Trip',
+                hasActiveTrip ? 'Ask to Join Trip' : 'No active trip',
                 style: TextStyle(
-                  color: Colors.black,
-                  fontSize: 16, fontWeight: FontWeight.w800,
+                  color: hasActiveTrip ? Colors.black : _kFaint,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
                 ),
               ),
             ),
           ),
         ),
-        const SizedBox(height: 12),
-        // Lock text
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.lock_outline_rounded, color: _kFaint, size: 12),
-            const SizedBox(width: 4),
-            Text(
-              'Messaging unlocks if ${profile.name} accepts',
-              style: const TextStyle(
-                color: _kFaint, fontSize: 11, fontWeight: FontWeight.w600,
+        if (hasActiveTrip) ...[
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.lock_outline_rounded,
+                  color: _kFaint, size: 12),
+              const SizedBox(width: 4),
+              Text(
+                'Messaging unlocks if $profileName accepts',
+                style: const TextStyle(
+                    color: _kFaint,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600),
               ),
-            ),
-          ],
-        ),
+            ],
+          ),
+        ],
       ],
     );
   }
 }
 
 class _RequestForm extends StatelessWidget {
-  final UserProfileData profile;
+  final String profileName;
+  final String tripName;
   final TextEditingController msgCtrl;
   final VoidCallback onSend;
   final VoidCallback onDismiss;
   const _RequestForm({
-    required this.profile,
+    required this.profileName,
+    required this.tripName,
     required this.msgCtrl,
     required this.onSend,
     required this.onDismiss,
@@ -1005,7 +898,6 @@ class _RequestForm extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Handle
         Center(
           child: Container(
             width: 40, height: 4,
@@ -1016,32 +908,33 @@ class _RequestForm extends StatelessWidget {
             ),
           ),
         ),
-        // Title
         const Center(
-          child: Text('Request to Join', style: TextStyle(
-            color: _kText, fontSize: 20, fontWeight: FontWeight.w700,
-          )),
+          child: Text('Request to Join',
+              style: TextStyle(
+                  color: _kText,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700)),
         ),
         const SizedBox(height: 8),
-        // Subtitle
         Center(
           child: RichText(
             textAlign: TextAlign.center,
             text: TextSpan(
-              style: const TextStyle(color: _kMuted, fontSize: 13, height: 1.4),
+              style: const TextStyle(
+                  color: _kMuted, fontSize: 13, height: 1.4),
               children: [
                 const TextSpan(text: 'You are asking to join '),
                 TextSpan(
-                  text: profile.activeTripName,
-                  style: const TextStyle(color: _kText, fontWeight: FontWeight.w600),
-                ),
-                TextSpan(text: '. Introduce yourself to ${profile.name}!'),
+                    text: tripName,
+                    style: const TextStyle(
+                        color: _kText, fontWeight: FontWeight.w600)),
+                TextSpan(
+                    text: '. Introduce yourself to $profileName!'),
               ],
             ),
           ),
         ),
         const SizedBox(height: 24),
-        // Text input area
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -1052,21 +945,23 @@ class _RequestForm extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'YOUR MESSAGE',
-                style: TextStyle(
-                  color: _kFaint, fontSize: 10, fontWeight: FontWeight.w800,
-                  letterSpacing: .05,
-                ),
-              ),
+              const Text('YOUR MESSAGE',
+                  style: TextStyle(
+                      color: _kFaint,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: .05)),
               const SizedBox(height: 12),
               TextField(
                 controller: msgCtrl,
                 maxLines: 3,
-                style: const TextStyle(color: _kText, fontSize: 14, height: 1.5),
+                style: const TextStyle(
+                    color: _kText, fontSize: 14, height: 1.5),
                 decoration: InputDecoration(
-                  hintText: 'Hey ${profile.name}! Your trip sounds exactly like what I\'m looking for...',
-                  hintStyle: const TextStyle(color: _kFaint, fontSize: 14),
+                  hintText:
+                      'Hey $profileName! Your trip sounds exactly like what I\'m looking for...',
+                  hintStyle:
+                      const TextStyle(color: _kFaint, fontSize: 14),
                   border: InputBorder.none,
                   isDense: true,
                   contentPadding: EdgeInsets.zero,
@@ -1076,7 +971,6 @@ class _RequestForm extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 20),
-        // Send button (teal, matching design)
         GestureDetector(
           onTap: onSend,
           child: Container(
@@ -1085,19 +979,19 @@ class _RequestForm extends StatelessWidget {
             decoration: BoxDecoration(
               color: _kTeal,
               borderRadius: BorderRadius.circular(16),
-              boxShadow: [BoxShadow(
-                color: _kTeal.withOpacity(.20),
-                blurRadius: 24, offset: const Offset(0, 8),
-              )],
+              boxShadow: [
+                BoxShadow(
+                    color: _kTeal.withOpacity(.20),
+                    blurRadius: 24,
+                    offset: const Offset(0, 8))
+              ],
             ),
             child: const Center(
-              child: Text(
-                'Send Request',
-                style: TextStyle(
-                  color: Color(0xFF041818),
-                  fontSize: 16, fontWeight: FontWeight.w800,
-                ),
-              ),
+              child: Text('Send Request',
+                  style: TextStyle(
+                      color: Color(0xFF041818),
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800)),
             ),
           ),
         ),
