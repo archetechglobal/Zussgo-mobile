@@ -1,415 +1,500 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-class TravelLogEntry {
-  final String emoji;
-  final String destination;
-  final String companions;
+final _supabase = Supabase.instance.client;
 
-  const TravelLogEntry({
-    required this.emoji,
-    required this.destination,
-    required this.companions,
-  });
+class UserProfileScreen extends StatefulWidget {
+  final String userId;
+  const UserProfileScreen({super.key, required this.userId});
+
+  @override
+  State<UserProfileScreen> createState() => _UserProfileScreenState();
 }
 
-class TravelReview {
-  final String initial;
-  final String name;
-  final String tripLabel;
+class _UserProfileScreenState extends State<UserProfileScreen> {
+  Map<String, dynamic>? _profile;
+  bool _loading = true;
+  String? _error;
+  bool _requestSent = false;
+  bool _sending = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchProfile();
+    _checkExistingRequest();
+  }
+
+  Future<void> _fetchProfile() async {
+    try {
+      final data = await _supabase
+          .from('profiles')
+          .select(
+            'id, full_name, display_name, avatar_url, bio, location, based_in, '
+            'vibes, trip_count, buddy_count, rating, active_trip_id, '
+            'trips:active_trip_id(id, name, start_date, end_date, looking_for)',
+          )
+          .eq('id', widget.userId)
+          .single();
+      if (mounted) {
+        setState(() {
+          _profile = data;
+          _loading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = e.toString();
+          _loading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _checkExistingRequest() async {
+    try {
+      final me = _supabase.auth.currentUser?.id;
+      if (me == null) return;
+      final existing = await _supabase
+          .from('connections')
+          .select('id')
+          .eq('sender_id', me)
+          .eq('receiver_id', widget.userId)
+          .maybeSingle();
+      if (mounted && existing != null) {
+        setState(() => _requestSent = true);
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _sendConnectionRequest() async {
+    if (_requestSent || _sending) return;
+    final me = _supabase.auth.currentUser?.id;
+    if (me == null) return;
+
+    setState(() => _sending = true);
+
+    final hasActiveTrip = _profile?['active_trip_id'] != null;
+
+    try {
+      await _supabase.from('connections').insert({
+        'sender_id': me,
+        'receiver_id': widget.userId,
+        'status': 'pending',
+        'type': hasActiveTrip ? 'trip_request' : 'general',
+        if (hasActiveTrip) 'trip_id': _profile!['active_trip_id'],
+      });
+      if (mounted) {
+        setState(() {
+          _requestSent = true;
+          _sending = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              hasActiveTrip ? 'Trip request sent!' : 'Connection request sent!',
+            ),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _sending = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to send request: $e'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (_error != null || _profile == null) {
+      return Scaffold(
+        appBar: AppBar(),
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.person_off_outlined, size: 48, color: Colors.grey),
+              const SizedBox(height: 12),
+              Text(
+                'Profile not found',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              if (_error != null) ...
+                [const SizedBox(height: 8), Text(_error!, style: const TextStyle(color: Colors.grey))],
+            ],
+          ),
+        ),
+      );
+    }
+
+    final p = _profile!;
+    final name = (p['full_name'] ?? p['display_name'] ?? 'User') as String;
+    final bio = (p['bio'] ?? '') as String;
+    final avatarUrl = p['avatar_url'] as String?;
+    final basedIn = (p['location'] ?? p['based_in'] ?? '') as String;
+    final vibes = (p['vibes'] as List?)?.cast<String>() ?? <String>[];
+    final tripCount = p['trip_count'] as int? ?? 0;
+    final buddyCount = p['buddy_count'] as int? ?? 0;
+    final rating = (p['rating'] as num?)?.toDouble() ?? 0.0;
+    final activeTrip = p['trips'] as Map<String, dynamic>?;
+    final hasActiveTrip = activeTrip != null;
+
+    return Scaffold(
+      backgroundColor: const Color(0xFF0F0F0F),
+      body: CustomScrollView(
+        slivers: [
+          // ── App bar with avatar ────────────────────────────────────────────
+          SliverAppBar(
+            expandedHeight: 280,
+            pinned: true,
+            backgroundColor: const Color(0xFF0F0F0F),
+            flexibleSpace: FlexibleSpaceBar(
+              background: Container(
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [Color(0xFF1A1A2E), Color(0xFF0F0F0F)],
+                  ),
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const SizedBox(height: 48),
+                    CircleAvatar(
+                      radius: 52,
+                      backgroundColor: const Color(0xFF58DAD0),
+                      backgroundImage:
+                          avatarUrl != null ? NetworkImage(avatarUrl) : null,
+                      child: avatarUrl == null
+                          ? Text(
+                              name.isNotEmpty ? name[0].toUpperCase() : '?',
+                              style: const TextStyle(
+                                  fontSize: 40,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white),
+                            )
+                          : null,
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      name,
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold),
+                    ),
+                    if (basedIn.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(
+                          '📍 $basedIn',
+                          style: const TextStyle(
+                              color: Colors.white70, fontSize: 14),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // ── Stats row ─────────────────────────────────────────────
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      _StatChip(label: 'Trips', value: '$tripCount'),
+                      _StatChip(label: 'Buddies', value: '$buddyCount'),
+                      _StatChip(
+                          label: 'Rating',
+                          value: rating > 0 ? rating.toStringAsFixed(1) : '—'),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+
+                  // ── Bio ───────────────────────────────────────────────────
+                  if (bio.isNotEmpty) ...[  
+                    const _SectionLabel('About'),
+                    const SizedBox(height: 6),
+                    Text(
+                      bio,
+                      style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 15,
+                          height: 1.5),
+                    ),
+                    const SizedBox(height: 20),
+                  ],
+
+                  // ── Vibes ─────────────────────────────────────────────────
+                  if (vibes.isNotEmpty) ...[  
+                    const _SectionLabel('Travel Vibes'),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: vibes
+                          .map((v) => _VibePill(label: v))
+                          .toList(),
+                    ),
+                    const SizedBox(height: 20),
+                  ],
+
+                  // ── Active trip card (optional — shown only when exists) ──
+                  if (hasActiveTrip) ...[  
+                    const _SectionLabel('Active Trip'),
+                    const SizedBox(height: 10),
+                    _ActiveTripCard(trip: activeTrip!),
+                    const SizedBox(height: 20),
+                  ],
+
+                  // ── No trip notice ────────────────────────────────────────
+                  if (!hasActiveTrip)
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1C1C1C),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                            color: Colors.white12, width: 1),
+                      ),
+                      child: Row(
+                        children: const [
+                          Icon(Icons.explore_outlined,
+                              color: Colors.white38, size: 20),
+                          SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'No active trip right now — but open to planning one!',
+                              style: TextStyle(
+                                  color: Colors.white54, fontSize: 13),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                  const SizedBox(height: 28),
+
+                  // ── Connect button — ALWAYS VISIBLE ───────────────────────
+                  SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: ElevatedButton.icon(
+                      onPressed:
+                          (_requestSent || _sending) ? null : _sendConnectionRequest,
+                      icon: _sending
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2, color: Colors.white),
+                            )
+                          : Icon(
+                              _requestSent
+                                  ? Icons.check_circle_outline
+                                  : (hasActiveTrip
+                                      ? Icons.luggage_outlined
+                                      : Icons.person_add_outlined),
+                            ),
+                      label: Text(
+                        _requestSent
+                            ? 'Request Sent'
+                            : (hasActiveTrip
+                                ? 'Request to Join Trip'
+                                : 'Connect with $name'),
+                        style: const TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.w600),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _requestSent
+                            ? const Color(0xFF2A2A2A)
+                            : const Color(0xFF58DAD0),
+                        foregroundColor:
+                            _requestSent ? Colors.white54 : Colors.black,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        elevation: 0,
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 32),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Supporting widgets ────────────────────────────────────────────────────────
+
+class _SectionLabel extends StatelessWidget {
   final String text;
+  const _SectionLabel(this.text);
 
-  const TravelReview({
-    required this.initial,
-    required this.name,
-    required this.tripLabel,
-    required this.text,
-  });
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      style: const TextStyle(
+          color: Colors.white,
+          fontSize: 16,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0.3),
+    );
+  }
 }
 
-class UserProfileData {
-  final String name;
-  final int age;
-  final String basedIn;
-  final String avatarInitial;
-  final Color avatarColor;
-  final double rating;
-  final int tripCount;
-  final int buddyCount;
-  final String bio;
-  final List<String> vibes;
-  final String activeTripName;
-  final String activeTripDates;
-  final String activeTripLooking;
-  final List<TravelLogEntry> travelLog;
-  final List<TravelReview> reviews;
-  final List<String> gallery;
+class _StatChip extends StatelessWidget {
+  final String label;
+  final String value;
+  const _StatChip({required this.label, required this.value});
 
-  const UserProfileData({
-    required this.name,
-    required this.age,
-    required this.basedIn,
-    required this.avatarInitial,
-    required this.avatarColor,
-    required this.rating,
-    required this.tripCount,
-    required this.buddyCount,
-    required this.bio,
-    required this.vibes,
-    required this.activeTripName,
-    required this.activeTripDates,
-    required this.activeTripLooking,
-    required this.travelLog,
-    required this.reviews,
-    required this.gallery,
-  });
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1C1C1C),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        children: [
+          Text(
+            value,
+            style: const TextStyle(
+                color: Colors.white,
+                fontSize: 20,
+                fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style:
+                const TextStyle(color: Colors.white54, fontSize: 12),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
-final _mockProfiles = <String, UserProfileData>{
-  'meera': UserProfileData(
-    name: 'Meera',
-    age: 24,
-    basedIn: 'Pune',
-    avatarInitial: 'M',
-    avatarColor: const Color(0xFF58DAD0),
-    rating: 4.9,
-    tripCount: 8,
-    buddyCount: 12,
-    bio:
-    'Adventure seeker by default. Mountains, high altitudes, and terrible wifi — that\'s the dream. Always looking for a solid trek partner.',
-    vibes: const ['🏔 Adventure', '🎒 Backpacker', '🌄 Sunrise Chaser'],
-    activeTripName: 'Spiti Valley Crew',
-    activeTripDates: 'May 10–18',
-    activeTripLooking: 'Looking for 1–2',
-    travelLog: const [
-      TravelLogEntry(
-        emoji: '🏔',
-        destination: 'Leh Ladakh',
-        companions: 'with Arjun +2',
-      ),
-      TravelLogEntry(
-        emoji: '🌴',
-        destination: 'Andaman',
-        companions: 'Solo',
-      ),
-      TravelLogEntry(
-        emoji: '🏛',
-        destination: 'Hampi',
-        companions: 'with Sara',
-      ),
-      TravelLogEntry(
-        emoji: '❄️',
-        destination: 'Kasol',
-        companions: 'with 3 others',
-      ),
-    ],
-    reviews: const [
-      TravelReview(
-        initial: 'A',
-        name: 'Arjun K.',
-        tripLabel: 'Leh • Aug 2025',
-        text:
-        'Meera is an incredible travel buddy. Planned every detail, kept spirits high even at 17,000 ft.',
-      ),
-      TravelReview(
-        initial: 'S',
-        name: 'Sara M.',
-        tripLabel: 'Hampi • Feb 2025',
-        text:
-        'Super organised and so much fun. Never a dull moment. Highly recommend travelling with Meera.',
-      ),
-    ],
-    gallery: const ['Summit', 'Camp', 'Sunrise'],
-  ),
-  'kabir': UserProfileData(
-    name: 'Kabir',
-    age: 26,
-    basedIn: 'Mumbai',
-    avatarInitial: 'K',
-    avatarColor: const Color(0xFFF7B84E),
-    rating: 4.7,
-    tripCount: 11,
-    buddyCount: 15,
-    bio:
-    'Festival-first traveler. Music, chaos, food trails, beach nights — that is my kind of plan.',
-    vibes: const ['🎉 Festival', '🎵 Live Music', '🌃 Night Owl'],
-    activeTripName: 'Goa Festival Crew',
-    activeTripDates: 'May 12–15',
-    activeTripLooking: 'Looking for 2',
-    travelLog: const [
-      TravelLogEntry(
-        emoji: '🎪',
-        destination: 'Goa',
-        companions: 'with 4 others',
-      ),
-      TravelLogEntry(
-        emoji: '🏖',
-        destination: 'Alibaug',
-        companions: 'Solo',
-      ),
-      TravelLogEntry(
-        emoji: '🎸',
-        destination: 'Pune',
-        companions: 'with friends',
-      ),
-    ],
-    reviews: const [
-      TravelReview(
-        initial: 'R',
-        name: 'Rhea P.',
-        tripLabel: 'Goa • Dec 2025',
-        text: 'Kabir keeps the vibe alive. Perfect if you want a high-energy trip.',
-      ),
-    ],
-    gallery: const ['Beach', 'Concert', 'Night'],
-  ),
-  'anika': UserProfileData(
-    name: 'Anika',
-    age: 23,
-    basedIn: 'Delhi',
-    avatarInitial: 'A',
-    avatarColor: const Color(0xFFB57BFF),
-    rating: 4.7,
-    tripCount: 6,
-    buddyCount: 9,
-    bio:
-    'History nerd who turned it into travel goals. Heritage sites, local bazaars, and street food — that\'s my kind of trip.',
-    vibes: const ['🏛 Culture', '📸 Photographer', '☕ Cafe Hopper'],
-    activeTripName: 'Jaipur Heritage Crew',
-    activeTripDates: 'May 14–17',
-    activeTripLooking: 'Looking for 1',
-    travelLog: const [
-      TravelLogEntry(
-        emoji: '🏯',
-        destination: 'Jaisalmer',
-        companions: 'Solo',
-      ),
-      TravelLogEntry(
-        emoji: '🕌',
-        destination: 'Agra',
-        companions: 'with Neha',
-      ),
-      TravelLogEntry(
-        emoji: '🌊',
-        destination: 'Pondicherry',
-        companions: 'with 2 others',
-      ),
-    ],
-    reviews: const [
-      TravelReview(
-        initial: 'N',
-        name: 'Neha R.',
-        tripLabel: 'Agra • Jan 2025',
-        text:
-        'Anika knows every hidden gem in every city. Best travel guide I\'ve ever had.',
-      ),
-    ],
-    gallery: const ['Fort', 'Cafe', 'Market'],
-  ),
-  'dev': UserProfileData(
-    name: 'Dev',
-    age: 25,
-    basedIn: 'Bangalore',
-    avatarInitial: 'D',
-    avatarColor: const Color(0xFF58DAD0),
-    rating: 4.5,
-    tripCount: 9,
-    buddyCount: 10,
-    bio:
-    'Trekking, camping, and cold mornings. I like a trip with challenge, views, and good people.',
-    vibes: const ['🥾 Trekking', '🏕 Camping', '🌄 Sunrise Chaser'],
-    activeTripName: 'Coorg Trails',
-    activeTripDates: 'May 18–21',
-    activeTripLooking: 'Looking for 1',
-    travelLog: const [
-      TravelLogEntry(
-        emoji: '🥾',
-        destination: 'Kodai',
-        companions: 'with 2 others',
-      ),
-      TravelLogEntry(
-        emoji: '🏕',
-        destination: 'Coorg',
-        companions: 'Solo',
-      ),
-      TravelLogEntry(
-        emoji: '🌿',
-        destination: 'Munnar',
-        companions: 'with Priya',
-      ),
-    ],
-    reviews: const [],
-    gallery: const ['Trail', 'Tent', 'Peak'],
-  ),
-  'priya': UserProfileData(
-    name: 'Priya',
-    age: 22,
-    basedIn: 'Chennai',
-    avatarInitial: 'P',
-    avatarColor: const Color(0xFFFFB3C1),
-    rating: 4.8,
-    tripCount: 5,
-    buddyCount: 7,
-    bio:
-    'Beaches, hammocks and zero agenda. I travel slow. If you\'re rushing, we\'re not a match.',
-    vibes: const ['🌊 Beach', '🧘 Mindful', '🌅 Sunset Hunter'],
-    activeTripName: 'Kerala Backwaters',
-    activeTripDates: 'May 20–25',
-    activeTripLooking: 'Looking for 2',
-    travelLog: const [
-      TravelLogEntry(
-        emoji: '🌴',
-        destination: 'Goa',
-        companions: 'with Dev +1',
-      ),
-      TravelLogEntry(
-        emoji: '🏝',
-        destination: 'Varkala',
-        companions: 'Solo',
-      ),
-      TravelLogEntry(
-        emoji: '🌿',
-        destination: 'Coorg',
-        companions: 'with friends',
-      ),
-    ],
-    reviews: const [],
-    gallery: const ['Sea', 'Boat', 'Sunset'],
-  ),
-  'rohan': UserProfileData(
-    name: 'Rohan',
-    age: 27,
-    basedIn: 'Hyderabad',
-    avatarInitial: 'R',
-    avatarColor: const Color(0xFFF7B84E),
-    rating: 4.4,
-    tripCount: 7,
-    buddyCount: 11,
-    bio:
-    'Road trips, music, and spontaneous plans. If there is a late-night drive involved, I\'m in.',
-    vibes: const ['🎸 Party', '🚗 Roadtrip', '🌃 Nightlife'],
-    activeTripName: 'Pune–Goa Road Trip',
-    activeTripDates: 'May 22–26',
-    activeTripLooking: 'Looking for 2',
-    travelLog: const [
-      TravelLogEntry(
-        emoji: '🎸',
-        destination: 'Goa',
-        companions: 'with crew',
-      ),
-      TravelLogEntry(
-        emoji: '🏙',
-        destination: 'Pune',
-        companions: 'Solo',
-      ),
-      TravelLogEntry(
-        emoji: '🌊',
-        destination: 'Mahabaleshwar',
-        companions: 'with 3 others',
-      ),
-    ],
-    reviews: const [],
-    gallery: const ['Drive', 'City', 'Party'],
-  ),
-  'sara': UserProfileData(
-    name: 'Sara',
-    age: 24,
-    basedIn: 'Jaipur',
-    avatarInitial: 'S',
-    avatarColor: const Color(0xFFB57BFF),
-    rating: 4.9,
-    tripCount: 10,
-    buddyCount: 16,
-    bio:
-    'Forts, bazaars and photography. I like beautiful places, slower travel, and thoughtful company.',
-    vibes: const ['🏛 Culture', '📸 Photography', '🛍 Bazaar Hopper'],
-    activeTripName: 'Udaipur Lake Trip',
-    activeTripDates: 'May 15–18',
-    activeTripLooking: 'Looking for 1',
-    travelLog: const [
-      TravelLogEntry(
-        emoji: '🏯',
-        destination: 'Jodhpur',
-        companions: 'Solo',
-      ),
-      TravelLogEntry(
-        emoji: '🌅',
-        destination: 'Udaipur',
-        companions: 'with Anika',
-      ),
-      TravelLogEntry(
-        emoji: '🏛',
-        destination: 'Pushkar',
-        companions: 'with 2 others',
-      ),
-    ],
-    reviews: const [],
-    gallery: const ['Lake', 'Palace', 'Photo'],
-  ),
-  'arjun': UserProfileData(
-    name: 'Arjun',
-    age: 28,
-    basedIn: 'Kolkata',
-    avatarInitial: 'A',
-    avatarColor: const Color(0xFFF7B84E),
-    rating: 4.6,
-    tripCount: 13,
-    buddyCount: 20,
-    bio:
-    'Documentary photographer chasing stories across India. I like slow mornings and meaningful trips.',
-    vibes: const ['📸 Photo', '🎬 Storytelling', '🌍 Explorer'],
-    activeTripName: 'Northeast India Series',
-    activeTripDates: 'May 28 – Jun 5',
-    activeTripLooking: 'Looking for 1–2',
-    travelLog: const [
-      TravelLogEntry(
-        emoji: '📸',
-        destination: 'Meghalaya',
-        companions: 'Solo',
-      ),
-      TravelLogEntry(
-        emoji: '🏔',
-        destination: 'Sikkim',
-        companions: 'with Meera',
-      ),
-      TravelLogEntry(
-        emoji: '🌿',
-        destination: 'Assam',
-        companions: 'with 2 others',
-      ),
-    ],
-    reviews: const [],
-    gallery: const ['Clouds', 'Lens', 'Hills'],
-  ),
-};
+class _VibePill extends StatelessWidget {
+  final String label;
+  const _VibePill({required this.label});
 
-UserProfileData fallbackProfile(String name) => UserProfileData(
-  name: name,
-  age: 24,
-  basedIn: 'India',
-  avatarInitial: name.isNotEmpty ? name[0].toUpperCase() : '?',
-  avatarColor: const Color(0xFF58DAD0),
-  rating: 4.8,
-  tripCount: 6,
-  buddyCount: 10,
-  bio: 'Travel enthusiast always looking for the next adventure and great company.',
-  vibes: const ['🌍 Explorer', '🎒 Backpacker'],
-  activeTripName: 'Upcoming Trip',
-  activeTripDates: 'Coming soon',
-  activeTripLooking: 'Looking for buddies',
-  travelLog: const [
-    TravelLogEntry(
-      emoji: '✈️',
-      destination: 'Past trip',
-      companions: 'Solo',
-    ),
-  ],
-  reviews: const [],
-  gallery: const ['Trip'],
-);
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+      decoration: BoxDecoration(
+        color: const Color(0xFF58DAD0).withOpacity(0.12),
+        borderRadius: BorderRadius.circular(20),
+        border:
+            Border.all(color: const Color(0xFF58DAD0).withOpacity(0.3)),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+            color: Color(0xFF58DAD0),
+            fontSize: 13,
+            fontWeight: FontWeight.w500),
+      ),
+    );
+  }
+}
 
-UserProfileData profileDataFromName(String rawName) {
-  final key = rawName.toLowerCase().trim();
-  return _mockProfiles[key] ??
-      _mockProfiles[key.split(' ').first] ??
-      fallbackProfile(rawName.split(' ').first);
+class _ActiveTripCard extends StatelessWidget {
+  final Map<String, dynamic> trip;
+  const _ActiveTripCard({required this.trip});
+
+  @override
+  Widget build(BuildContext context) {
+    final tripName = trip['name'] ?? 'Upcoming Trip';
+    final startDate = trip['start_date'] ?? '';
+    final endDate = trip['end_date'] ?? '';
+    final lookingFor = trip['looking_for'] ?? '';
+    final dateRange =
+        (startDate.isNotEmpty && endDate.isNotEmpty) ? '$startDate – $endDate' : '';
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            const Color(0xFF58DAD0).withOpacity(0.15),
+            const Color(0xFF1C1C1C),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+            color: const Color(0xFF58DAD0).withOpacity(0.25)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.luggage_outlined,
+                  color: Color(0xFF58DAD0), size: 18),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  tripName,
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 15),
+                ),
+              ),
+            ],
+          ),
+          if (dateRange.isNotEmpty) ...[  
+            const SizedBox(height: 6),
+            Text(
+              dateRange,
+              style: const TextStyle(
+                  color: Colors.white60, fontSize: 13),
+            ),
+          ],
+          if (lookingFor.isNotEmpty) ...[  
+            const SizedBox(height: 4),
+            Text(
+              lookingFor,
+              style: const TextStyle(
+                  color: Color(0xFF58DAD0), fontSize: 13),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
 }

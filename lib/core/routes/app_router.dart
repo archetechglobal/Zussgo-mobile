@@ -14,6 +14,7 @@ import '../../features/match/screens/trip_detail_screen.dart';
 import '../../features/chat/screens/chat_list_screen.dart';
 import '../../features/chat/screens/chat_screen.dart';
 import '../../features/profile/screens/my_profile_screen.dart';
+import '../../features/profile/screens/user_profile_screen.dart';
 import '../../features/explore/screens/explore_screen.dart';
 import '../../features/trips/screens/active_trip_screen.dart';
 import '../../features/trips/screens/trip_rating_screen.dart';
@@ -42,9 +43,6 @@ final goRouter = GoRouter(
     ),
 
     // ── Auth callback deep link: zussgo://auth/callback?code=... ────────────
-    // GoRouter intercepts this before app_links can in some Flutter versions.
-    // We handle the PKCE exchange here and redirect to splash which re-checks
-    // the session via onAuthStateChange in EmailVerifyScreen.
     GoRoute(
       path: '/auth/callback',
       redirect: (context, state) async {
@@ -54,8 +52,6 @@ final goRouter = GoRouter(
         } catch (e) {
           debugPrint('[GoRouter] Auth callback error: $e');
         }
-        // onAuthStateChange in EmailVerifyScreen will handle navigation;
-        // redirect to splash as a safe fallback.
         return '/splash';
       },
     ),
@@ -91,6 +87,16 @@ final goRouter = GoRouter(
       name: 'profile',
       builder: (c, s) => const MyProfileScreen(),
     ),
+
+    // ── View another user's profile by their Supabase UUID ─────────────────
+    GoRoute(
+      path: '/user/:userId',
+      name: 'user-profile',
+      builder: (c, s) => UserProfileScreen(
+        userId: s.pathParameters['userId'] ?? '',
+      ),
+    ),
+
     GoRoute(
       path: '/explore',
       name: 'explore',
