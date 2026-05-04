@@ -27,5 +27,5 @@ class AppAuthNewGoogleUser extends AppAuthState {
   final User user;
   final String displayName;
   final String photoUrl;
-  const AppAuthNewGoogleUser(this.user, this.displayName, this.photoUrl);
+  AppAuthNewGoogleUser(this.user, this.displayName, this.photoUrl);
 }
