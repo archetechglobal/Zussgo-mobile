@@ -3,7 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/supabase/supabase_client.dart';
 
 class AuthRepository {
-  // ── Email / Password ──────────────────────────────────────────────────────────────────────────
+  // ── Email / Password ──────────────────────────────────────────────────────
 
   Future<AuthResponse> signUpWithEmail({
     required String email,
@@ -34,9 +34,17 @@ class AuthRepository {
     );
   }
 
-  // ── Google OAuth ────────────────────────────────────────────────────────────────────────────
+  // ── Google OAuth ──────────────────────────────────────────────────────────
 
-  Future<AuthResponse> signInWithGoogle() async {
+  /// Returns the AuthResponse plus Google display info and a new-user flag.
+  /// [isNewUser] is true when no profiles row existed before this sign-in.
+  Future<
+      ({
+        AuthResponse response,
+        bool isNewUser,
+        String displayName,
+        String photoUrl
+      })> signInWithGoogle() async {
     const webClientId =
         '438683605771-m47adu01tf5qq1p1km9utklbam9vgt4q.apps.googleusercontent.com';
 
@@ -51,48 +59,58 @@ class AuthRepository {
     final googleAuth  = await googleUser.authentication;
     final idToken     = googleAuth.idToken;
     final accessToken = googleAuth.accessToken;
-
     if (idToken == null) throw Exception('No ID token from Google');
 
     final response = await supabase.auth.signInWithIdToken(
       provider: OAuthProvider.google,
-      idToken:     idToken,
+      idToken: idToken,
       accessToken: accessToken,
     );
 
-    // ── Seed Google photo into profiles table (only if no custom photo exists) ──
-    // Supabase stores the picture in user_metadata automatically, but we also
-    // write it to profiles.avatar_url so it appears in all traveler cards,
-    // chat threads, and match screens without extra auth-layer reads.
-    final user = response.user;
-    if (user != null) {
-      final googlePhoto = user.userMetadata?['picture'] as String? ??
-          user.userMetadata?['avatar_url'] as String?;
+    final user = response.user!;
+    final meta = user.userMetadata ?? {};
 
-      if (googlePhoto != null && googlePhoto.isNotEmpty) {
-        // Only write if avatar_url is currently null/empty — never overwrite a
-        // deliberate custom upload
-        final existing = await supabase
+    final displayName = (meta['name'] as String? ??
+            meta['full_name'] as String? ??
+            googleUser.displayName ??
+            '')
+        .trim();
+
+    final photoUrl = (meta['picture'] as String? ??
+            meta['avatar_url'] as String? ??
+            googleUser.photoUrl ??
+            '')
+        .trim();
+
+    // Check if a profiles row already exists → determines new vs returning
+    final existing = await supabase
+        .from('profiles')
+        .select('id, avatar_url')
+        .eq('id', user.id)
+        .maybeSingle();
+
+    final isNewUser = existing == null;
+
+    // Seed photo for new users or if they have no custom photo yet
+    if (photoUrl.isNotEmpty) {
+      final hasCustomPhoto =
+          existing != null && (existing['avatar_url'] as String? ?? '').isNotEmpty;
+      if (!hasCustomPhoto) {
+        await supabase
             .from('profiles')
-            .select('avatar_url')
-            .eq('id', user.id)
-            .maybeSingle();
-
-        final hasCustomPhoto =
-            existing != null && (existing['avatar_url'] as String? ?? '').isNotEmpty;
-
-        if (!hasCustomPhoto) {
-          await supabase
-              .from('profiles')
-              .upsert({'id': user.id, 'avatar_url': googlePhoto});
-        }
+            .upsert({'id': user.id, 'avatar_url': photoUrl});
       }
     }
 
-    return response;
+    return (
+      response: response,
+      isNewUser: isNewUser,
+      displayName: displayName,
+      photoUrl: photoUrl,
+    );
   }
 
-  // ── Phone / OTP ───────────────────────────────────────────────────────────────────────────
+  // ── Phone / OTP ───────────────────────────────────────────────────────────
 
   Future<void> signInWithPhone(String phone) async {
     await supabase.auth.signInWithOtp(phone: phone);
@@ -109,7 +127,7 @@ class AuthRepository {
     );
   }
 
-  // ── Resend verification ─────────────────────────────────────────────────────────────────────
+  // ── Resend verification ───────────────────────────────────────────────────
 
   Future<void> resendEmailVerification(String email) async {
     await supabase.auth.resend(
@@ -118,13 +136,13 @@ class AuthRepository {
     );
   }
 
-  // ── Sign out ─────────────────────────────────────────────────────────────────────────────
+  // ── Sign out ──────────────────────────────────────────────────────────────
 
   Future<void> signOut() async {
     await supabase.auth.signOut();
   }
 
-  // ── Getters ──────────────────────────────────────────────────────────────────────────────
+  // ── Getters ───────────────────────────────────────────────────────────────
 
   User? get currentUser => supabase.auth.currentUser;
   Session? get currentSession => supabase.auth.currentSession;

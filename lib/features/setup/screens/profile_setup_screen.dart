@@ -20,7 +20,14 @@ const _kFaint = Color(0xFF6A8882);
 // ─── Setup screen ─────────────────────────────────────────────────────────────
 
 class ProfileSetupScreen extends ConsumerStatefulWidget {
-  const ProfileSetupScreen({super.key});
+  final String googleName;
+  final String googlePhotoUrl;
+
+  const ProfileSetupScreen({
+    super.key,
+    this.googleName = '',
+    this.googlePhotoUrl = '',
+  });
 
   @override
   ConsumerState<ProfileSetupScreen> createState() => _ProfileSetupScreenState();
@@ -37,6 +44,7 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen>
   final _cityCtrl = TextEditingController();
   final _bioCtrl  = TextEditingController();
   bool _hasPhoto  = false;
+  String _googlePhotoUrl = '';
   final Set<String> _vibes   = {};
   String _budget   = '';
   String _pace     = '';
@@ -62,6 +70,12 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen>
     _progressAnim = Tween(begin: 0.0, end: 1 / _totalSteps)
         .animate(CurvedAnimation(parent: _progressCtrl, curve: Curves.easeOut));
     _progressCtrl.forward();
+
+    // Prefill from Google if provided
+    if (widget.googleName.isNotEmpty) {
+      _nameCtrl.text = widget.googleName;
+    }
+    _googlePhotoUrl = widget.googlePhotoUrl;
   }
 
   @override
@@ -267,7 +281,9 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen>
         onChanged: () => setState(() {}),
       );
       case 1: return _StepPhoto(
-        hasPhoto: _hasPhoto, bottom: bottom,
+        hasPhoto: _hasPhoto,
+        googlePhotoUrl: _googlePhotoUrl,
+        bottom: bottom,
         onAdd: () => setState(() => _hasPhoto = true),
         onNext: _next,
       );
@@ -336,22 +352,32 @@ class _StepBasics extends StatelessWidget {
 
 class _StepPhoto extends StatelessWidget {
   final bool hasPhoto;
+  final String googlePhotoUrl;
   final double bottom;
   final VoidCallback onAdd, onNext;
 
   const _StepPhoto({
-    required this.hasPhoto, required this.bottom,
-    required this.onAdd, required this.onNext,
+    required this.hasPhoto,
+    required this.googlePhotoUrl,
+    required this.bottom,
+    required this.onAdd,
+    required this.onNext,
   });
 
   @override
   Widget build(BuildContext context) {
+    final hasGooglePhoto = googlePhotoUrl.isNotEmpty;
+
     return _StepShell(
       emoji: '📸',
-      title: 'Add your\nprofile photo',
-      subtitle: 'Profiles with photos get 3× more connections.',
-      bottom: bottom, canContinue: true, onNext: onNext,
-      btnLabel: hasPhoto ? 'Looks great →' : 'Skip for now',
+      title: 'Your profile\nphoto',
+      subtitle: hasGooglePhoto
+          ? 'We grabbed your Google photo — keep it or tap to change.'
+          : 'Profiles with photos get 3× more connections.',
+      bottom: bottom,
+      canContinue: true,
+      onNext: onNext,
+      btnLabel: (hasPhoto || hasGooglePhoto) ? 'Looks great →' : 'Skip for now',
       child: Center(
         child: GestureDetector(
           onTap: onAdd,
@@ -359,37 +385,71 @@ class _StepPhoto extends StatelessWidget {
             duration: const Duration(milliseconds: 250),
             width: 160, height: 160,
             decoration: BoxDecoration(
-              color: hasPhoto
+              color: (hasPhoto || hasGooglePhoto)
                   ? _kTeal.withOpacity(.15)
                   : Colors.white.withOpacity(.03),
               borderRadius: BorderRadius.circular(40),
               border: Border.all(
-                color: hasPhoto
+                color: (hasPhoto || hasGooglePhoto)
                     ? _kTeal.withOpacity(.40)
                     : Colors.white.withOpacity(.12),
-                width: hasPhoto ? 2 : 1,
+                width: (hasPhoto || hasGooglePhoto) ? 2 : 1,
               ),
             ),
-            child: hasPhoto
-                ? Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: const [
-                Icon(Icons.check_circle_rounded, color: _kTeal2, size: 40),
-                SizedBox(height: 8),
-                Text('Photo added!', style: TextStyle(
-                  color: _kTeal2, fontSize: 13, fontWeight: FontWeight.w700,
-                )),
-              ],
-            )
-                : Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.add_a_photo_outlined, color: _kFaint, size: 36),
-                const SizedBox(height: 10),
-                const Text('Tap to upload', style: TextStyle(
-                  color: _kFaint, fontSize: 13,
-                )),
-              ],
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(38),
+              child: hasGooglePhoto && !hasPhoto
+                  ? Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        Image.network(
+                          googlePhotoUrl,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => const Icon(
+                            Icons.person_rounded,
+                            color: _kFaint, size: 60,
+                          ),
+                        ),
+                        Positioned(
+                          bottom: 0, left: 0, right: 0,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            color: Colors.black.withOpacity(.45),
+                            child: const Text(
+                              'Tap to change',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    )
+                  : hasPhoto
+                      ? Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: const [
+                            Icon(Icons.check_circle_rounded, color: _kTeal2, size: 40),
+                            SizedBox(height: 8),
+                            Text('Photo added!', style: TextStyle(
+                              color: _kTeal2, fontSize: 13, fontWeight: FontWeight.w700,
+                            )),
+                          ],
+                        )
+                      : Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.add_a_photo_outlined,
+                                color: _kFaint, size: 36),
+                            const SizedBox(height: 10),
+                            const Text('Tap to upload', style: TextStyle(
+                              color: _kFaint, fontSize: 13,
+                            )),
+                          ],
+                        ),
             ),
           ),
         ),
@@ -640,7 +700,6 @@ class _StepBio extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
-          // Preview card teaser
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
@@ -693,31 +752,22 @@ class _StepShell extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Emoji
                 Text(emoji, style: const TextStyle(fontSize: 40)),
                 const SizedBox(height: 14),
-
-                // Title
                 Text(title, style: const TextStyle(
                   color: _kText, fontSize: 30,
                   fontWeight: FontWeight.w800, letterSpacing: -.5, height: 1.15,
                 )),
                 const SizedBox(height: 8),
-
-                // Subtitle
                 Text(subtitle, style: const TextStyle(
                   color: _kMuted, fontSize: 14, height: 1.5,
                 )),
                 const SizedBox(height: 32),
-
-                // Step content
                 child,
               ],
             ),
           ),
         ),
-
-        // CTA button
         Padding(
           padding: EdgeInsets.fromLTRB(24, 12, 24, 16 + bottom),
           child: GestureDetector(

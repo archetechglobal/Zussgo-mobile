@@ -71,8 +71,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     ref.listen<AppAuthState>(authProvider, (_, next) {
       if (next is AppAuthSuccess) {
         context.go('/home');
+      } else if (next is AppAuthNewGoogleUser) {
+        // New Google user — send to setup with prefilled data
+        context.go('/setup', extra: {
+          'name':     next.displayName,
+          'photoUrl': next.photoUrl,
+        });
       } else if (next is AppAuthAwaitingVerification) {
-        // Unconfirmed email — send them to verify screen
         context.go('/verify-email', extra: next.email);
       } else if (next is AppAuthError) {
         _showSnack(next.message);
@@ -292,6 +297,12 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
     ref.listen<AppAuthState>(authProvider, (_, next) {
       if (next is AppAuthSuccess) {
         context.go('/setup');
+      } else if (next is AppAuthNewGoogleUser) {
+        // New Google user — send to setup with prefilled data
+        context.go('/setup', extra: {
+          'name':     next.displayName,
+          'photoUrl': next.photoUrl,
+        });
       } else if (next is AppAuthAwaitingVerification) {
         context.go('/verify-email', extra: next.email);
       } else if (next is AppAuthError) {
@@ -358,7 +369,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                   const _OrDivider(),
                   const SizedBox(height: 20),
 
-                  // ── Full name ──────────────────────────────────────────────
+                  // ── Full name ────────────────────────────────────────────
                   const _Label('FULL NAME'),
                   const SizedBox(height: 8),
                   _InputField(
@@ -369,7 +380,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                   ),
                   const SizedBox(height: 20),
 
-                  // ── Phone + Age row ────────────────────────────────────────
+                  // ── Phone + Age row ──────────────────────────────────────
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -412,7 +423,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                   ),
                   const SizedBox(height: 20),
 
-                  // ── Email ──────────────────────────────────────────────────
+                  // ── Email ────────────────────────────────────────────────
                   const _Label('EMAIL'),
                   const SizedBox(height: 8),
                   _InputField(
@@ -422,7 +433,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                   ),
                   const SizedBox(height: 20),
 
-                  // ── Password ───────────────────────────────────────────────
+                  // ── Password ─────────────────────────────────────────────
                   const _Label('PASSWORD'),
                   const SizedBox(height: 8),
                   _InputField(
@@ -441,7 +452,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                   ),
                   const SizedBox(height: 24),
 
-                  // ── Terms checkbox ─────────────────────────────────────────
+                  // ── Terms checkbox ───────────────────────────────────────
                   GestureDetector(
                     onTap: () => setState(() => _agreed = !_agreed),
                     child: Row(

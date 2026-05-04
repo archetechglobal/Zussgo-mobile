@@ -16,7 +16,7 @@ class AuthNotifier extends StateNotifier<AppAuthState> {
 
   AuthNotifier(this._repo) : super(AppAuthInitial());
 
-  // ── Email signup ─────────────────────────────────────────────────────────────
+  // ── Email signup ──────────────────────────────────────────────────────────
   Future<void> signUpWithEmail({
     required String email,
     required String password,
@@ -48,7 +48,7 @@ class AuthNotifier extends StateNotifier<AppAuthState> {
     }
   }
 
-  // ── Email login ──────────────────────────────────────────────────────────────
+  // ── Email login ───────────────────────────────────────────────────────────
   Future<void> signInWithEmail({
     required String email,
     required String password,
@@ -64,7 +64,6 @@ class AuthNotifier extends StateNotifier<AppAuthState> {
       }
     } catch (e) {
       final msg = _parseError(e);
-      // Guide unconfirmed users back to verify screen
       if (msg.toLowerCase().contains('email not confirmed')) {
         state = AppAuthAwaitingVerification(email);
       } else {
@@ -73,16 +72,30 @@ class AuthNotifier extends StateNotifier<AppAuthState> {
     }
   }
 
-  // ── Google Sign-In ───────────────────────────────────────────────────────────
+  // ── Google Sign-In ────────────────────────────────────────────────────────
   Future<void> signInWithGoogle() async {
     state = AppAuthLoading();
     try {
-      final res = await _repo.signInWithGoogle();
-      if (res.user != null) {
-        state = AppAuthSuccess(res.user!);
-        await FcmService.instance.onUserLoggedIn();
-      } else {
+      final result = await _repo.signInWithGoogle();
+      final user   = result.response.user;
+
+      if (user == null) {
         state = AppAuthError('Google sign-in failed. Please try again.');
+        return;
+      }
+
+      await FcmService.instance.onUserLoggedIn();
+
+      if (result.isNewUser) {
+        // New user → setup screen with prefilled Google data
+        state = AppAuthNewGoogleUser(
+          user,
+          result.displayName,
+          result.photoUrl,
+        );
+      } else {
+        // Returning user → straight to home
+        state = AppAuthSuccess(user);
       }
     } catch (e) {
       final msg = e.toString();
@@ -94,7 +107,7 @@ class AuthNotifier extends StateNotifier<AppAuthState> {
     }
   }
 
-  // ── Phone ────────────────────────────────────────────────────────────────────
+  // ── Phone ─────────────────────────────────────────────────────────────────
   Future<void> signInWithPhone(String phone) async {
     state = AppAuthLoading();
     try {
@@ -123,7 +136,7 @@ class AuthNotifier extends StateNotifier<AppAuthState> {
     }
   }
 
-  // ── Email verification check ─────────────────────────────────────────────────
+  // ── Email verification check ──────────────────────────────────────────────
   Future<bool> checkEmailVerified() async {
     try {
       final res = await supabase.auth.refreshSession();

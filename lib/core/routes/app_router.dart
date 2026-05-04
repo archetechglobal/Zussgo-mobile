@@ -70,7 +70,13 @@ final goRouter = GoRouter(
     GoRoute(
       path: '/setup',
       name: 'setup',
-      builder: (c, s) => const ProfileSetupScreen(),
+      builder: (c, s) {
+        final args = s.extra as Map<String, dynamic>?;
+        return ProfileSetupScreen(
+          googleName:     args?['name']     as String? ?? '',
+          googlePhotoUrl: args?['photoUrl'] as String? ?? '',
+        );
+      },
     ),
     GoRoute(
       path: '/notifications',
